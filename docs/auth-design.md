@@ -49,12 +49,54 @@ JWT จะเริ่มคุ้มเมื่อมีหลาย service �
 | username | text | unique, เก็บเป็นตัวพิมพ์เล็กที่ตัดช่องว่างแล้ว |
 | display_name | text | ชื่อที่แสดงในหน้าจอ |
 | password_hash | text | argon2id พร้อม salt ในตัว |
-| role | text | `admin` หรือ `nurse` |
 | is_active | boolean | ปิดบัญชีโดยไม่ลบข้อมูล |
 | must_change_password | boolean | บังคับเปลี่ยนรหัสหลัง admin รีเซ็ตให้ |
 | failed_attempts | integer | นับความพยายามที่ผิดติดกัน |
 | locked_until | timestamptz | null ถ้าไม่ถูกล็อก |
 | created_at / updated_at | timestamptz | |
+
+role ของผู้ใช้ย้ายไปอยู่ตาราง `user_roles` แล้ว (ดูหัวข้อ 10) เพื่อให้คนหนึ่งมีได้หลาย role
+
+### roles
+
+แคตตาล็อก role ที่ admin จัดการได้เอง (สร้าง/แก้/ลบผ่าน API ในหัวข้อ 5)
+
+| คอลัมน์ | ชนิด | หมายเหตุ |
+|---|---|---|
+| id | uuid | primary key |
+| name | text | unique, ชื่อ role เช่น `admin`, `nurse`, หรือชื่อที่ admin ตั้งเพิ่มทีหลัง |
+| description | text | nullable, อธิบาย role นี้ให้แอดมินคนอื่นเข้าใจ |
+| is_system | boolean | true สำหรับ role ที่ seed มาตอน migration แรก (`admin`, `nurse`) — role ที่ `is_system = true` ห้ามลบและห้ามเปลี่ยน `name` |
+| created_at / updated_at | timestamptz | |
+
+### role_permissions
+
+เชื่อม role กับ permission ที่ role นั้นมี — แทนที่ฟังก์ชัน compile-time ที่แปลง role เป็นชุด
+permission ในดีไซน์เดิม เพราะตอนนี้ role สร้างเพิ่มได้โดยไม่ต้อง deploy ใหม่
+
+| คอลัมน์ | ชนิด | หมายเหตุ |
+|---|---|---|
+| role_id | uuid | FK ไป `roles.id`, ลบตามเมื่อ role ถูกลบ |
+| permission | text | ค่าตรงกับ `Permission` enum ฝั่ง Rust เสมอ — parse ตอนอ่านจาก DB ถ้า parse ไม่ผ่านถือเป็นข้อมูลเสีย ให้ error ไม่ใช่ข้าม |
+
+primary key คือ (`role_id`, `permission`)
+
+`Permission` เองยังเป็น enum ปิดตายใน Rust เหมือนเดิม (แต่ละ permission ผูกกับ authorization
+check จริงในโค้ด สร้างผ่าน UI ไม่ได้) สิ่งที่เปลี่ยนคือ *role ไหนมี permission ไหน* ย้ายจากโค้ด
+ไปเป็นข้อมูลในตารางนี้แทน
+
+### user_roles
+
+เชื่อมผู้ใช้กับ role แบบ many-to-many (หนึ่งคนมีได้หลาย role — ดูกฎ default และ invariant ในหัวข้อ 10)
+
+| คอลัมน์ | ชนิด | หมายเหตุ |
+|---|---|---|
+| user_id | uuid | FK ไป `users.id`, ลบตามเมื่อผู้ใช้ถูกลบ |
+| role_id | uuid | FK ไป `roles.id`, **ห้ามลบ role นี้** ถ้ายังมีแถวในตารางนี้อ้างถึงอยู่ (ต้องย้ายคนออกก่อนถึงจะลบ role ได้) |
+| assigned_at | timestamptz | เวลาที่ได้รับ role นี้ |
+
+primary key คือ (`user_id`, `role_id`) ต้องมี index บน `role_id` เพิ่ม (ใช้ตอนเช็คว่า role หนึ่ง
+ยังมีคนใช้อยู่ไหมก่อนลบ)
 
 ### sessions
 
@@ -96,10 +138,18 @@ JWT จะเริ่มคุ้มเมื่อมีหลาย service �
 | GET | `/auth/me` | ต้อง login | คืนข้อมูลผู้ใช้ปัจจุบันพร้อมรายการ permission |
 | POST | `/auth/password` | ต้อง login | เปลี่ยนรหัสผ่านตัวเอง ต้องกรอกรหัสเดิมด้วย |
 | GET | `/users` | `user.manage` | รายชื่อผู้ใช้ |
-| POST | `/users` | `user.manage` | สร้างผู้ใช้ พร้อมรหัสผ่านชั่วคราว |
-| PATCH | `/users/{id}` | `user.manage` | เปลี่ยน role, เปิด/ปิดบัญชี |
+| POST | `/users` | `user.manage` | สร้างผู้ใช้ พร้อมรหัสผ่านชั่วคราวและ role เริ่มต้น |
+| PATCH | `/users/{id}` | `user.manage` | เปิด/ปิดบัญชี, เปลี่ยน display_name (ไม่รวม role — ดูแถว `/users/{id}/roles`) |
 | POST | `/users/{id}/reset-password` | `user.manage` | ตั้งรหัสชั่วคราวและเพิกถอน session ทั้งหมดของคนนั้น |
+| GET | `/roles` | `user.manage` | รายชื่อ role ทั้งหมดพร้อม permission ที่มี |
+| POST | `/roles` | `user.manage` | สร้าง role ใหม่ พร้อมชุด permission เริ่มต้น |
+| PATCH | `/roles/{id}` | `user.manage` | แก้ description หรือแทนที่ชุด permission ทั้งหมด (full replace) — ถ้า `is_system` ห้ามแก้ `name` |
+| DELETE | `/roles/{id}` | `user.manage` | ลบ role — ปฏิเสธด้วย `409` ถ้ายังมีผู้ใช้ผูกอยู่ หรือถ้า `is_system` |
+| PUT | `/users/{id}/roles` | `user.manage` | แทนที่ชุด role ทั้งหมดของผู้ใช้คนนี้ (full replace) — ต้องมีอย่างน้อย 1 role เสมอ ส่ง array ว่างจะได้ `400` |
 | GET | `/health` | สาธารณะ | สำหรับ healthcheck ของ container |
+
+`POST /users` รับ `roleId` เดียว (ไม่ใช่ array) เพื่อให้ตรงกับ default "คราวละ 1 role" ตอนสร้าง
+ผู้ใช้ — ถ้าอยากให้ผู้ใช้คนนั้นมีหลาย role ให้ใช้ `PUT /users/{id}/roles` เพิ่มทีหลัง
 
 ### รหัสสถานะที่ใช้
 
@@ -165,11 +215,19 @@ Extractor อ่าน cookie แล้ว hash ค่าที่ได้ ไ�
 
 ## 10. การจัดการสิทธิ์
 
-เริ่มจากรูปแบบที่ง่ายที่สุดที่ยังขยายได้
-
-- ผู้ใช้มี **role เดียว** เก็บเป็นคอลัมน์ใน `users`
-- `Permission` เป็น enum ใน Rust เช่น `UserManage`, `ShiftRead`, `ShiftWrite`, `AuditRead`
-- มีฟังก์ชันเดียวที่แปลง role เป็นชุด permission ถ้าเพิ่ม permission ใหม่แล้วลืมกำหนดว่า role ไหนได้บ้าง คอมไพล์ต้องไม่ผ่าน
+- ผู้ใช้มีได้ **หลาย role** ผ่านตาราง `user_roles` (many-to-many, ดูหัวข้อ 4)
+- **Default: สร้างผู้ใช้ใหม่ได้ 1 role เสมอ** (`POST /users` รับ `roleId` เดียว) — หลาย role เป็น
+  ความสามารถที่มีไว้ใช้ทีหลังผ่าน `PUT /users/{id}/roles` ไม่ใช่ flow ปกติตอนสร้างบัญชี
+- **Invariant ที่ service layer ต้องคุม: ผู้ใช้ต้องมีอย่างน้อย 1 role ตลอดเวลา** ห้ามเหลือ 0 role
+  เด็ดขาด (กันไม่ให้มี user ที่ login ได้แต่ไม่มีสิทธิ์อะไรเลยโดยไม่ตั้งใจ) — `PUT /users/{id}/roles`
+  ที่ส่ง array ว่างต้องถูกปฏิเสธด้วย `400`
+- `Permission` เป็น enum ปิดตายใน Rust เหมือนเดิม เช่น `UserManage`, `ShiftRead`, `ShiftWrite`,
+  `AuditRead` (แต่ละตัวผูกกับ authorization check จริงในโค้ด สร้างผ่าน UI ไม่ได้)
+- **Role ไม่ใช่ Rust enum ปิดตายอีกต่อไป** — เป็นข้อมูลในตาราง `roles` ที่ admin สร้าง/แก้/ลบได้เอง
+  ผ่าน API ในหัวข้อ 5 ยกเว้น 2 ตัวที่ seed มาตอน migration แรก (`admin`, `nurse`,
+  `is_system = true`) ที่ลบและเปลี่ยนชื่อไม่ได้
+- Permission ที่ผู้ใช้มีจริง = **union** ของ permission จากทุก role ที่ผู้ใช้ถืออยู่ (join
+  `user_roles` → `role_permissions` แล้ว dedupe) — `GET /auth/me` คืนค่าที่รวมแล้วนี้
 
 จุดที่ตรวจสิทธิ์
 
@@ -177,7 +235,12 @@ Extractor อ่าน cookie แล้ว hash ค่าที่ได้ ไ�
 - **Service** เป็นที่ตรวจ permission จริง เพราะสิทธิ์มักขึ้นกับข้อมูล เช่น "แก้บันทึกของตัวเองได้"
 - `403` ต่างจาก `401` ชัดเจน อย่าใช้ปนกัน
 
-ตาราง roles/permissions แบบเต็มยังไม่ต้องทำ จะทำเมื่อผู้ใช้เยอะพอที่จะอยากเปลี่ยนสิทธิ์โดยไม่ deploy ใหม่
+**สิ่งที่เสียไปกับการเปลี่ยนนี้ (บันทึกไว้ให้ชัด เพราะกลับคำตัดสินใจเดิมของหัวข้อนี้):** ก่อนหน้านี้
+เอกสารบอกว่า "ตาราง roles/permissions แบบเต็มยังไม่ต้องทำ จะทำเมื่อผู้ใช้เยอะพอที่จะอยากเปลี่ยนสิทธิ์
+โดยไม่ deploy ใหม่" — ตอนนี้ทำแล้ว ข้อดีคือเปลี่ยนสิทธิ์ของ role ได้โดยไม่ต้อง deploy ใหม่ตามที่ตั้งใจ
+แต่แลกกับ compile-time exhaustiveness check ที่เคยรับประกันว่า permission ใหม่ต้องถูกกำหนดให้ครบ
+ทุก role ตอน compile หายไป — role ที่สร้างใหม่แล้วไม่ได้ตั้ง permission ให้จะไม่มีสิทธิ์อะไรเลย
+(fail-safe แต่ไม่มี compiler เตือนเหมือนก่อน)
 
 ## 11. การจัดการ error
 
@@ -191,6 +254,10 @@ error ทุกชนิดของ login ต้องแปลงเป็น 
 
 ตอนเริ่มระบบ ถ้ายังไม่มีผู้ใช้เลย ให้สร้างบัญชี admin จากค่าใน environment variable
 และตั้ง `must_change_password` เป็นจริง ห้าม hard-code รหัสผ่านไว้ในโค้ดหรือใน migration
+
+ต้องผูก role `admin` ให้บัญชีนี้ผ่าน `user_roles` ในทรานแซกชันเดียวกับตอนสร้างผู้ใช้ (สอดคล้องกับ
+invariant ในหัวข้อ 10 ที่ผู้ใช้ต้องมีอย่างน้อย 1 role เสมอ) role `admin` ต้องมีอยู่แล้วจาก seed
+migration (`is_system = true`) ก่อนขั้นตอนนี้จะรันได้
 
 ## 13. ลำดับการพัฒนา
 
