@@ -1,7 +1,81 @@
-//! อ่าน config, ต่อ DB, รัน server
+//! Thin entrypoint — logic จริงอยู่ใน lib.rs และโมดูลย่อย (แยกไว้เพื่อให้ backend/tests/ เรียก
+//! router ตัวจริงได้ผ่าน crate lib แทนที่จะเรียก main.rs ซึ่งเป็นคนละ crate)
 //! อนุญาต unwrap()/expect() เฉพาะที่นี่ตอนเริ่มระบบ (docs/rust-guidelines.md ข้อ 2)
-//! สถานะ: ยังไม่ implement (Milestone 1 ขั้นตอน 1 — docs/auth-design.md ข้อ 13)
 
-fn main() {
-    todo!("bootstrap: config -> db pool -> migration -> axum server")
+use std::sync::Arc;
+
+use my_his_backend::auth;
+use my_his_backend::config::Config;
+use my_his_backend::state::AppState;
+use my_his_backend::{app, db, password};
+
+#[tokio::main]
+async fn main() {
+    tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .init();
+
+    let config = Config::from_env().expect("invalid configuration");
+
+    let pool = db::create_pool(&config.database_url)
+        .await
+        .expect("failed to connect to database");
+
+    db::run_migrations(&pool)
+        .await
+        .expect("failed to run migrations");
+
+    // hash คงที่ตอน startup ใช้ตอน login ไม่พบ username เพื่อความ timing-safe
+    // (docs/auth-design.md ข้อ 6) — argon2 บล็อก thread จริง ต้องอยู่ใน spawn_blocking เสมอ
+    let dummy_password_hash: Arc<str> = tokio::task::spawn_blocking(password::dummy_hash)
+        .await
+        .expect("dummy hash task panicked")
+        .expect("failed to compute dummy password hash")
+        .into();
+
+    auth::bootstrap_first_admin(&pool, &config)
+        .await
+        .expect("failed to bootstrap first admin user");
+
+    let bind_addr = config.bind_addr;
+    let state = AppState {
+        pool,
+        config: Arc::new(config),
+        dummy_password_hash,
+    };
+
+    let listener = tokio::net::TcpListener::bind(bind_addr)
+        .await
+        .expect("failed to bind address");
+
+    tracing::info!(%bind_addr, "starting server");
+
+    axum::serve(listener, app::router(state))
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+        .expect("server error");
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
 }

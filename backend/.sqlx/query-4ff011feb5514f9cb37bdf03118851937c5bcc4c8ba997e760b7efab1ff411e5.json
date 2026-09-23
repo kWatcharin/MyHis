@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update sessions set last_seen_at = $2, idle_expires_at = $3 where token_hash = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Timestamptz",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4ff011feb5514f9cb37bdf03118851937c5bcc4c8ba997e760b7efab1ff411e5"
+}
