@@ -1,5 +1,5 @@
 # โครงร่างคร่าว ๆ ตาม docs/infrastructure.md — ยังไม่ครบ ยังไม่ทดสอบรัน
-# 3 container: caddy (หน้าบ้าน, publish 80/443) / backend (ไม่ publish) / db (ไม่ publish)
+# 4 container: caddy (หน้าบ้าน, publish 80/443) / backend (ไม่ publish) / frontend (ไม่ publish) / db (ไม่ publish)
 
 services:
   caddy:
@@ -12,6 +12,7 @@ services:
       - caddy_data:/data
     depends_on:
       - backend
+      - frontend
 
   backend:
     build: ./backend
@@ -20,6 +21,10 @@ services:
       db:
         condition: service_healthy
     # ไม่ publish พอร์ตออกนอกเครื่อง (caddy คุยกับ backend ผ่าน network ภายใน)
+
+  frontend:
+    build: ./frontend
+    # ไม่ publish พอร์ตออกนอกเครื่อง (caddy คุยกับ frontend ผ่าน network ภายใน เหมือน backend)
 
   db:
     image: postgres:16
