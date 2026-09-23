@@ -9,3 +9,13 @@ edition = "2021"
 [dependencies]
 # axum, tokio, sqlx, serde, thiserror, tracing, argon2, chrono ฯลฯ
 # จะเพิ่มทีละตัวตามลำดับการพัฒนาใน docs/auth-design.md ข้อ 13
+
+# OpenAPI spec generation จาก handler/struct — ให้ API ใน docs/auth-design.md ข้อ 5 sync กับโค้ดได้
+utoipa = "5"
+
+# เผื่อไว้สำหรับ script migrate data แยกต่างหาก (ยังไม่ได้เขียน) — ไม่ได้ใช้กับตัว server หลัก
+# server ยังอ่าน config จาก environment variable อย่างเดียวตาม docs/rust-guidelines.md ข้อ 15
+clap = { version = "4", features = ["derive"] }
+
+# validate field ของ DTO ขาเข้าที่ขอบระบบ (username, ความยาวรหัสผ่าน ฯลฯ) ก่อนแปลงเป็นชนิดโดเมน
+validator = { version = "0.18", features = ["derive"] }
