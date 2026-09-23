@@ -1,0 +1,38 @@
+# โครงร่างคร่าว ๆ ตาม docs/infrastructure.md — ยังไม่ครบ ยังไม่ทดสอบรัน
+# 3 container: caddy (หน้าบ้าน, publish 80/443) / backend (ไม่ publish) / db (ไม่ publish)
+
+services:
+  caddy:
+    image: caddy:2
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./ops/Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+    depends_on:
+      - backend
+
+  backend:
+    build: ./backend
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+    # ไม่ publish พอร์ตออกนอกเครื่อง (caddy คุยกับ backend ผ่าน network ภายใน)
+
+  db:
+    image: postgres:16
+    env_file: .env
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    # ห้าม publish พอร์ต 5432 ออกนอกเครื่อง (docs/infrastructure.md ข้อ 2)
+
+volumes:
+  pg_data:
+  caddy_data:

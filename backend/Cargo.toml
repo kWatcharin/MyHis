@@ -1,0 +1,11 @@
+[package]
+name = "my-his-backend"
+version = "0.1.0"
+edition = "2021"
+
+# โครงร่างคร่าว ๆ — ยังไม่ได้ตรึงเวอร์ชันจริง ยังไม่ได้ cargo build
+# กฎการเพิ่ม dependency: docs/rust-guidelines.md ข้อ 16 (ถามก่อนเพิ่มทุกครั้ง)
+
+[dependencies]
+# axum, tokio, sqlx, serde, thiserror, tracing, argon2, chrono ฯลฯ
+# จะเพิ่มทีละตัวตามลำดับการพัฒนาใน docs/auth-design.md ข้อ 13

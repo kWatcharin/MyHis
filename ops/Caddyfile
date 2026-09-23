@@ -1,0 +1,6 @@
+# โครงร่างคร่าว ๆ — ยังไม่ทดสอบ
+# ตั้ง reverse proxy + TLS อัตโนมัติ ตาม docs/infrastructure.md
+
+{$DOMAIN} {
+	reverse_proxy backend:8080
+}
