@@ -1,6 +1,11 @@
 # Secrets
 .env
 
+# Local-dev-only compose override (e.g. publishing db port to 127.0.0.1 for sqlx-cli/psql)
+# ต้องไม่ขึ้น git — ถ้าหลุดไปที่เครื่อง prod จริง compose จะ merge ไฟล์นี้อัตโนมัติแล้ว publish
+# พอร์ต postgres ออกนอกเครื่อง ซึ่งขัดกับ docs/infrastructure.md ข้อ 2 โดยตรง
+docker-compose.override.yml
+
 # Rust
 backend/target/
 
@@ -9,3 +14,6 @@ backend/target/
 Thumbs.db
 .vscode/
 .idea/
+
+# Claude Code session-local state (lock files etc.) — ไม่ใช่โค้ดโปรเจกต์
+.claude/

@@ -13,7 +13,9 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
 tower-http = { version = "0.6", features = ["trace", "request-id", "timeout"] }
 
 # --- Database (docs/rust-guidelines.md ข้อ 11) ---
-sqlx = { version = "0.8", features = ["postgres", "runtime-tokio-rustls", "uuid", "chrono", "migrate", "macros"] }
+# เพิ่ม feature "json" ระหว่าง implement auth (ไม่ใช่ dependency ใหม่ แค่เปิด feature เพิ่มของ
+# sqlx ตัวเดิม) จำเป็นสำหรับ bind serde_json::Value เข้าคอลัมน์ audit_log.metadata (jsonb)
+sqlx = { version = "0.8", features = ["postgres", "runtime-tokio-rustls", "uuid", "chrono", "json", "migrate", "macros"] }
 
 # --- Serialize / ชนิดข้อมูล ---
 serde = { version = "1", features = ["derive"] }
@@ -36,7 +38,10 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # OpenAPI spec generation จาก handler/struct — ให้ API ใน docs/auth-design.md ข้อ 5 sync กับโค้ดได้
-utoipa = "5"
+utoipa = { version = "5", features = ["axum_extras", "uuid", "chrono"] }
+
+# เสิร์ฟหน้า Swagger UI แบบ interactive จาก spec ของ utoipa ด้านบน (เช่น mount ที่ /docs)
+utoipa-swagger-ui = { version = "9", features = ["axum"] }
 
 # เผื่อไว้สำหรับ script migrate data แยกต่างหาก (ยังไม่ได้เขียน) — ไม่ได้ใช้กับตัว server หลัก
 # server ยังอ่าน config จาก environment variable อย่างเดียวตาม docs/rust-guidelines.md ข้อ 15
