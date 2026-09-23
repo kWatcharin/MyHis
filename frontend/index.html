@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>my-his</title>
+    <script>
+      // ตั้ง class ธีมก่อน React mount กันการกระพริบเห็นธีมผิดตอนโหลดหน้าแรก (ทั้งสองธีมที่มี
+      // ตอนนี้เป็นพื้นหลังเข้มทั้งคู่ — meta color-scheme ด้านบนเลยใช้ค่าเดียวได้กับทุกธีม)
+      // ต้อง sync กับ THEME_CLASS ใน src/features/theme/ThemeContext.tsx
+      (function () {
+        try {
+          var stored = localStorage.getItem('my-his-theme');
+          document.documentElement.classList.add(stored === 'ocean' ? 'theme-ocean' : 'dark');
+        } catch (e) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

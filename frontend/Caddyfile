@@ -1,0 +1,18 @@
+# เสิร์ฟ static build ของ SPA — try_files fallback ไป index.html เสมอถ้า path ที่ขอไม่ใช่ไฟล์
+# จริง (เช่น /login, /dashboard) เพราะ react-router จัดการ routing เองฝั่ง client ทั้งหมด
+#
+# /api/* reverse proxy ไปที่ container backend ตรง ๆ ผ่าน network ภายในของ Compose (DNS ชื่อ
+# service "backend") — ทำให้เบราว์เซอร์เห็นแค่ origin เดียว (localhost:3000) ไม่ต้องตั้ง CORS
+# ฝั่ง backend เลย ต้องอยู่ "ก่อน" try_files ไม่งั้น /api/* จะโดน fallback ไป index.html แทน
+:80 {
+	handle /api/* {
+		reverse_proxy backend:8080
+	}
+
+	handle {
+		root * /usr/share/caddy
+		encode gzip
+		try_files {path} /index.html
+		file_server
+	}
+}
