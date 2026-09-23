@@ -98,6 +98,48 @@ check จริงในโค้ด สร้างผ่าน UI ไม่ไ
 primary key คือ (`user_id`, `role_id`) ต้องมี index บน `role_id` เพิ่ม (ใช้ตอนเช็คว่า role หนึ่ง
 ยังมีคนใช้อยู่ไหมก่อนลบ)
 
+### pages
+
+แคตตาล็อกหน้า/เมนูที่ admin จัดการเองได้ (สร้าง/แก้/ลบผ่าน API ในหัวข้อ 5) ใช้คู่กับ
+`page_permissions` ด้านล่างเพื่อคุมว่าใครเห็นเมนูไหน — ดูรายละเอียดเต็มในหัวข้อ 11
+
+| คอลัมน์ | ชนิด | หมายเหตุ |
+|---|---|---|
+| id | uuid | primary key |
+| label | text | ชื่อเมนูที่แสดงผล |
+| icon | text | nullable, ชื่อ icon ให้ frontend เป็นคนแปลผลเอง |
+| route | text | unique, path ของหน้านี้ เช่น `/users`, `/shifts` |
+| sort_order | integer | default 0, ลำดับการแสดงผลในเมนู |
+| created_at / updated_at | timestamptz | |
+
+**ไม่มี `is_system`** ต่างจาก `roles` โดยตั้งใจ — `is_system` บน `roles` มีไว้กัน role `admin`/`nurse`
+ที่ระบบ bootstrap ต้องพึ่งไม่ให้ถูกลบ แต่ไม่มี page ไหนที่ auth/bootstrap ต้องพึ่งการมีอยู่ของมัน
+ลบ page ไหนก็ไม่ทำให้ระบบพัง
+
+**Seed migration** สร้าง 3 หน้าเริ่มต้น: `Dashboard` (`/dashboard`, ไม่มี `page_permissions` = หน้า
+สาธารณะ ใช้เป็นหน้า default หลัง login) และหน้าตั้งค่าสำหรับแอดมิน 2 หน้า — `การตั้งค่าเพจ`
+(`/settings/pages`) กับ `การตั้งค่า role` (`/settings/roles`) ทั้งคู่ต้องการ `user.manage` — นอกเหนือ
+จาก 3 หน้านี้ admin เพิ่มเองทีหลังผ่าน API ตอนมีหน้าจริงของฟีเจอร์งานพยาบาล (ตารางเวร, checklist,
+คำนวณยา — ยังไม่เริ่มออกแบบ)
+
+### page_permissions
+
+เชื่อม page กับ permission ที่ "พอจะเข้าได้" — เหมือน `role_permissions` แต่ฝั่ง page แทนฝั่ง role
+
+| คอลัมน์ | ชนิด | หมายเหตุ |
+|---|---|---|
+| page_id | uuid | FK ไป `pages.id`, ลบตามเมื่อ page ถูกลบ |
+| permission | text | ค่าตรงกับ `Permission` enum ฝั่ง Rust เสมอ (เหมือน `role_permissions.permission`) |
+
+primary key คือ (`page_id`, `permission`)
+
+**Semantic ที่ต้องระบุชัด (ไม่มีมาตรฐานตายตัว):**
+
+- ผู้ใช้เห็น page ได้ถ้ามี **อย่างน้อยหนึ่ง** permission ที่ตรงกับที่ page นั้นต้องการ (OR ไม่ใช่ AND)
+  — มีสิทธิ์ด้านใดด้านหนึ่งที่เกี่ยวก็พอให้เห็นทางเข้า
+- page ที่**ไม่มีแถวใน `page_permissions` เลย** ถือเป็นหน้าสาธารณะสำหรับผู้ใช้ที่ login แล้ว
+  (เช่น หน้า dashboard/profile) ทุกคนเห็นได้โดยไม่ต้องมี permission เฉพาะ
+
 ### sessions
 
 | คอลัมน์ | ชนิด | หมายเหตุ |
@@ -146,10 +188,18 @@ primary key คือ (`user_id`, `role_id`) ต้องมี index บน `ro
 | PATCH | `/roles/{id}` | `user.manage` | แก้ description หรือแทนที่ชุด permission ทั้งหมด (full replace) — ถ้า `is_system` ห้ามแก้ `name` |
 | DELETE | `/roles/{id}` | `user.manage` | ลบ role — ปฏิเสธด้วย `409` ถ้ายังมีผู้ใช้ผูกอยู่ หรือถ้า `is_system` |
 | PUT | `/users/{id}/roles` | `user.manage` | แทนที่ชุด role ทั้งหมดของผู้ใช้คนนี้ (full replace) — ต้องมีอย่างน้อย 1 role เสมอ ส่ง array ว่างจะได้ `400` |
+| GET | `/pages` | `user.manage` | รายชื่อ page ทั้งหมดพร้อม permission ที่ต้องมี (สำหรับหน้าแอดมินจัดการเมนู) |
+| POST | `/pages` | `user.manage` | สร้าง page ใหม่ พร้อมชุด permission ที่ต้องการ |
+| PATCH | `/pages/{id}` | `user.manage` | แก้ label/icon/route/sort_order หรือแทนที่ชุด permission ทั้งหมด (full replace) |
+| DELETE | `/pages/{id}` | `user.manage` | ลบ page |
+| GET | `/menu` | ต้อง login | คืนรายชื่อ page ที่ผู้ใช้ปัจจุบันเข้าถึงได้ เรียงตาม `sort_order` — ดูหัวข้อ 11 |
 | GET | `/health` | สาธารณะ | สำหรับ healthcheck ของ container |
 
 `POST /users` รับ `roleId` เดียว (ไม่ใช่ array) เพื่อให้ตรงกับ default "คราวละ 1 role" ตอนสร้าง
 ผู้ใช้ — ถ้าอยากให้ผู้ใช้คนนั้นมีหลาย role ให้ใช้ `PUT /users/{id}/roles` เพิ่มทีหลัง
+
+`GET /menu` ต่างจาก `GET /auth/me` ตรงที่คืนโครงสร้างเมนูพร้อมใช้ (label/icon/route) ที่กรองตามสิทธิ์
+แล้ว ไม่ใช่แค่รายการ permission ดิบ — คำนวณฝั่ง backend ให้ ไม่ต้องให้ frontend คำนวณเอง
 
 ### รหัสสถานะที่ใช้
 
@@ -242,7 +292,29 @@ Extractor อ่าน cookie แล้ว hash ค่าที่ได้ ไ�
 ทุก role ตอน compile หายไป — role ที่สร้างใหม่แล้วไม่ได้ตั้ง permission ให้จะไม่มีสิทธิ์อะไรเลย
 (fail-safe แต่ไม่มี compiler เตือนเหมือนก่อน)
 
-## 11. การจัดการ error
+การควบคุมว่าเมนู/หน้าไหนแสดงให้ใครเห็นสร้างอยู่บนฐานของ permission ชุดนี้ ไม่ใช่ระบบสิทธิ์ใหม่อีกชุด
+— ดูหัวข้อ 11
+
+## 11. การจัดการเมนู/การเข้าถึงหน้า (Page Access)
+
+`pages` และ `page_permissions` (หัวข้อ 4) คือ mapping ว่า permission ชุดไหนเห็น page ไหนในเมนู
+ไม่ใช่ระบบสิทธิ์ใหม่ — สร้างอยู่บนฐานของ `Permission` ที่มีอยู่แล้วทั้งหมด
+
+- **โมเดล:** page หนึ่งอันมีได้หลาย permission ที่ "พอให้เข้าได้" (many-to-many ผ่าน
+  `page_permissions`) ผู้ใช้เห็น page ถ้ามี permission ตรงกัน **อย่างน้อยหนึ่งตัว** (OR) page ที่ไม่
+  ผูก permission เลยถือเป็นหน้าสาธารณะสำหรับผู้ใช้ที่ login แล้วทุกคน
+- **`GET /menu` คำนวณฝั่ง backend:** join permission ของผู้ใช้ปัจจุบัน (ที่มีอยู่แล้วจาก
+  `user_roles` → `role_permissions`, หัวข้อ 10) กับ `page_permissions` กรองเอาเฉพาะ page ที่
+  ตัดกันไม่ว่าง หรือไม่มี permission กำหนดเลย เรียงตาม `sort_order` แล้วคืน label/icon/route
+  พร้อมใช้ ไม่ต้องให้ frontend คำนวณเอง
+- **Seed 3 หน้าเริ่มต้น** (หัวข้อ 4): `Dashboard` เป็นหน้า default หลัง login (สาธารณะ ไม่ต้องมี
+  permission) กับหน้าตั้งค่า `การตั้งค่าเพจ`/`การตั้งค่า role` (ต้อง `user.manage` ทั้งคู่) —
+  นอกเหนือจากนี้ admin เพิ่มเองทีหลังผ่าน `POST /pages`
+- **อยู่ใน module `users/` เดิม** (จุดเดียวกับ `/roles` — เป็นกลุ่มเดียวกันคือ "การจัดการสิทธิ์ระดับ
+  แอดมิน" ไม่ใช่ auth/session) ยังไม่แยกเป็น module ใหม่ต่างหาก ถ้า `users/` เริ่มใหญ่เกะกะค่อย
+  พิจารณาแยกทีหลัง ไม่ทำล่วงหน้า
+
+## 12. การจัดการ error
 
 มี `AppError` เพียง enum เดียวสำหรับทั้งแอป และ implement การแปลงเป็น response ที่เดียว
 กฎคือ รายละเอียดทางเทคนิคไปที่ log ส่วน response ที่ส่งออกไปบอกเท่าที่ผู้ใช้ต้องรู้
@@ -250,7 +322,7 @@ error ทุกชนิดของ login ต้องแปลงเป็น 
 
 ทุก log ควรมี request id เพื่อไล่ปัญหาได้ และต้องไม่มีรหัสผ่าน token หรือ cookie อยู่ในนั้นเด็ดขาด
 
-## 12. ผู้ใช้คนแรก
+## 13. ผู้ใช้คนแรก
 
 ตอนเริ่มระบบ ถ้ายังไม่มีผู้ใช้เลย ให้สร้างบัญชี admin จากค่าใน environment variable
 และตั้ง `must_change_password` เป็นจริง ห้าม hard-code รหัสผ่านไว้ในโค้ดหรือใน migration
@@ -259,7 +331,7 @@ error ทุกชนิดของ login ต้องแปลงเป็น 
 invariant ในหัวข้อ 10 ที่ผู้ใช้ต้องมีอย่างน้อย 1 role เสมอ) role `admin` ต้องมีอยู่แล้วจาก seed
 migration (`is_system = true`) ก่อนขั้นตอนนี้จะรันได้
 
-## 13. ลำดับการพัฒนา
+## 14. ลำดับการพัฒนา
 
 1. โครง Axum + เชื่อม Postgres + `/health` + migration แรก
 2. ตาราง `users` + hash รหัสผ่าน + สร้าง admin คนแรก
@@ -268,7 +340,7 @@ migration (`is_system = true`) ก่อนขั้นตอนนี้จะ�
 5. audit log + การล็อกชั่วคราว + งานลบ session ที่หมดอายุ
 6. เทสระดับ API ให้ครบตามรายการใน CLAUDE.md
 
-## 14. คำถามที่ยังเปิดอยู่
+## 15. คำถามที่ยังเปิดอยู่
 
 - frontend จะเป็นอะไร และจะอยู่โดเมนเดียวกับ backend หรือไม่ (มีผลกับการตั้ง cookie)
 - ต้องการฟีเจอร์ "จำฉันไว้" หรือปลดล็อกด้วย PIN บนมือถือหรือไม่
