@@ -7,8 +7,33 @@ edition = "2021"
 # กฎการเพิ่ม dependency: docs/rust-guidelines.md ข้อ 16 (ถามก่อนเพิ่มทุกครั้ง)
 
 [dependencies]
-# axum, tokio, sqlx, serde, thiserror, tracing, argon2, chrono ฯลฯ
-# จะเพิ่มทีละตัวตามลำดับการพัฒนาใน docs/auth-design.md ข้อ 13
+# --- Web / async (docs/auth-design.md ข้อ 3) ---
+axum = "0.8"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
+tower-http = { version = "0.6", features = ["trace", "request-id", "timeout"] }
+
+# --- Database (docs/rust-guidelines.md ข้อ 11) ---
+sqlx = { version = "0.8", features = ["postgres", "runtime-tokio-rustls", "uuid", "chrono", "migrate", "macros"] }
+
+# --- Serialize / ชนิดข้อมูล ---
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] } # DateTime<Utc> ทุกที่ ตาม docs/rust-guidelines.md ข้อ 14
+
+# --- Error (docs/rust-guidelines.md ข้อ 3) ---
+thiserror = "2"
+anyhow = "1" # ใช้ได้เฉพาะใน main.rs และสคริปต์เท่านั้น ห้ามเป็นชนิด error ของ service/repository
+
+# --- Password / session (docs/auth-design.md ข้อ 2, 8) ---
+argon2 = "0.5"
+rand = "0.8" # สุ่ม session token
+sha2 = "0.10" # hash session token ก่อนเก็บเป็น token_hash
+axum-extra = { version = "0.10", features = ["cookie"] } # ตั้ง cookie HttpOnly/Secure/SameSite
+
+# --- Logging (docs/rust-guidelines.md ข้อ 13) ---
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # OpenAPI spec generation จาก handler/struct — ให้ API ใน docs/auth-design.md ข้อ 5 sync กับโค้ดได้
 utoipa = "5"
@@ -19,3 +44,8 @@ clap = { version = "4", features = ["derive"] }
 
 # validate field ของ DTO ขาเข้าที่ขอบระบบ (username, ความยาวรหัสผ่าน ฯลฯ) ก่อนแปลงเป็นชนิดโดเมน
 validator = { version = "0.18", features = ["derive"] }
+
+[dev-dependencies]
+# ยิง request เข้า router จริงในเทสระดับ API (backend/tests/) ด้วย oneshot ตาม CLAUDE.md
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
