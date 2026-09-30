@@ -17,3 +17,6 @@ Thumbs.db
 
 # Claude Code session-local state (lock files etc.) — ไม่ใช่โค้ดโปรเจกต์
 .claude/
+
+# Serena MCP server's local project index/config — เครื่องมือ ไม่ใช่โค้ดโปรเจกต์ เหมือน .claude/
+.serena/
