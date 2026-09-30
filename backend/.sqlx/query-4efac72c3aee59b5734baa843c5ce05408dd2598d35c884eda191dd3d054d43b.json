@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "insert into pages (label, icon, route, sort_order) values ($1, $2, $3, $4)\n           returning id as \"id: PageId\"",
+  "query": "insert into pages (label, icon, route, sort_order, group_label)\n           values ($1, $2, $3, $4, $5)\n           returning id as \"id: PageId\"",
   "describe": {
     "columns": [
       {
@@ -14,12 +14,13 @@
         "Text",
         "Text",
         "Text",
-        "Int4"
+        "Int4",
+        "Text"
       ]
     },
     "nullable": [
       false
     ]
   },
-  "hash": "c77edc35e86ae6ce5330ea74b4f99a9d317376d0fd0003991a72ca8546327ddb"
+  "hash": "4efac72c3aee59b5734baa843c5ce05408dd2598d35c884eda191dd3d054d43b"
 }

@@ -288,21 +288,36 @@ pub async fn list_pages(
     Ok(repository::list_pages(pool).await?)
 }
 
+/// พารามิเตอร์สร้าง page — รวมเป็น struct เดียวเพราะแยกเป็น argument จะเกิน clippy's
+/// too_many_arguments (7) ตรงกับแพทเทิร์นเดียวกับ `UpdatePageInput` ด้านล่าง
+pub struct CreatePageInput<'a> {
+    pub label: &'a str,
+    pub icon: Option<&'a str>,
+    pub route: &'a str,
+    pub sort_order: i32,
+    pub permissions: &'a [String],
+    pub group_label: Option<&'a str>,
+}
+
 pub async fn create_page(
     pool: &PgPool,
     actor: &CurrentUser,
-    label: &str,
-    icon: Option<&str>,
-    route: &str,
-    sort_order: i32,
-    permissions: &[String],
+    input: CreatePageInput<'_>,
 ) -> Result<PageId, UsersError> {
     require_user_manage(actor)?;
-    let permissions = parse_permissions(permissions)?;
+    let permissions = parse_permissions(input.permissions)?;
 
-    repository::insert_page(pool, label, icon, route, sort_order, &permissions)
-        .await
-        .map_err(|e| map_unique_violation(e, "route already taken"))
+    repository::insert_page(
+        pool,
+        input.label,
+        input.icon,
+        input.route,
+        input.sort_order,
+        &permissions,
+        input.group_label,
+    )
+    .await
+    .map_err(|e| map_unique_violation(e, "route already taken"))
 }
 
 pub struct UpdatePageInput<'a> {
@@ -311,6 +326,7 @@ pub struct UpdatePageInput<'a> {
     pub route: Option<&'a str>,
     pub sort_order: Option<i32>,
     pub permissions: Option<&'a [String]>,
+    pub group_label: Option<Option<&'a str>>,
 }
 
 pub async fn update_page(
@@ -335,6 +351,7 @@ pub async fn update_page(
             route: input.route,
             sort_order: input.sort_order,
             permissions: permissions.as_deref(),
+            group_label: input.group_label,
         },
     )
     .await
@@ -360,6 +377,7 @@ pub struct MenuItem {
     pub label: String,
     pub icon: Option<String>,
     pub route: String,
+    pub group_label: Option<String>,
 }
 
 /// กรอง page ที่ current user เข้าถึงได้: มี permission ตรงกันอย่างน้อยหนึ่งตัว (OR) หรือ page
@@ -377,6 +395,7 @@ pub async fn menu_for(pool: &PgPool, actor: &CurrentUser) -> Result<Vec<MenuItem
             label: page.label,
             icon: page.icon,
             route: page.route,
+            group_label: page.group_label,
         })
         .collect())
 }

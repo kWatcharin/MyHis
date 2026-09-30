@@ -11,6 +11,7 @@ pub struct PageWithPermissions {
     pub route: String,
     pub sort_order: i32,
     pub permissions: Vec<Permission>,
+    pub group_label: Option<String>,
 }
 
 /// รายชื่อ page ทั้งหมดพร้อม permission เรียงตาม sort_order — ใช้ทั้งสำหรับ `GET /pages` (admin)
@@ -18,7 +19,7 @@ pub struct PageWithPermissions {
 /// เขียน SQL ที่มี array ตัดกันซับซ้อน (docs/auth-design.md ข้อ 11)
 pub async fn list_pages(pool: &PgPool) -> Result<Vec<PageWithPermissions>, RepositoryError> {
     let rows = sqlx::query!(
-        r#"select p.id as "id: PageId", p.label, p.icon, p.route, p.sort_order,
+        r#"select p.id as "id: PageId", p.label, p.icon, p.route, p.sort_order, p.group_label,
                   pp.permission as "permission?"
            from pages p
            left join page_permissions pp on pp.page_id = p.id
@@ -47,6 +48,7 @@ pub async fn list_pages(pool: &PgPool) -> Result<Vec<PageWithPermissions>, Repos
                 icon: row.icon,
                 route: row.route,
                 sort_order: row.sort_order,
+                group_label: row.group_label,
                 permissions: permission.into_iter().collect(),
             }),
         }
@@ -68,16 +70,19 @@ pub async fn insert_page(
     route: &str,
     sort_order: i32,
     permissions: &[Permission],
+    group_label: Option<&str>,
 ) -> Result<PageId, RepositoryError> {
     let mut tx = pool.begin().await?;
 
     let page = sqlx::query!(
-        r#"insert into pages (label, icon, route, sort_order) values ($1, $2, $3, $4)
+        r#"insert into pages (label, icon, route, sort_order, group_label)
+           values ($1, $2, $3, $4, $5)
            returning id as "id: PageId""#,
         label,
         icon,
         route,
-        sort_order
+        sort_order,
+        group_label
     )
     .fetch_one(&mut *tx)
     .await?;
@@ -104,6 +109,8 @@ pub struct UpdatePageFields<'a> {
     pub route: Option<&'a str>,
     pub sort_order: Option<i32>,
     pub permissions: Option<&'a [Permission]>,
+    /// เหมือน icon — nullable column ที่ต้องแยก "ไม่แตะ"/"ตั้งเป็น null"/"ตั้งค่าใหม่" ออกจากกัน
+    pub group_label: Option<Option<&'a str>>,
 }
 
 pub async fn update_page(
@@ -118,6 +125,16 @@ pub async fn update_page(
             "update pages set icon = $2, updated_at = now() where id = $1",
             id.0,
             icon
+        )
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    if let Some(group_label) = fields.group_label {
+        sqlx::query!(
+            "update pages set group_label = $2, updated_at = now() where id = $1",
+            id.0,
+            group_label
         )
         .execute(&mut *tx)
         .await?;

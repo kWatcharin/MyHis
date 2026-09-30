@@ -1,5 +1,8 @@
+import type { ComponentType, SVGProps } from 'react'
+import { AlertTriangle, TrendingUp, Users } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, XAxis } from 'recharts'
 
+import { PageHeader } from '@/components/layout/PageHeader'
 import {
   Card,
   CardContent,
@@ -18,18 +21,46 @@ const chartConfig = {
   night: { label: 'เวรดึก', color: 'var(--chart-3)' },
 } satisfies ChartConfig
 
-// กราฟ mockup ล้วน ๆ ตัวเลขคงที่จาก mocks/fixtures.ts ไม่ได้ผูกกับข้อมูลจริง เพราะยังไม่มีฟีเจอร์
-// ตารางเวรจริงใน Milestone นี้ (auth/สิทธิ์เท่านั้น) — รอสลับเป็นของจริงตอนฟีเจอร์นั้นมาถึง
+// ตัวเลข mock ล้วน ๆ (ไม่ใช่ข้อมูลผู้ป่วย/ข้อมูลจริงใด ๆ — แค่ตัวเลขสรุปการเข้าเวรระดับภาพรวม
+// ตามขอบเขตข้อมูลของ CLAUDE.md) แสดงเป็นตัวอย่างว่าหน้า dashboard จริงจะมีโครงหน้าตาแบบนี้
+const stats: {
+  label: string
+  value: string
+  hint: string
+  icon: ComponentType<SVGProps<SVGSVGElement>>
+}[] = [
+  { label: 'พยาบาลเข้าเวรวันนี้', value: '12', hint: 'จากทั้งหมด 15 คน', icon: Users },
+  { label: 'เวรที่ยังไม่มีคนคุม', value: '2', hint: 'ในสัปดาห์นี้', icon: AlertTriangle },
+  { label: 'อัตราเข้าเวรเฉลี่ย', value: '94%', hint: '7 วันล่าสุด', icon: TrendingUp },
+]
+
+// กราฟ + stat card mockup ล้วน ๆ ตัวเลขคงที่จาก mocks/fixtures.ts ไม่ได้ผูกกับข้อมูลจริง เพราะยังไม่มี
+// ฟีเจอร์ตารางเวรจริงใน Milestone นี้ (auth/สิทธิ์เท่านั้น) — รอสลับเป็นของจริงตอนฟีเจอร์นั้นมาถึง
 export function DashboardPage() {
   const { user } = useAuth()
 
   return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="text-lg font-medium">สวัสดี {user?.displayName ?? user?.username}</h1>
-        <p className="text-sm text-muted-foreground">
-          ภาพรวมคร่าว ๆ — mockup, ยังไม่ผูกกับข้อมูลจริง
-        </p>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title={`สวัสดี ${user?.displayName ?? user?.username ?? ''}`}
+        description="ภาพรวมคร่าว ๆ — mockup, ยังไม่ผูกกับข้อมูลจริง"
+      />
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        {stats.map(({ label, value, hint, icon: Icon }) => (
+          <Card key={label}>
+            <CardContent className="flex items-start justify-between gap-3">
+              <div className="flex flex-col gap-1">
+                <p className="text-sm text-muted-foreground">{label}</p>
+                <p className="text-2xl font-semibold tracking-tight">{value}</p>
+                <p className="text-xs text-muted-foreground">{hint}</p>
+              </div>
+              <div className="rounded-lg bg-primary/10 p-2 text-primary">
+                <Icon className="size-4" />
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       <Card>

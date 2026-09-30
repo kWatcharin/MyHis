@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { HeartPulse } from 'lucide-react'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Navigate, useLocation, useNavigate } from 'react-router'
@@ -62,9 +63,21 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-svh items-center justify-center bg-background p-4">
+    <div
+      className="flex min-h-svh items-center justify-center bg-background p-4"
+      style={{
+        // สีอ่อนมาก ๆ แค่แต่งพื้นหลังให้มีมิติ ไม่ใช่บล็อกสีเต็ม — ใช้ color-mix กับ primary ตรง ๆ
+        // จะได้ปรับตามธีมที่เลือกเอง (dark/ocean) โดยไม่ต้อง hardcode สี
+        backgroundImage:
+          'radial-gradient(ellipse 80% 60% at 50% -10%, color-mix(in oklch, var(--primary) 18%, transparent), transparent 60%)',
+        backgroundRepeat: 'no-repeat',
+      }}
+    >
       <Card className="w-full max-w-sm">
-        <CardHeader>
+        <CardHeader className="items-center text-center">
+          <div className="mb-1 flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <HeartPulse className="size-5" />
+          </div>
           <CardTitle>เข้าสู่ระบบ</CardTitle>
           <CardDescription>my-his — เครื่องมือช่วยงานพยาบาล</CardDescription>
         </CardHeader>

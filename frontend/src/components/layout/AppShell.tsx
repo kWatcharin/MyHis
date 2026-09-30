@@ -1,6 +1,8 @@
+import { ChevronRight, HeartPulse, LogOut } from 'lucide-react'
 import { Link, Outlet, useLocation } from 'react-router'
 
 import { Button } from '@/components/ui/button'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
   Sidebar,
   SidebarContent,
@@ -12,10 +14,14 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarProvider,
   SidebarTrigger,
 } from '@/components/ui/sidebar'
 import { useAuth } from '@/features/auth/AuthContext'
+import type { MenuItem } from '@/features/auth/AuthContext'
 import { useRolePreview } from '@/features/role-preview/RolePreviewContext'
 import { RoleSwitcher } from '@/features/role-preview/RoleSwitcher'
 import { ThemeSwitcher } from '@/features/theme/ThemeSwitcher'
@@ -24,45 +30,117 @@ import { resolveIcon } from '@/lib/icons'
 // เมนูซ้ายมือ + โครงหน้าที่ต้อง login ทุกหน้า — รายการเมนูใช้ effectiveMenu (สิทธิ์จริง หรือ
 // สิทธิ์ที่กำลัง preview อยู่ผ่าน RoleSwitcher มุมขวาบนของ header — ดู RolePreviewContext.tsx)
 // ไม่ใช่ useAuth().menu ตรง ๆ
+// จัดกลุ่มเมนูตาม groupLabel — เก็บลำดับเดิมจาก array ที่ backend เรียง sort_order มาให้แล้ว
+// (Map เก็บลำดับ key ตามที่ insert ครั้งแรก) groupLabel ว่าง/null รวมกันเป็นกลุ่ม "ไม่มีชื่อ"
+// (เช่น Dashboard) แสดงแบบไม่มีหัวข้อคั่น
+function groupMenuItems(items: MenuItem[]): [string | null, MenuItem[]][] {
+  const groups = new Map<string | null, MenuItem[]>()
+  for (const item of items) {
+    const bucket = groups.get(item.groupLabel)
+    if (bucket) {
+      bucket.push(item)
+    } else {
+      groups.set(item.groupLabel, [item])
+    }
+  }
+  return [...groups.entries()]
+}
+
 export function AppShell() {
   const { user, logout } = useAuth()
   const { effectiveMenu } = useRolePreview()
   const location = useLocation()
+  const menuGroups = groupMenuItems(effectiveMenu)
 
   return (
     <SidebarProvider>
       <Sidebar>
-        <SidebarHeader className="px-2 py-1.5 text-sm font-semibold">my-his</SidebarHeader>
+        <SidebarHeader className="flex-row items-center gap-2 px-3 py-3">
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <HeartPulse className="size-4" />
+          </span>
+          <span className="text-sm font-semibold tracking-tight">my-his</span>
+        </SidebarHeader>
         <SidebarContent>
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu>
-                {effectiveMenu.map((item) => {
-                  const Icon = resolveIcon(item.icon)
-                  return (
-                    <SidebarMenuItem key={item.id}>
-                      <SidebarMenuButton
-                        render={<Link to={item.route} />}
-                        isActive={location.pathname === item.route}
-                      >
-                        <Icon />
-                        <span>{item.label}</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  )
-                })}
+                {menuGroups.map(([groupLabel, items]) =>
+                  groupLabel === null ? (
+                    items.map((item) => {
+                      const Icon = resolveIcon(item.icon)
+                      return (
+                        <SidebarMenuItem key={item.id}>
+                          <SidebarMenuButton
+                            render={<Link to={item.route} />}
+                            isActive={location.pathname === item.route}
+                          >
+                            <Icon />
+                            <span>{item.label}</span>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      )
+                    })
+                  ) : (
+                    // กลุ่มที่มีชื่อ (เช่น "การตั้งค่า") = main page เดียวที่กด toggle เปิด/ปิด
+                    // ดู sub page ข้างใน ไม่ใช่ลิงก์ที่คลิกแล้วมีเนื้อหาของตัวเอง — defaultOpen
+                    // เสมอกันคนเผลอมองไม่เห็นเมนูตั้งค่าที่เคยกดใช้อยู่แล้ว
+                    <Collapsible key={groupLabel} defaultOpen className="group/collapsible">
+                      <SidebarMenuItem>
+                        <CollapsibleTrigger
+                          render={
+                            <SidebarMenuButton
+                              isActive={items.some(
+                                (item) => location.pathname === item.route,
+                              )}
+                            >
+                              <span>{groupLabel}</span>
+                              <ChevronRight className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-90" />
+                            </SidebarMenuButton>
+                          }
+                        />
+                        <CollapsibleContent>
+                          <SidebarMenuSub>
+                            {items.map((item) => {
+                              const Icon = resolveIcon(item.icon)
+                              return (
+                                <SidebarMenuSubItem key={item.id}>
+                                  <SidebarMenuSubButton
+                                    render={<Link to={item.route} />}
+                                    isActive={location.pathname === item.route}
+                                  >
+                                    <Icon />
+                                    <span>{item.label}</span>
+                                  </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
+                              )
+                            })}
+                          </SidebarMenuSub>
+                        </CollapsibleContent>
+                      </SidebarMenuItem>
+                    </Collapsible>
+                  ),
+                )}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
-        <SidebarFooter className="gap-2">
+        <SidebarFooter className="gap-3">
           <ThemeSwitcher />
-          <p className="truncate px-2 text-sm text-muted-foreground">
-            {user?.displayName ?? user?.username}
-          </p>
-          <Button variant="outline" size="sm" onClick={() => void logout()}>
-            ออกจากระบบ
-          </Button>
+          <div className="flex items-center justify-between gap-2 rounded-lg border bg-sidebar-accent/50 px-2.5 py-2">
+            <p className="truncate text-sm font-medium">
+              {user?.displayName ?? user?.username}
+            </p>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => void logout()}
+              title="ออกจากระบบ"
+            >
+              <LogOut className="size-4" />
+              <span className="sr-only">ออกจากระบบ</span>
+            </Button>
+          </div>
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
@@ -73,8 +151,10 @@ export function AppShell() {
             <RoleSwitcher />
           </div>
         </header>
-        <main className="flex-1 p-4">
-          <Outlet />
+        <main className="flex-1 p-4 md:p-6">
+          <div className="mx-auto w-full max-w-6xl">
+            <Outlet />
+          </div>
         </main>
       </SidebarInset>
     </SidebarProvider>

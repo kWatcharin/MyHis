@@ -8,6 +8,7 @@ export interface MenuItem {
   label: string
   icon: string | null
   route: string
+  groupLabel: string | null
 }
 
 interface UserResponse {

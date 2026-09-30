@@ -126,6 +126,7 @@ pub struct CreatePageRequest {
     pub route: String,
     pub sort_order: Option<i32>,
     pub permissions: Vec<String>,
+    pub group_label: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -138,6 +139,9 @@ pub struct UpdatePageRequest {
     pub route: Option<String>,
     pub sort_order: Option<i32>,
     pub permissions: Option<Vec<String>>,
+    // เหมือน icon: ไม่รองรับตั้งกลับเป็น null ผ่าน endpoint นี้ตรง ๆ (Option ชั้นเดียว — serde ทำให้
+    // "ไม่ส่ง field" กับ "ส่ง null" กลายเป็น None เหมือนกัน) ยอมรับข้อจำกัดนี้เหมือนที่ยอมรับกับ icon
+    pub group_label: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -149,6 +153,7 @@ pub struct PageResponse {
     pub route: String,
     pub sort_order: i32,
     pub permissions: Vec<&'static str>,
+    pub group_label: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -158,4 +163,5 @@ pub struct MenuItemResponse {
     pub label: String,
     pub icon: Option<String>,
     pub route: String,
+    pub group_label: Option<String>,
 }
