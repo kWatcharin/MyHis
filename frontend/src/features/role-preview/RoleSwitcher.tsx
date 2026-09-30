@@ -70,8 +70,17 @@ export function RoleSwitcher() {
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>สลับมุมมองสิทธิ์</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuRadioGroup value={activeRoleName ?? '__real__'} onValueChange={handleSelect}>
-            <DropdownMenuRadioItem value="__real__">{REAL_LABEL}</DropdownMenuRadioItem>
+          <DropdownMenuRadioGroup value={activeRoleName ?? ''} onValueChange={handleSelect}>
+            {/* โชว์ตัวเลือกนี้เฉพาะตอน preview อยู่จริง — ถ้าใช้สิทธิ์จริงอยู่แล้ว value ของ
+                radio group จะเท่ากับ "__real__" อยู่แล้ว กดซ้ำจะไม่ยิง onValueChange
+                (radio group ไม่แจ้ง change ถ้าค่าที่กดเหมือนค่าปัจจุบัน) ทำให้กดแล้วดูเหมือน
+                ไม่มีอะไรเกิดขึ้น ซ่อนไว้เมื่อไม่มีอะไรให้ "กลับไป" แทน */}
+            {activeRoleName && (
+              <>
+                <DropdownMenuRadioItem value="__real__">{REAL_LABEL}</DropdownMenuRadioItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
             {availableRoles.map((role) => (
               <DropdownMenuRadioItem key={role.id} value={role.name}>
                 {labelFor(role.name)}
