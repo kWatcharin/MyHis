@@ -41,11 +41,21 @@ JWT จะเริ่มคุ้มเมื่อมีหลาย service �
 
 ## 4. ตารางฐานข้อมูล
 
+**รูปแบบ id ของ entity (users, roles, pages และตารางในไฟล์ `docs/my-his-data-dict.xlsx`):** ทุกตารางมี
+`id integer` (identity, primary key — ใช้ join/FK ภายใน backend เท่านั้น ไม่ออกนอกระบบ) และ
+`uuid uuid` (unique, default `uuid_v7()` — id ที่ API/frontend เห็น ไม่เปิดเผยลำดับแถว) ตารางกลาง
+(`role_permissions`, `user_roles`, `page_permissions`) FK ด้วย `id` ที่เป็น integer ส่วน `sessions`
+ใช้ `token_hash` เป็น pk และ `audit_log.id` เป็น bigserial ตามเดิม แถวเดิมของ users/roles/pages คง
+ค่า uuid เดิมไว้ตอน migrate (`20261004100000_int_ids_and_uuid_v7.sql`) API จึงไม่เปลี่ยน
+
+`uuid_v7()` เป็นฟังก์ชัน SQL ที่ migration สร้างเอง เพราะ PostgreSQL 16 ยังไม่มี `uuidv7()` built-in
+
 ### users
 
 | คอลัมน์ | ชนิด | หมายเหตุ |
 |---|---|---|
-| id | uuid | primary key |
+| id | integer | primary key (identity) — ใช้ภายใน |
+| uuid | uuid | unique — id ที่ API เห็น |
 | username | text | unique, เก็บเป็นตัวพิมพ์เล็กที่ตัดช่องว่างแล้ว |
 | display_name | text | ชื่อที่แสดงในหน้าจอ |
 | password_hash | text | argon2id พร้อม salt ในตัว |
@@ -63,7 +73,8 @@ role ของผู้ใช้ย้ายไปอยู่ตาราง `u
 
 | คอลัมน์ | ชนิด | หมายเหตุ |
 |---|---|---|
-| id | uuid | primary key |
+| id | integer | primary key (identity) — ใช้ภายใน |
+| uuid | uuid | unique — id ที่ API เห็น |
 | name | text | unique, ชื่อ role เช่น `admin`, `nurse`, หรือชื่อที่ admin ตั้งเพิ่มทีหลัง |
 | description | text | nullable, อธิบาย role นี้ให้แอดมินคนอื่นเข้าใจ |
 | is_system | boolean | true สำหรับ role ที่ seed มาตอน migration แรก (`admin`, `nurse`) — role ที่ `is_system = true` ห้ามลบและห้ามเปลี่ยน `name` |
@@ -76,7 +87,7 @@ permission ในดีไซน์เดิม เพราะตอนนี�
 
 | คอลัมน์ | ชนิด | หมายเหตุ |
 |---|---|---|
-| role_id | uuid | FK ไป `roles.id`, ลบตามเมื่อ role ถูกลบ |
+| role_id | integer | FK ไป `roles.id`, ลบตามเมื่อ role ถูกลบ |
 | permission | text | ค่าตรงกับ `Permission` enum ฝั่ง Rust เสมอ — parse ตอนอ่านจาก DB ถ้า parse ไม่ผ่านถือเป็นข้อมูลเสีย ให้ error ไม่ใช่ข้าม |
 
 primary key คือ (`role_id`, `permission`)
@@ -91,8 +102,8 @@ check จริงในโค้ด สร้างผ่าน UI ไม่ไ
 
 | คอลัมน์ | ชนิด | หมายเหตุ |
 |---|---|---|
-| user_id | uuid | FK ไป `users.id`, ลบตามเมื่อผู้ใช้ถูกลบ |
-| role_id | uuid | FK ไป `roles.id`, **ห้ามลบ role นี้** ถ้ายังมีแถวในตารางนี้อ้างถึงอยู่ (ต้องย้ายคนออกก่อนถึงจะลบ role ได้) |
+| user_id | integer | FK ไป `users.id`, ลบตามเมื่อผู้ใช้ถูกลบ |
+| role_id | integer | FK ไป `roles.id`, **ห้ามลบ role นี้** ถ้ายังมีแถวในตารางนี้อ้างถึงอยู่ (ต้องย้ายคนออกก่อนถึงจะลบ role ได้) |
 | assigned_at | timestamptz | เวลาที่ได้รับ role นี้ |
 
 primary key คือ (`user_id`, `role_id`) ต้องมี index บน `role_id` เพิ่ม (ใช้ตอนเช็คว่า role หนึ่ง
@@ -105,7 +116,8 @@ primary key คือ (`user_id`, `role_id`) ต้องมี index บน `ro
 
 | คอลัมน์ | ชนิด | หมายเหตุ |
 |---|---|---|
-| id | uuid | primary key |
+| id | integer | primary key (identity) — ใช้ภายใน |
+| uuid | uuid | unique — id ที่ API เห็น |
 | label | text | ชื่อเมนูที่แสดงผล |
 | icon | text | nullable, ชื่อ icon ให้ frontend เป็นคนแปลผลเอง |
 | route | text | unique, path ของหน้านี้ เช่น `/users`, `/shifts` |
@@ -128,7 +140,7 @@ primary key คือ (`user_id`, `role_id`) ต้องมี index บน `ro
 
 | คอลัมน์ | ชนิด | หมายเหตุ |
 |---|---|---|
-| page_id | uuid | FK ไป `pages.id`, ลบตามเมื่อ page ถูกลบ |
+| page_id | integer | FK ไป `pages.id`, ลบตามเมื่อ page ถูกลบ |
 | permission | text | ค่าตรงกับ `Permission` enum ฝั่ง Rust เสมอ (เหมือน `role_permissions.permission`) |
 
 primary key คือ (`page_id`, `permission`)
@@ -145,7 +157,7 @@ primary key คือ (`page_id`, `permission`)
 | คอลัมน์ | ชนิด | หมายเหตุ |
 |---|---|---|
 | token_hash | text | primary key, SHA-256 ของ token ที่อยู่ใน cookie |
-| user_id | uuid | foreign key ไป users, ลบตามเมื่อผู้ใช้ถูกลบ |
+| user_id | integer | foreign key ไป users, ลบตามเมื่อผู้ใช้ถูกลบ |
 | created_at | timestamptz | เวลาที่ login |
 | last_seen_at | timestamptz | อัปเดตแบบประหยัด (ดูหัวข้อ 7) |
 | idle_expires_at | timestamptz | หมดอายุถ้าไม่ใช้งาน |
@@ -159,9 +171,9 @@ primary key คือ (`page_id`, `permission`)
 | คอลัมน์ | ชนิด | หมายเหตุ |
 |---|---|---|
 | id | bigserial | |
-| actor_user_id | uuid | null ได้ กรณี login ล้มเหลวที่ไม่รู้ว่าใคร |
+| actor_user_id | integer | FK ไป `users.id` (on delete set null), null ได้ กรณี login ล้มเหลวที่ไม่รู้ว่าใคร |
 | action | text | เช่น `login_succeeded`, `login_failed`, `user_created` |
-| target_type / target_id | text / text | สิ่งที่ถูกกระทำ |
+| target_type / target_id | text / text | สิ่งที่ถูกกระทำ — `target_id` เก็บเป็น **uuid** (หรือ username ของเหตุการณ์ login) ไม่ใช่ id int ภายใน เพื่ออ้างอิงข้ามเวลาได้ |
 | metadata | jsonb | ข้อมูลเพิ่มเติม ห้ามใส่ความลับ |
 | ip | inet | |
 | created_at | timestamptz | |

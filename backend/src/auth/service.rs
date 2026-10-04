@@ -126,6 +126,7 @@ pub async fn login(
     Ok(LoginSuccess {
         user: User {
             id: user.id,
+            public_id: user.public_id,
             username: user.username,
             display_name: user.display_name,
             must_change_password: user.must_change_password,
@@ -277,6 +278,7 @@ pub async fn current_user_with_permissions(
     Ok(Some((
         User {
             id: row.id,
+            public_id: row.public_id,
             username: row.username,
             display_name: row.display_name,
             must_change_password: row.must_change_password,

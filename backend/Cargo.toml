@@ -33,6 +33,10 @@ rand = "0.8" # สุ่ม session token
 sha2 = "0.10" # hash session token ก่อนเก็บเป็น token_hash
 axum-extra = { version = "0.10", features = ["cookie"] } # ตั้ง cookie HttpOnly/Secure/SameSite
 
+# --- เข้ารหัสคอลัมน์ข้อมูลผู้ป่วย (backend/src/crypto.rs, data dict encrypt = yes) ---
+aes-gcm = "0.10" # AES-256-GCM เข้ารหัส/ถอดรหัสค่าที่ต้องแสดงกลับ
+hmac = "0.12" # blind index (HMAC-SHA256 ใช้คู่กับ sha2 ด้านบน) ไว้ค้นหาแบบ = โดยไม่เก็บ plaintext
+
 # --- Logging (docs/rust-guidelines.md ข้อ 13) ---
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

@@ -6,7 +6,7 @@
     "parameters": {
       "Left": [
         "Text",
-        "Uuid",
+        "Int4",
         "Timestamptz",
         "Timestamptz",
         "Text"

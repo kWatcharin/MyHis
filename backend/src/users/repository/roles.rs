@@ -1,4 +1,5 @@
 use sqlx::PgPool;
+use uuid::Uuid;
 
 use super::RepositoryError;
 use crate::domain::{Permission, RoleId};
@@ -6,6 +7,7 @@ use crate::domain::{Permission, RoleId};
 #[derive(Debug)]
 pub struct RoleWithPermissions {
     pub id: RoleId,
+    pub public_id: Uuid,
     pub name: String,
     pub description: Option<String>,
     pub is_system: bool,
@@ -14,7 +16,7 @@ pub struct RoleWithPermissions {
 
 pub async fn list_roles(pool: &PgPool) -> Result<Vec<RoleWithPermissions>, RepositoryError> {
     let rows = sqlx::query!(
-        r#"select r.id as "id: RoleId", r.name, r.description, r.is_system,
+        r#"select r.id as "id: RoleId", r.uuid as public_id, r.name, r.description, r.is_system,
                   rp.permission as "permission?"
            from roles r
            left join role_permissions rp on rp.role_id = r.id
@@ -39,6 +41,7 @@ pub async fn list_roles(pool: &PgPool) -> Result<Vec<RoleWithPermissions>, Repos
             }
             _ => roles.push(RoleWithPermissions {
                 id: row.id,
+                public_id: row.public_id,
                 name: row.name,
                 description: row.description,
                 is_system: row.is_system,
@@ -49,11 +52,14 @@ pub async fn list_roles(pool: &PgPool) -> Result<Vec<RoleWithPermissions>, Repos
     Ok(roles)
 }
 
-pub async fn find_role_by_id(
+pub async fn find_role_by_public_id(
     pool: &PgPool,
-    id: RoleId,
+    public_id: Uuid,
 ) -> Result<Option<RoleWithPermissions>, RepositoryError> {
-    Ok(list_roles(pool).await?.into_iter().find(|r| r.id == id))
+    Ok(list_roles(pool)
+        .await?
+        .into_iter()
+        .find(|r| r.public_id == public_id))
 }
 
 /// สร้าง role + permission ในทรานแซกชันเดียว

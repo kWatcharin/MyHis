@@ -1,30 +1,35 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select r.id as \"id: RoleId\", r.name, r.description, r.is_system,\n                  rp.permission as \"permission?\"\n           from roles r\n           left join role_permissions rp on rp.role_id = r.id\n           order by r.name, rp.permission",
+  "query": "select r.id as \"id: RoleId\", r.uuid as public_id, r.name, r.description, r.is_system,\n                  rp.permission as \"permission?\"\n           from roles r\n           left join role_permissions rp on rp.role_id = r.id\n           order by r.name, rp.permission",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
         "name": "id: RoleId",
-        "type_info": "Uuid"
+        "type_info": "Int4"
       },
       {
         "ordinal": 1,
+        "name": "public_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
         "name": "name",
         "type_info": "Text"
       },
       {
-        "ordinal": 2,
+        "ordinal": 3,
         "name": "description",
         "type_info": "Text"
       },
       {
-        "ordinal": 3,
+        "ordinal": 4,
         "name": "is_system",
         "type_info": "Bool"
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "permission?",
         "type_info": "Text"
       }
@@ -35,10 +40,11 @@
     "nullable": [
       false,
       false,
+      false,
       true,
       false,
       false
     ]
   },
-  "hash": "e3aa3b02cb2e261f5de750b9421af0a83203513801e0f03bfb7c77c78d7cc62a"
+  "hash": "3f9ab4ed1dfec4cc0d1e526ff7f0429dbb8576ac6da5d5fdfeb6a07fe3ace92b"
 }

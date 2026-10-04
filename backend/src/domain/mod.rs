@@ -1,5 +1,8 @@
 //! ชนิดข้อมูลกลาง: UserId, RoleId, PageId, Permission, User (docs/rust-guidelines.md ข้อ 4)
 //! newtype แทนชนิดพื้นฐานสำหรับ id, enum แทน string ที่ส่งไปมา
+//!
+//! `XId` คือ pk แบบ integer ที่ใช้ภายใน backend (join/FK) เท่านั้น — ไม่ออกนอกระบบ ส่วน id ที่
+//! API/frontend เห็นคือ `uuid` ของแถวนั้น (ชนิด `Uuid` ธรรมดา เรียก `public_id` ในโค้ด)
 //! ชนิดในไฟล์นี้ไม่ผูกกับรูปแบบ JSON ของ API โดยตรง — auth::dto เป็นคนแปลงเป็น wire format
 //! (แยก DTO ออกจากชนิดโดเมน เหมือนที่แยกจาก struct ของตาราง)
 
@@ -7,15 +10,15 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, sqlx::Type)]
 #[sqlx(transparent)]
-pub struct UserId(pub Uuid);
+pub struct UserId(pub i32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, sqlx::Type)]
 #[sqlx(transparent)]
-pub struct RoleId(pub Uuid);
+pub struct RoleId(pub i32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, sqlx::Type)]
 #[sqlx(transparent)]
-pub struct PageId(pub Uuid);
+pub struct PageId(pub i32);
 
 /// ชุด permission ที่มีอยู่จริงในระบบ — ปิดตาย ผูกกับ authorization check จริงในโค้ดเท่านั้น
 /// สร้างผ่าน UI ไม่ได้ role ไหนมี permission ไหนเป็นข้อมูลใน DB (role_permissions) ไม่ใช่
@@ -56,6 +59,7 @@ impl Permission {
 #[derive(Debug, Clone)]
 pub struct User {
     pub id: UserId,
+    pub public_id: Uuid,
     pub username: String,
     pub display_name: String,
     pub must_change_password: bool,

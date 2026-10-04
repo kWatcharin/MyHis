@@ -1,4 +1,5 @@
 use sqlx::PgPool;
+use uuid::Uuid;
 
 use super::RepositoryError;
 use crate::domain::{PageId, Permission};
@@ -6,6 +7,7 @@ use crate::domain::{PageId, Permission};
 #[derive(Debug, Clone)]
 pub struct PageWithPermissions {
     pub id: PageId,
+    pub public_id: Uuid,
     pub label: String,
     pub icon: Option<String>,
     pub route: String,
@@ -19,7 +21,7 @@ pub struct PageWithPermissions {
 /// เขียน SQL ที่มี array ตัดกันซับซ้อน (docs/auth-design.md ข้อ 11)
 pub async fn list_pages(pool: &PgPool) -> Result<Vec<PageWithPermissions>, RepositoryError> {
     let rows = sqlx::query!(
-        r#"select p.id as "id: PageId", p.label, p.icon, p.route, p.sort_order, p.group_label,
+        r#"select p.id as "id: PageId", p.uuid as public_id, p.label, p.icon, p.route, p.sort_order, p.group_label,
                   pp.permission as "permission?"
            from pages p
            left join page_permissions pp on pp.page_id = p.id
@@ -44,6 +46,7 @@ pub async fn list_pages(pool: &PgPool) -> Result<Vec<PageWithPermissions>, Repos
             }
             _ => pages.push(PageWithPermissions {
                 id: row.id,
+                public_id: row.public_id,
                 label: row.label,
                 icon: row.icon,
                 route: row.route,
@@ -56,11 +59,14 @@ pub async fn list_pages(pool: &PgPool) -> Result<Vec<PageWithPermissions>, Repos
     Ok(pages)
 }
 
-pub async fn find_page_by_id(
+pub async fn find_page_by_public_id(
     pool: &PgPool,
-    id: PageId,
+    public_id: Uuid,
 ) -> Result<Option<PageWithPermissions>, RepositoryError> {
-    Ok(list_pages(pool).await?.into_iter().find(|p| p.id == id))
+    Ok(list_pages(pool)
+        .await?
+        .into_iter()
+        .find(|p| p.public_id == public_id))
 }
 
 pub async fn insert_page(

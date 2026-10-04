@@ -6,6 +6,7 @@
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use thiserror::Error;
+use uuid::Uuid;
 
 use crate::domain::{Permission, RoleId, UserId};
 
@@ -19,6 +20,7 @@ pub enum RepositoryError {
 
 pub struct UserRow {
     pub id: UserId,
+    pub public_id: Uuid,
     pub username: String,
     pub display_name: String,
     pub password_hash: String,
@@ -32,6 +34,7 @@ impl std::fmt::Debug for UserRow {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("UserRow")
             .field("id", &self.id)
+            .field("public_id", &self.public_id)
             .field("username", &self.username)
             .field("display_name", &self.display_name)
             .field("password_hash", &"[redacted]")
@@ -57,7 +60,7 @@ pub async fn find_user_by_username(
 ) -> Result<Option<UserRow>, RepositoryError> {
     let row = sqlx::query_as!(
         UserRow,
-        r#"select id as "id: UserId", username, display_name, password_hash, is_active,
+        r#"select id as "id: UserId", uuid as public_id, username, display_name, password_hash, is_active,
            must_change_password, failed_attempts, locked_until
            from users where username = $1"#,
         username
@@ -73,7 +76,7 @@ pub async fn find_user_by_id(
 ) -> Result<Option<UserRow>, RepositoryError> {
     let row = sqlx::query_as!(
         UserRow,
-        r#"select id as "id: UserId", username, display_name, password_hash, is_active,
+        r#"select id as "id: UserId", uuid as public_id, username, display_name, password_hash, is_active,
            must_change_password, failed_attempts, locked_until
            from users where id = $1"#,
         user_id.0

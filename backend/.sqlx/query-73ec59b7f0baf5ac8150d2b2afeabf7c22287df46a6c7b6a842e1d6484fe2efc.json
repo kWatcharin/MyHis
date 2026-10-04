@@ -1,45 +1,50 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select id as \"id: UserId\", username, display_name, password_hash, is_active,\n           must_change_password, failed_attempts, locked_until\n           from users where username = $1",
+  "query": "select id as \"id: UserId\", uuid as public_id, username, display_name, password_hash, is_active,\n           must_change_password, failed_attempts, locked_until\n           from users where username = $1",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
         "name": "id: UserId",
-        "type_info": "Uuid"
+        "type_info": "Int4"
       },
       {
         "ordinal": 1,
+        "name": "public_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
         "name": "username",
         "type_info": "Text"
       },
       {
-        "ordinal": 2,
+        "ordinal": 3,
         "name": "display_name",
         "type_info": "Text"
       },
       {
-        "ordinal": 3,
+        "ordinal": 4,
         "name": "password_hash",
         "type_info": "Text"
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "is_active",
         "type_info": "Bool"
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
         "name": "must_change_password",
         "type_info": "Bool"
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "failed_attempts",
         "type_info": "Int4"
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "locked_until",
         "type_info": "Timestamptz"
       }
@@ -57,8 +62,9 @@
       false,
       false,
       false,
+      false,
       true
     ]
   },
-  "hash": "3fbf61470a67f2cc831ea9ea9d4f01102cc592aa89cf2d61eb52b3cbea05ec8b"
+  "hash": "73ec59b7f0baf5ac8150d2b2afeabf7c22287df46a6c7b6a842e1d6484fe2efc"
 }

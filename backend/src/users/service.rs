@@ -3,8 +3,12 @@
 //!
 //! **จุดตรวจสิทธิ์**: ทุกฟังก์ชันรับ `actor: &CurrentUser` เป็นพารามิเตอร์แรกและเช็ค `user.manage`
 //! ที่นี่ — "Service เป็นที่ตรวจ permission จริง" (docs/auth-design.md ข้อ 10)
+//!
+//! **id ขาเข้าจาก API เป็น uuid เสมอ** (`public_id`) — service แปลงเป็น pk int ภายในเองผ่าน
+//! repository ถ้าไม่พบคืน `*NotFound` (id int ไม่ออกนอก backend)
 
 use sqlx::PgPool;
+use uuid::Uuid;
 
 use crate::auth::CurrentUser;
 use crate::domain::{PageId, Permission, RoleId, UserId};
@@ -87,7 +91,7 @@ fn parse_permissions(raw: &[String]) -> Result<Vec<Permission>, UsersError> {
 // ============================================================================
 
 pub struct CreatedUser {
-    pub id: UserId,
+    pub public_id: Uuid,
     pub username: String,
     pub display_name: String,
     pub role: repository::RoleRef,
@@ -107,11 +111,11 @@ pub async fn create_user(
     actor: &CurrentUser,
     username: &str,
     display_name: &str,
-    role_id: RoleId,
+    role_public_id: Uuid,
 ) -> Result<CreatedUser, UsersError> {
     require_user_manage(actor)?;
 
-    let role = repository::find_role_by_id(pool, role_id)
+    let role = repository::find_role_by_public_id(pool, role_public_id)
         .await?
         .ok_or(UsersError::RoleNotFound)?;
 
@@ -119,39 +123,43 @@ pub async fn create_user(
     let temporary_password = generate_temp_password();
     let password_hash = hash_password(temporary_password.clone()).await?;
 
-    let id = repository::insert_user_with_role(
+    let (_, public_id) = repository::insert_user_with_role(
         pool,
         &normalized_username,
         display_name,
         &password_hash,
-        role_id,
+        role.id,
     )
     .await
     .map_err(|e| map_unique_violation(e, "username already taken"))?;
 
     Ok(CreatedUser {
-        id,
+        public_id,
         username: normalized_username,
         display_name: display_name.to_string(),
         role: repository::RoleRef {
-            id: role.id,
+            public_id: role.public_id,
             name: role.name,
         },
         temporary_password,
     })
 }
 
+async fn resolve_user_id(pool: &PgPool, public_id: Uuid) -> Result<UserId, UsersError> {
+    repository::find_user_id_by_public_id(pool, public_id)
+        .await?
+        .ok_or(UsersError::UserNotFound)
+}
+
 pub async fn update_user(
     pool: &PgPool,
     actor: &CurrentUser,
-    id: UserId,
+    public_id: Uuid,
     display_name: Option<&str>,
     is_active: Option<bool>,
 ) -> Result<(), UsersError> {
     require_user_manage(actor)?;
-    if !repository::user_exists(pool, id).await? {
-        return Err(UsersError::UserNotFound);
-    }
+    let id = resolve_user_id(pool, public_id).await?;
     repository::update_user(pool, id, display_name, is_active).await?;
     Ok(())
 }
@@ -159,12 +167,10 @@ pub async fn update_user(
 pub async fn reset_password(
     pool: &PgPool,
     actor: &CurrentUser,
-    id: UserId,
+    public_id: Uuid,
 ) -> Result<String, UsersError> {
     require_user_manage(actor)?;
-    if !repository::user_exists(pool, id).await? {
-        return Err(UsersError::UserNotFound);
-    }
+    let id = resolve_user_id(pool, public_id).await?;
 
     let temporary_password = generate_temp_password();
     let password_hash = hash_password(temporary_password.clone()).await?;
@@ -178,26 +184,26 @@ pub async fn reset_password(
 pub async fn replace_user_roles(
     pool: &PgPool,
     actor: &CurrentUser,
-    id: UserId,
-    role_ids: &[RoleId],
+    public_id: Uuid,
+    role_public_ids: &[Uuid],
 ) -> Result<(), UsersError> {
     require_user_manage(actor)?;
 
-    if role_ids.is_empty() {
+    if role_public_ids.is_empty() {
         return Err(UsersError::Validation(
             "a user must have at least one role".to_string(),
         ));
     }
-    if !repository::user_exists(pool, id).await? {
-        return Err(UsersError::UserNotFound);
-    }
-    for role_id in role_ids {
-        if repository::find_role_by_id(pool, *role_id).await?.is_none() {
-            return Err(UsersError::RoleNotFound);
-        }
+    let id = resolve_user_id(pool, public_id).await?;
+    let mut role_ids: Vec<RoleId> = Vec::with_capacity(role_public_ids.len());
+    for role_public_id in role_public_ids {
+        let role = repository::find_role_by_public_id(pool, *role_public_id)
+            .await?
+            .ok_or(UsersError::RoleNotFound)?;
+        role_ids.push(role.id);
     }
 
-    repository::replace_user_roles(pool, id, role_ids).await?;
+    repository::replace_user_roles(pool, id, &role_ids).await?;
     Ok(())
 }
 
@@ -231,14 +237,14 @@ pub async fn create_role(
 pub async fn update_role(
     pool: &PgPool,
     actor: &CurrentUser,
-    id: RoleId,
+    public_id: Uuid,
     name: Option<&str>,
     description: Option<&str>,
     permissions: Option<&[String]>,
 ) -> Result<(), UsersError> {
     require_user_manage(actor)?;
 
-    let role = repository::find_role_by_id(pool, id)
+    let role = repository::find_role_by_public_id(pool, public_id)
         .await?
         .ok_or(UsersError::RoleNotFound)?;
     if role.is_system && name.is_some() {
@@ -249,16 +255,20 @@ pub async fn update_role(
 
     let permissions = permissions.map(parse_permissions).transpose()?;
 
-    repository::update_role(pool, id, name, description, permissions.as_deref())
+    repository::update_role(pool, role.id, name, description, permissions.as_deref())
         .await
         .map_err(|e| map_unique_violation(e, "role name already taken"))?;
     Ok(())
 }
 
-pub async fn delete_role(pool: &PgPool, actor: &CurrentUser, id: RoleId) -> Result<(), UsersError> {
+pub async fn delete_role(
+    pool: &PgPool,
+    actor: &CurrentUser,
+    public_id: Uuid,
+) -> Result<(), UsersError> {
     require_user_manage(actor)?;
 
-    let role = repository::find_role_by_id(pool, id)
+    let role = repository::find_role_by_public_id(pool, public_id)
         .await?
         .ok_or(UsersError::RoleNotFound)?;
     if role.is_system {
@@ -266,13 +276,13 @@ pub async fn delete_role(pool: &PgPool, actor: &CurrentUser, id: RoleId) -> Resu
             "cannot delete a system role".to_string(),
         ));
     }
-    if repository::role_in_use(pool, id).await? {
+    if repository::role_in_use(pool, role.id).await? {
         return Err(UsersError::Conflict(
             "role is still assigned to at least one user".to_string(),
         ));
     }
 
-    repository::delete_role(pool, id).await?;
+    repository::delete_role(pool, role.id).await?;
     Ok(())
 }
 
@@ -332,19 +342,19 @@ pub struct UpdatePageInput<'a> {
 pub async fn update_page(
     pool: &PgPool,
     actor: &CurrentUser,
-    id: PageId,
+    public_id: Uuid,
     input: UpdatePageInput<'_>,
 ) -> Result<(), UsersError> {
     require_user_manage(actor)?;
 
-    if repository::find_page_by_id(pool, id).await?.is_none() {
-        return Err(UsersError::PageNotFound);
-    }
+    let page = repository::find_page_by_public_id(pool, public_id)
+        .await?
+        .ok_or(UsersError::PageNotFound)?;
     let permissions = input.permissions.map(parse_permissions).transpose()?;
 
     repository::update_page(
         pool,
-        id,
+        page.id,
         UpdatePageFields {
             label: input.label,
             icon: input.icon,
@@ -359,12 +369,16 @@ pub async fn update_page(
     Ok(())
 }
 
-pub async fn delete_page(pool: &PgPool, actor: &CurrentUser, id: PageId) -> Result<(), UsersError> {
+pub async fn delete_page(
+    pool: &PgPool,
+    actor: &CurrentUser,
+    public_id: Uuid,
+) -> Result<(), UsersError> {
     require_user_manage(actor)?;
-    if repository::find_page_by_id(pool, id).await?.is_none() {
-        return Err(UsersError::PageNotFound);
-    }
-    repository::delete_page(pool, id).await?;
+    let page = repository::find_page_by_public_id(pool, public_id)
+        .await?
+        .ok_or(UsersError::PageNotFound)?;
+    repository::delete_page(pool, page.id).await?;
     Ok(())
 }
 
@@ -373,7 +387,7 @@ pub async fn delete_page(pool: &PgPool, actor: &CurrentUser, id: PageId) -> Resu
 // ============================================================================
 
 pub struct MenuItem {
-    pub id: PageId,
+    pub public_id: Uuid,
     pub label: String,
     pub icon: Option<String>,
     pub route: String,
@@ -391,7 +405,7 @@ pub async fn menu_for(pool: &PgPool, actor: &CurrentUser) -> Result<Vec<MenuItem
             page.permissions.is_empty() || page.permissions.iter().any(|p| actor.has_permission(*p))
         })
         .map(|page| MenuItem {
-            id: page.id,
+            public_id: page.public_id,
             label: page.label,
             icon: page.icon,
             route: page.route,

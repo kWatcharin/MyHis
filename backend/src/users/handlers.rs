@@ -9,7 +9,6 @@ use uuid::Uuid;
 use validator::Validate;
 
 use crate::auth::CurrentUser;
-use crate::domain::{PageId, RoleId, UserId};
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::users::dto::*;
@@ -18,7 +17,7 @@ use crate::users::service::{self, UpdatePageInput};
 
 fn user_to_summary(u: UserWithRoles) -> UserSummary {
     UserSummary {
-        id: u.id.0,
+        id: u.public_id,
         username: u.username,
         display_name: u.display_name,
         is_active: u.is_active,
@@ -27,7 +26,7 @@ fn user_to_summary(u: UserWithRoles) -> UserSummary {
             .roles
             .into_iter()
             .map(|r| RoleRef {
-                id: r.id.0,
+                id: r.public_id,
                 name: r.name,
             })
             .collect(),
@@ -37,7 +36,7 @@ fn user_to_summary(u: UserWithRoles) -> UserSummary {
 
 fn role_to_response(r: RoleWithPermissions) -> RoleResponse {
     RoleResponse {
-        id: r.id.0,
+        id: r.public_id,
         name: r.name,
         description: r.description,
         is_system: r.is_system,
@@ -47,7 +46,7 @@ fn role_to_response(r: RoleWithPermissions) -> RoleResponse {
 
 fn page_to_response(p: PageWithPermissions) -> PageResponse {
     PageResponse {
-        id: p.id.0,
+        id: p.public_id,
         label: p.label,
         icon: p.icon,
         route: p.route,
@@ -85,18 +84,18 @@ pub async fn create_user(
         &current_user,
         &payload.username,
         &payload.display_name,
-        RoleId(payload.role_id),
+        payload.role_id,
     )
     .await?;
 
     let user = UserSummary {
-        id: created.id.0,
+        id: created.public_id,
         username: created.username,
         display_name: created.display_name,
         is_active: true,
         must_change_password: true,
         roles: vec![RoleRef {
-            id: created.role.id.0,
+            id: created.role.public_id,
             name: created.role.name,
         }],
         created_at: chrono::Utc::now(),
@@ -122,7 +121,7 @@ pub async fn update_user(
     service::update_user(
         &state.pool,
         &current_user,
-        UserId(id),
+        id,
         payload.display_name.as_deref(),
         payload.is_active,
     )
@@ -136,8 +135,7 @@ pub async fn reset_password(
     current_user: CurrentUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<ResetPasswordResponse>, AppError> {
-    let temporary_password =
-        service::reset_password(&state.pool, &current_user, UserId(id)).await?;
+    let temporary_password = service::reset_password(&state.pool, &current_user, id).await?;
     Ok(Json(ResetPasswordResponse { temporary_password }))
 }
 
@@ -148,8 +146,7 @@ pub async fn replace_user_roles(
     Path(id): Path<Uuid>,
     Json(payload): Json<ReplaceUserRolesRequest>,
 ) -> Result<StatusCode, AppError> {
-    let role_ids: Vec<RoleId> = payload.role_ids.into_iter().map(RoleId).collect();
-    service::replace_user_roles(&state.pool, &current_user, UserId(id), &role_ids).await?;
+    service::replace_user_roles(&state.pool, &current_user, id, &payload.role_ids).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -193,7 +190,7 @@ pub async fn update_role(
     service::update_role(
         &state.pool,
         &current_user,
-        RoleId(id),
+        id,
         payload.name.as_deref(),
         payload.description.as_deref(),
         payload.permissions.as_deref(),
@@ -208,7 +205,7 @@ pub async fn delete_role(
     current_user: CurrentUser,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {
-    service::delete_role(&state.pool, &current_user, RoleId(id)).await?;
+    service::delete_role(&state.pool, &current_user, id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -257,7 +254,7 @@ pub async fn update_page(
     service::update_page(
         &state.pool,
         &current_user,
-        PageId(id),
+        id,
         UpdatePageInput {
             label: payload.label.as_deref(),
             // icon: None = ไม่แตะ, Some(v) = ตั้งค่าใหม่ — DTO เป็น Option<String> ชั้นเดียว
@@ -280,7 +277,7 @@ pub async fn delete_page(
     current_user: CurrentUser,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {
-    service::delete_page(&state.pool, &current_user, PageId(id)).await?;
+    service::delete_page(&state.pool, &current_user, id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -296,7 +293,7 @@ pub async fn menu(
         items
             .into_iter()
             .map(|i| MenuItemResponse {
-                id: i.id.0,
+                id: i.public_id,
                 label: i.label,
                 icon: i.icon,
                 route: i.route,

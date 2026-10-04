@@ -1,18 +1,21 @@
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
+use uuid::Uuid;
 
 use super::RepositoryError;
 use crate::domain::{RoleId, UserId};
 
 #[derive(Debug, Clone)]
 pub struct RoleRef {
-    pub id: RoleId,
+    /// uuid ของ role (id ที่ API เห็น) — ไม่ใช่ pk int ภายใน
+    pub public_id: Uuid,
     pub name: String,
 }
 
 #[derive(Debug)]
 pub struct UserWithRoles {
     pub id: UserId,
+    pub public_id: Uuid,
     pub username: String,
     pub display_name: String,
     pub is_active: bool,
@@ -27,9 +30,9 @@ pub struct UserWithRoles {
 pub async fn list_users(pool: &PgPool) -> Result<Vec<UserWithRoles>, RepositoryError> {
     let rows = sqlx::query!(
         r#"select
-             u.id as "user_id: UserId", u.username, u.display_name, u.is_active,
-             u.must_change_password, u.created_at,
-             r.id as "role_id: RoleId", r.name as role_name
+             u.id as "user_id: UserId", u.uuid as user_public_id, u.username, u.display_name,
+             u.is_active, u.must_change_password, u.created_at,
+             r.uuid as role_public_id, r.name as role_name
            from users u
            join user_roles ur on ur.user_id = u.id
            join roles r on r.id = ur.role_id
@@ -41,13 +44,14 @@ pub async fn list_users(pool: &PgPool) -> Result<Vec<UserWithRoles>, RepositoryE
     let mut users: Vec<UserWithRoles> = Vec::new();
     for row in rows {
         let role = RoleRef {
-            id: row.role_id,
+            public_id: row.role_public_id,
             name: row.role_name,
         };
         match users.last_mut() {
             Some(last) if last.id == row.user_id => last.roles.push(role),
             _ => users.push(UserWithRoles {
                 id: row.user_id,
+                public_id: row.user_public_id,
                 username: row.username,
                 display_name: row.display_name,
                 is_active: row.is_active,
@@ -60,16 +64,19 @@ pub async fn list_users(pool: &PgPool) -> Result<Vec<UserWithRoles>, RepositoryE
     Ok(users)
 }
 
-/// เช็คว่าผู้ใช้คนนี้มีอยู่จริงไหม — ยังไม่มี endpoint ไหนต้องอ่านรายละเอียดผู้ใช้คนเดียว
-/// (GET /users คืนทุกคนพร้อม role อยู่แล้ว) เลยยังไม่มี row type เต็ม แค่ exists check พอ
-pub async fn user_exists(pool: &PgPool, id: UserId) -> Result<bool, RepositoryError> {
+/// แปลง uuid ที่มาจาก API เป็น pk ภายใน — None = ไม่มีผู้ใช้คนนี้ ยังไม่มี endpoint ไหนต้องอ่าน
+/// รายละเอียดผู้ใช้คนเดียว (GET /users คืนทุกคนพร้อม role อยู่แล้ว) เลยแค่หา id พอ
+pub async fn find_user_id_by_public_id(
+    pool: &PgPool,
+    public_id: Uuid,
+) -> Result<Option<UserId>, RepositoryError> {
     let row = sqlx::query!(
-        r#"select exists(select 1 from users where id = $1) as "exists!""#,
-        id.0
+        r#"select id as "id: UserId" from users where uuid = $1"#,
+        public_id
     )
-    .fetch_one(pool)
+    .fetch_optional(pool)
     .await?;
-    Ok(row.exists)
+    Ok(row.map(|r| r.id))
 }
 
 /// สร้างผู้ใช้ + ผูก role ในทรานแซกชันเดียว (docs/rust-guidelines.md ข้อ 11)
@@ -79,12 +86,12 @@ pub async fn insert_user_with_role(
     display_name: &str,
     password_hash: &str,
     role_id: RoleId,
-) -> Result<UserId, RepositoryError> {
+) -> Result<(UserId, Uuid), RepositoryError> {
     let mut tx = pool.begin().await?;
 
     let user = sqlx::query!(
         r#"insert into users (username, display_name, password_hash, must_change_password)
-           values ($1, $2, $3, true) returning id as "id: UserId""#,
+           values ($1, $2, $3, true) returning id as "id: UserId", uuid as public_id"#,
         username,
         display_name,
         password_hash
@@ -101,7 +108,7 @@ pub async fn insert_user_with_role(
     .await?;
 
     tx.commit().await?;
-    Ok(user.id)
+    Ok((user.id, user.public_id))
 }
 
 /// partial update ผ่าน COALESCE — ค่า None ไม่แตะคอลัมน์เดิม

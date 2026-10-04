@@ -7,12 +7,17 @@ use std::net::SocketAddr;
 use chrono::Duration;
 use thiserror::Error;
 
+use crate::crypto::Crypto;
+
 #[derive(Debug, Error)]
 pub enum ConfigError {
     #[error("missing environment variable: {0}")]
     Missing(&'static str),
     #[error("invalid value for {name}: {value}")]
     Invalid { name: &'static str, value: String },
+    /// ค่าลับที่ผิดรูปแบบ — ไม่แนบค่าลงใน error เพราะ error ถูก log ได้ (ห้าม log key)
+    #[error("invalid secret in {0}")]
+    InvalidSecret(&'static str),
 }
 
 #[derive(Debug)]
@@ -23,6 +28,7 @@ pub struct Config {
     pub session_absolute_ttl: Duration,
     pub initial_admin_username: String,
     pub initial_admin_password: String,
+    pub crypto: Crypto,
 }
 
 impl Config {
@@ -61,6 +67,12 @@ impl Config {
         let initial_admin_username = require("INITIAL_ADMIN_USERNAME")?;
         let initial_admin_password = require("INITIAL_ADMIN_PASSWORD")?;
 
+        let crypto = Crypto::from_hex_keys(
+            &require("DATA_ENCRYPTION_KEY")?,
+            &require("BLIND_INDEX_KEY")?,
+        )
+        .map_err(|_| ConfigError::InvalidSecret("DATA_ENCRYPTION_KEY/BLIND_INDEX_KEY"))?;
+
         Ok(Config {
             database_url,
             bind_addr,
@@ -68,6 +80,7 @@ impl Config {
             session_absolute_ttl,
             initial_admin_username,
             initial_admin_password,
+            crypto,
         })
     }
 }

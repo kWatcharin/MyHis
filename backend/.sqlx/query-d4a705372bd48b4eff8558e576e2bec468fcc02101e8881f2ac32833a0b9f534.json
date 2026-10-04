@@ -1,45 +1,50 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select\n             u.id as \"user_id: UserId\", u.username, u.display_name, u.is_active,\n             u.must_change_password, u.created_at,\n             r.id as \"role_id: RoleId\", r.name as role_name\n           from users u\n           join user_roles ur on ur.user_id = u.id\n           join roles r on r.id = ur.role_id\n           order by u.created_at, r.name",
+  "query": "select\n             u.id as \"user_id: UserId\", u.uuid as user_public_id, u.username, u.display_name,\n             u.is_active, u.must_change_password, u.created_at,\n             r.uuid as role_public_id, r.name as role_name\n           from users u\n           join user_roles ur on ur.user_id = u.id\n           join roles r on r.id = ur.role_id\n           order by u.created_at, r.name",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
         "name": "user_id: UserId",
-        "type_info": "Uuid"
+        "type_info": "Int4"
       },
       {
         "ordinal": 1,
+        "name": "user_public_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
         "name": "username",
         "type_info": "Text"
       },
       {
-        "ordinal": 2,
+        "ordinal": 3,
         "name": "display_name",
         "type_info": "Text"
       },
       {
-        "ordinal": 3,
+        "ordinal": 4,
         "name": "is_active",
         "type_info": "Bool"
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "must_change_password",
         "type_info": "Bool"
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 6,
-        "name": "role_id: RoleId",
+        "ordinal": 7,
+        "name": "role_public_id",
         "type_info": "Uuid"
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "role_name",
         "type_info": "Text"
       }
@@ -55,8 +60,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "bb7b467f48c62f932261a39c0ee04ba073546da0af2f647795731f60c325705b"
+  "hash": "d4a705372bd48b4eff8558e576e2bec468fcc02101e8881f2ac32833a0b9f534"
 }

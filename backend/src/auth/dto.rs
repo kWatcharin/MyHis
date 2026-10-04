@@ -60,7 +60,7 @@ pub struct UserResponse {
 impl UserResponse {
     pub fn from_domain(user: &User, permissions: &[Permission]) -> Self {
         UserResponse {
-            id: user.id.0,
+            id: user.public_id,
             username: user.username.clone(),
             display_name: user.display_name.clone(),
             must_change_password: user.must_change_password,
