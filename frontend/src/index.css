@@ -25,6 +25,12 @@
     --color-input: var(--input);
     --color-border: var(--border);
     --color-destructive: var(--destructive);
+    --color-danger: var(--danger);
+    --color-danger-foreground: var(--danger-foreground);
+    --color-success: var(--success);
+    --color-success-foreground: var(--success-foreground);
+    --color-warning: var(--warning);
+    --color-warning-foreground: var(--warning-foreground);
     --color-accent-foreground: var(--accent-foreground);
     --color-accent: var(--accent);
     --color-muted-foreground: var(--muted-foreground);
@@ -64,6 +70,13 @@
     --accent: oklch(0.97 0 0);
     --accent-foreground: oklch(0.205 0 0);
     --destructive: oklch(0.577 0.245 27.325);
+    /* ปุ่มเพิ่ม/แก้ไข/ลบ — โทนสว่าง ตัวอักษรบนปุ่มเป็นสีขาว */
+    --success: oklch(0.58 0.13 155);
+    --success-foreground: oklch(1 0 0);
+    --warning: oklch(0.63 0.15 55);
+    --warning-foreground: oklch(1 0 0);
+    --danger: oklch(0.57 0.18 26);
+    --danger-foreground: oklch(1 0 0);
     --border: oklch(0.922 0 0);
     --input: oklch(0.922 0 0);
     --ring: oklch(0.708 0 0);
@@ -99,6 +112,13 @@
     --accent: oklch(0.269 0 0);
     --accent-foreground: oklch(0.985 0 0);
     --destructive: oklch(0.704 0.191 22.216);
+    /* ปุ่มเพิ่ม/แก้ไข/ลบ — ธีมมืด สีหม่นลงให้กลืนกับพื้นเทา ตัวอักษรบนปุ่มเป็นสีขาว */
+    --success: oklch(0.54 0.11 155);
+    --success-foreground: oklch(1 0 0);
+    --warning: oklch(0.6 0.12 58);
+    --warning-foreground: oklch(1 0 0);
+    --danger: oklch(0.55 0.15 25);
+    --danger-foreground: oklch(1 0 0);
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
     --ring: oklch(0.556 0 0);
@@ -115,6 +135,57 @@
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.556 0 0);
+}
+
+/* ธีมสว่าง — พื้นหลังขาวอมฟ้าอ่อน ๆ (ไม่ขาวจ้าล้วน) การ์ดสีขาวลอยขึ้นมาจากพื้น ใช้ #2F39A9 (น้ำเงิน
+   เข้มในชุดสีโปรเจกต์) เป็น primary — ตัดกับพื้นขาวได้ชัด ส่วน #2E6FA0/#49A4BB/#15D8B3 ใช้กับกราฟ
+   (สีอ่อนเกินไปที่จะเป็นสีตัวอักษรบนพื้นขาว) ค่าที่ไม่ได้ตั้งตรงนี้ตกไปใช้ค่า :root ด้านบน */
+.theme-light {
+    color-scheme: light;
+    --background: oklch(0.985 0.004 250);
+    --foreground: oklch(0.22 0.03 265);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.22 0.03 265);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.22 0.03 265);
+    --primary: #2f39a9;
+    --primary-foreground: oklch(0.99 0.005 250);
+    --secondary: oklch(0.955 0.012 255);
+    --secondary-foreground: oklch(0.25 0.04 265);
+    --muted: oklch(0.96 0.008 255);
+    --muted-foreground: oklch(0.5 0.03 260);
+    --accent: oklch(0.945 0.025 230);
+    --accent-foreground: oklch(0.28 0.06 255);
+    --destructive: oklch(0.577 0.245 27.325);
+    /* ปุ่มเพิ่ม/แก้ไข/ลบ — ธีมสว่าง (พื้นอมน้ำเงิน, primary #2F39A9) เขียวเย็น ส้มอมแดงเล็กน้อย ตัวอักษรบนปุ่มเป็นสีขาว */
+    --success: oklch(0.57 0.12 160);
+    --success-foreground: oklch(1 0 0);
+    --warning: oklch(0.62 0.14 52);
+    --warning-foreground: oklch(1 0 0);
+    --danger: oklch(0.55 0.17 24);
+    --danger-foreground: oklch(1 0 0);
+    --border: oklch(0.915 0.012 260);
+    --input: oklch(0.9 0.014 260);
+    --ring: #2e6fa0;
+    --chart-1: #2f39a9;
+    --chart-2: #2e6fa0;
+    --chart-3: #49a4bb;
+    --chart-4: #15d8b3;
+    --chart-5: oklch(0.62 0.12 190);
+    --sidebar: oklch(0.965 0.01 255);
+    --sidebar-foreground: oklch(0.22 0.03 265);
+    --sidebar-primary: #2f39a9;
+    --sidebar-primary-foreground: oklch(0.99 0.005 250);
+    --sidebar-accent: oklch(0.925 0.025 250);
+    --sidebar-accent-foreground: oklch(0.25 0.05 262);
+    --sidebar-border: oklch(0.9 0.015 260);
+    --sidebar-ring: #2e6fa0;
+}
+
+/* ธีมมืดทั้งสองแบบ: บอกเบราว์เซอร์ให้วาด scrollbar/ช่อง date/ไอคอนปฏิทินแบบมืด */
+.dark,
+.theme-ocean {
+    color-scheme: dark;
 }
 
 /* ธีมที่ 2 — โทนสีตามที่กำหนด #2F39A9/#2E6FA0/#49A4BB/#15D8B3 (น้ำเงินเข้ม -> ฟ้าเทียล ->
@@ -138,6 +209,13 @@
     --accent: #49a4bb;
     --accent-foreground: oklch(0.16 0.04 258);
     --destructive: oklch(0.63 0.22 27);
+    /* ปุ่มเพิ่ม/แก้ไข/ลบ — ธีมทะเล (พื้นกรมท่า, accent มิ้นท์) เขียวอมเทียล แดงอมคอรัล ตัวอักษรบนปุ่มเป็นสีขาว */
+    --success: oklch(0.56 0.11 170);
+    --success-foreground: oklch(1 0 0);
+    --warning: oklch(0.61 0.12 62);
+    --warning-foreground: oklch(1 0 0);
+    --danger: oklch(0.56 0.15 20);
+    --danger-foreground: oklch(1 0 0);
     --border: oklch(0.32 0.05 255 / 40%);
     --input: oklch(0.32 0.05 255 / 55%);
     --ring: #49a4bb;

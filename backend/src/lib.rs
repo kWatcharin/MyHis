@@ -6,11 +6,21 @@
 
 pub mod app;
 pub mod auth;
+pub mod budget_year;
 pub mod config;
 pub mod crypto;
 pub mod db;
+pub mod disease;
 pub mod domain;
 pub mod error;
+pub mod lab;
+pub mod lab_visit;
+pub mod nationality;
 pub mod password;
+pub mod patient;
+pub mod patient_group;
+pub mod prename;
+pub mod registration;
 pub mod state;
+pub mod token;
 pub mod users;

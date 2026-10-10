@@ -14,7 +14,7 @@ mod session;
 // โมดูลฟีเจอร์ไม่เรียกกันเอง เลยต้องยกตรรกะร่วมขึ้นไปที่ crate root (docs/rust-guidelines.md)
 
 // สิ่งที่เปิดออกให้โค้ดนอกโมดูล auth เรียกได้ — เท่าที่จำเป็นจริงเท่านั้น
-pub(crate) use extractor::CurrentUser; // โครงสร้างพื้นฐานเดียวที่โมดูลอื่นข้ามฟีเจอร์เรียกใช้ได้
+pub use extractor::CurrentUser; // โครงสร้างพื้นฐานเดียวที่โมดูลอื่นข้ามฟีเจอร์เรียกใช้ได้ (pub เพราะเทสระดับ service ใน backend/tests/ ต้องสร้างเอง)
 pub(crate) use repository::RepositoryError; // error.rs แปลงเป็น AppError ที่เดียว
 pub(crate) use routes::router; // จุดเดียวที่ app.rs รู้จักโมดูลนี้ (app.rs อยู่ crate เดียวกัน)
 pub(crate) use service::AuthError; // error.rs แปลงเป็น AppError ที่เดียว

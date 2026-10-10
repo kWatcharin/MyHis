@@ -1,15 +1,16 @@
 "use client"
 
 import { Toaster as Sonner, type ToasterProps } from "sonner"
+import { isDarkTheme, useTheme } from "@/features/theme/ThemeContext"
 import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
 
-// เอา next-themes ออก — โปรเจกต์นี้ไม่ได้ใช้ next-themes จัดการธีม (ดู
-// src/features/theme/ThemeContext.tsx ที่เขียนเองแยกต่างหาก) theme ที่มีตอนนี้ (dark, ocean)
-// เป็นพื้นหลังเข้มทั้งคู่ ใส่ "dark" ตรง ๆ พอ ไม่ต้องอ่านจาก provider ที่ไม่มีอยู่จริงในแอปนี้
+// เอา next-themes ออก — โปรเจกต์นี้ไม่ได้ใช้ next-themes จัดการธีม ใช้ ThemeContext ที่เขียนเอง
+// (src/features/theme/ThemeContext.tsx) แทน: ธีม light = toast สว่าง นอกนั้น (dark, ocean) = toast มืด
 const Toaster = ({ ...props }: ToasterProps) => {
+  const { theme } = useTheme()
   return (
     <Sonner
-      theme="dark"
+      theme={isDarkTheme(theme) ? "dark" : "light"}
       className="toaster group"
       icons={{
         success: (
@@ -39,6 +40,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
       toastOptions={{
         classNames: {
           toast: "cn-toast",
+          // sonner บังคับกล่องไอคอนกว้าง 16px — ขยายเป็น 24px ให้พอดีกับไอคอนวงกลมสีของ lib/notify.tsx
+          icon: "size-6!",
         },
       }}
       {...props}

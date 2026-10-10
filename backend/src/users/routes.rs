@@ -14,7 +14,10 @@ pub fn router() -> Router<AppState> {
             "/users",
             get(handlers::list_users).post(handlers::create_user),
         )
-        .route("/users/{id}", patch(handlers::update_user))
+        .route(
+            "/users/{id}",
+            patch(handlers::update_user).put(handlers::replace_user),
+        )
         .route("/users/{id}/reset-password", post(handlers::reset_password))
         .route("/users/{id}/roles", put(handlers::replace_user_roles))
         .route(

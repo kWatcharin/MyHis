@@ -58,6 +58,7 @@ impl From<crate::auth::AuthError> for AppError {
         match err {
             AuthError::InvalidCredentials => AppError::InvalidCredentials,
             AuthError::AccountLocked { until } => AppError::AccountLocked { until },
+            err @ AuthError::PasswordUnchanged => AppError::Validation(err.to_string()),
             AuthError::Repository(e) => e.into(),
             AuthError::MissingSeedRole(name) => {
                 AppError::DataIntegrity(format!("required seed data missing: {name}"))
@@ -95,6 +96,210 @@ impl From<crate::users::RepositoryError> for AppError {
             RepositoryError::UnknownPermission(p) => {
                 AppError::DataIntegrity(format!("unknown permission stored in database: {p}"))
             }
+        }
+    }
+}
+
+impl From<crate::budget_year::BudgetYearError> for AppError {
+    fn from(err: crate::budget_year::BudgetYearError) -> Self {
+        use crate::budget_year::BudgetYearError;
+        match err {
+            BudgetYearError::Forbidden => AppError::Forbidden,
+            BudgetYearError::Conflict(msg) => AppError::Conflict(msg),
+            BudgetYearError::Validation(msg) => AppError::Validation(msg),
+            BudgetYearError::NotFound => AppError::NotFound,
+            BudgetYearError::Repository(e) => e.into(),
+        }
+    }
+}
+
+impl From<crate::budget_year::RepositoryError> for AppError {
+    fn from(err: crate::budget_year::RepositoryError) -> Self {
+        use crate::budget_year::RepositoryError;
+        match err {
+            RepositoryError::Database(e) => AppError::Database(e),
+        }
+    }
+}
+
+impl From<crate::disease::DiseaseError> for AppError {
+    fn from(err: crate::disease::DiseaseError) -> Self {
+        use crate::disease::DiseaseError;
+        match err {
+            DiseaseError::Forbidden => AppError::Forbidden,
+            DiseaseError::Conflict(msg) => AppError::Conflict(msg),
+            DiseaseError::Validation(msg) => AppError::Validation(msg),
+            DiseaseError::NotFound => AppError::NotFound,
+            DiseaseError::Repository(e) => e.into(),
+        }
+    }
+}
+
+impl From<crate::disease::RepositoryError> for AppError {
+    fn from(err: crate::disease::RepositoryError) -> Self {
+        use crate::disease::RepositoryError;
+        match err {
+            RepositoryError::Database(e) => AppError::Database(e),
+        }
+    }
+}
+
+impl From<crate::prename::PrenameError> for AppError {
+    fn from(err: crate::prename::PrenameError) -> Self {
+        use crate::prename::PrenameError;
+        match err {
+            PrenameError::Forbidden => AppError::Forbidden,
+            PrenameError::Conflict(msg) => AppError::Conflict(msg),
+            PrenameError::Validation(msg) => AppError::Validation(msg),
+            PrenameError::NotFound => AppError::NotFound,
+            PrenameError::Repository(e) => e.into(),
+        }
+    }
+}
+
+impl From<crate::prename::RepositoryError> for AppError {
+    fn from(err: crate::prename::RepositoryError) -> Self {
+        use crate::prename::RepositoryError;
+        match err {
+            RepositoryError::Database(e) => AppError::Database(e),
+        }
+    }
+}
+
+impl From<crate::nationality::NationalityError> for AppError {
+    fn from(err: crate::nationality::NationalityError) -> Self {
+        use crate::nationality::NationalityError;
+        match err {
+            NationalityError::Forbidden => AppError::Forbidden,
+            NationalityError::Conflict(msg) => AppError::Conflict(msg),
+            NationalityError::Validation(msg) => AppError::Validation(msg),
+            NationalityError::NotFound => AppError::NotFound,
+            NationalityError::Repository(e) => e.into(),
+        }
+    }
+}
+
+impl From<crate::nationality::RepositoryError> for AppError {
+    fn from(err: crate::nationality::RepositoryError) -> Self {
+        use crate::nationality::RepositoryError;
+        match err {
+            RepositoryError::Database(e) => AppError::Database(e),
+        }
+    }
+}
+
+impl From<crate::patient_group::PatientGroupError> for AppError {
+    fn from(err: crate::patient_group::PatientGroupError) -> Self {
+        use crate::patient_group::PatientGroupError;
+        match err {
+            PatientGroupError::Forbidden => AppError::Forbidden,
+            PatientGroupError::Conflict(msg) => AppError::Conflict(msg),
+            PatientGroupError::Validation(msg) => AppError::Validation(msg),
+            PatientGroupError::NotFound => AppError::NotFound,
+            PatientGroupError::Repository(e) => e.into(),
+        }
+    }
+}
+
+impl From<crate::patient_group::RepositoryError> for AppError {
+    fn from(err: crate::patient_group::RepositoryError) -> Self {
+        use crate::patient_group::RepositoryError;
+        match err {
+            RepositoryError::Database(e) => AppError::Database(e),
+        }
+    }
+}
+
+impl From<crate::lab::LabError> for AppError {
+    fn from(err: crate::lab::LabError) -> Self {
+        use crate::lab::LabError;
+        match err {
+            LabError::Forbidden => AppError::Forbidden,
+            LabError::Conflict(msg) => AppError::Conflict(msg),
+            LabError::Validation(msg) => AppError::Validation(msg),
+            LabError::NotFound => AppError::NotFound,
+            LabError::Repository(e) => e.into(),
+        }
+    }
+}
+
+impl From<crate::lab::RepositoryError> for AppError {
+    fn from(err: crate::lab::RepositoryError) -> Self {
+        use crate::lab::RepositoryError;
+        match err {
+            RepositoryError::Database(e) => AppError::Database(e),
+        }
+    }
+}
+
+impl From<crate::patient::PatientError> for AppError {
+    fn from(err: crate::patient::PatientError) -> Self {
+        use crate::patient::PatientError;
+        match err {
+            PatientError::Forbidden => AppError::Forbidden,
+            PatientError::Conflict(msg) => AppError::Conflict(msg),
+            PatientError::Validation(msg) => AppError::Validation(msg),
+            PatientError::NotFound => AppError::NotFound,
+            // ไม่แนบรายละเอียดของ CryptoError (ข้อมูลระบุตัวคนไข้/คีย์) — แค่ข้อความกลาง ๆ ใน log
+            PatientError::Crypto(_) => {
+                AppError::DataIntegrity("patient data could not be decrypted".to_string())
+            }
+            PatientError::Repository(e) => e.into(),
+        }
+    }
+}
+
+impl From<crate::patient::RepositoryError> for AppError {
+    fn from(err: crate::patient::RepositoryError) -> Self {
+        use crate::patient::RepositoryError;
+        match err {
+            RepositoryError::Database(e) => AppError::Database(e),
+        }
+    }
+}
+
+impl From<crate::lab_visit::LabVisitError> for AppError {
+    fn from(err: crate::lab_visit::LabVisitError) -> Self {
+        use crate::lab_visit::LabVisitError;
+        match err {
+            LabVisitError::Forbidden => AppError::Forbidden,
+            LabVisitError::Conflict(msg) => AppError::Conflict(msg),
+            LabVisitError::Validation(msg) => AppError::Validation(msg),
+            LabVisitError::GroupNotFound | LabVisitError::VisitNotFound => AppError::NotFound,
+            LabVisitError::Repository(e) => e.into(),
+        }
+    }
+}
+
+impl From<crate::lab_visit::RepositoryError> for AppError {
+    fn from(err: crate::lab_visit::RepositoryError) -> Self {
+        use crate::lab_visit::RepositoryError;
+        match err {
+            RepositoryError::Database(e) => AppError::Database(e),
+        }
+    }
+}
+
+impl From<crate::registration::RegistrationError> for AppError {
+    fn from(err: crate::registration::RegistrationError) -> Self {
+        use crate::registration::RegistrationError;
+        match err {
+            // ข้อความกลางข้อความเดียวไม่ว่าลิงก์ใช้ไม่ได้เพราะอะไร
+            err @ RegistrationError::InvalidLink => AppError::Validation(err.to_string()),
+            RegistrationError::Validation(msg) => AppError::Validation(msg),
+            RegistrationError::Repository(e) => e.into(),
+            RegistrationError::Password(e) => {
+                AppError::DataIntegrity(format!("password hashing failed: {e}"))
+            }
+        }
+    }
+}
+
+impl From<crate::registration::RepositoryError> for AppError {
+    fn from(err: crate::registration::RepositoryError) -> Self {
+        use crate::registration::RepositoryError;
+        match err {
+            RepositoryError::Database(e) => AppError::Database(e),
         }
     }
 }

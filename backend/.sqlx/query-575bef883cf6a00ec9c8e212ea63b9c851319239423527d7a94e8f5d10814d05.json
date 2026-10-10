@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "insert into users (username, display_name, password_hash, must_change_password)\n           values ($1, $2, $3, true) returning id as \"id: UserId\", uuid as public_id",
+  "query": "insert into users (username, display_name, password_hash, must_change_password, registered_at)\n           values ($1, $2, $3, false, null) returning id as \"id: UserId\", uuid as public_id",
   "describe": {
     "columns": [
       {
@@ -26,5 +26,5 @@
       false
     ]
   },
-  "hash": "9c07f9a3ee81bac6e87b5f47887e2b71ab5ad3d9f843888cbeb13cac449cc644"
+  "hash": "575bef883cf6a00ec9c8e212ea63b9c851319239423527d7a94e8f5d10814d05"
 }

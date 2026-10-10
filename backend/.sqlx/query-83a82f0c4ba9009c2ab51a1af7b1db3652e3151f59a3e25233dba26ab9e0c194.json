@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update lab set abbreviation = $2, updated_by = $3, updated_at = now()\n             where id = $1 and deleted_at is null",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "83a82f0c4ba9009c2ab51a1af7b1db3652e3151f59a3e25233dba26ab9e0c194"
+}

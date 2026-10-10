@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select uuid as public_id, national_name, nation\n           from nationality\n           where deleted_at is null and is_active\n           order by sort_order, national_name",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "public_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "national_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "nation",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "5fe47f14f547fce675a189f919ca152d5853e08fe6205e7f5b38b5f249543dd9"
+}

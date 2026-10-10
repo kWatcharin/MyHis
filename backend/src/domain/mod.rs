@@ -20,6 +20,42 @@ pub struct RoleId(pub i32);
 #[sqlx(transparent)]
 pub struct PageId(pub i32);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct BudgetYearId(pub i32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct DiseaseId(pub i32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct PrenameId(pub i32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct NationalityId(pub i32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct PatientGroupId(pub i32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct LabId(pub i32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct PatientId(pub i32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct LabVisitGroupId(pub i32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct LabVisitId(pub i32);
+
 /// ชุด permission ที่มีอยู่จริงในระบบ — ปิดตาย ผูกกับ authorization check จริงในโค้ดเท่านั้น
 /// สร้างผ่าน UI ไม่ได้ role ไหนมี permission ไหนเป็นข้อมูลใน DB (role_permissions) ไม่ใช่
 /// compile-time อีกต่อไป (docs/auth-design.md ข้อ 10)
@@ -29,6 +65,10 @@ pub enum Permission {
     ShiftRead,
     ShiftWrite,
     AuditRead,
+    /// ดูข้อมูลผู้ป่วย (HN, ชื่อ-สกุล ฯลฯ — ข้อมูลระบุตัวคนไข้) แยกจาก shift.* โดยตั้งใจ
+    PatientRead,
+    /// ลงทะเบียน/แก้ไข/ลบผู้ป่วย — ไม่ implies PatientRead (service ตรวจแยกกัน)
+    PatientWrite,
 }
 
 impl Permission {
@@ -39,6 +79,8 @@ impl Permission {
             Permission::ShiftRead => "shift.read",
             Permission::ShiftWrite => "shift.write",
             Permission::AuditRead => "audit.read",
+            Permission::PatientRead => "patient.read",
+            Permission::PatientWrite => "patient.write",
         }
     }
 
@@ -50,6 +92,8 @@ impl Permission {
             "shift.read" => Some(Permission::ShiftRead),
             "shift.write" => Some(Permission::ShiftWrite),
             "audit.read" => Some(Permission::AuditRead),
+            "patient.read" => Some(Permission::PatientRead),
+            "patient.write" => Some(Permission::PatientWrite),
             _ => None,
         }
     }

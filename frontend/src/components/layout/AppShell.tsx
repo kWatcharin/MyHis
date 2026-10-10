@@ -1,4 +1,5 @@
-import { ChevronRight, HeartPulse, LogOut } from 'lucide-react'
+import { ChevronRight, HeartPulse, KeyRound, LogOut } from 'lucide-react'
+import { useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router'
 
 import { Button } from '@/components/ui/button'
@@ -22,6 +23,7 @@ import {
 } from '@/components/ui/sidebar'
 import { useAuth } from '@/features/auth/AuthContext'
 import type { MenuItem } from '@/features/auth/AuthContext'
+import { ChangePasswordDialog } from '@/features/auth/ChangePasswordDialog'
 import { useRolePreview } from '@/features/role-preview/RolePreviewContext'
 import { RoleSwitcher } from '@/features/role-preview/RoleSwitcher'
 import { ThemeSwitcher } from '@/features/theme/ThemeSwitcher'
@@ -46,11 +48,19 @@ function groupMenuItems(items: MenuItem[]): [string | null, MenuItem[]][] {
   return [...groups.entries()]
 }
 
+// เมนูถือว่า active เมื่ออยู่หน้านั้นพอดีหรือหน้าย่อยของมัน (เช่น /lab/appointments/<id> ยังไฮไลต์ "นัดหมายแล็ป")
+function isRouteActive(pathname: string, route: string): boolean {
+  return pathname === route || pathname.startsWith(`${route}/`)
+}
+
 export function AppShell() {
   const { user, logout } = useAuth()
   const { effectiveMenu } = useRolePreview()
   const location = useLocation()
   const menuGroups = groupMenuItems(effectiveMenu)
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
+  // ยังใช้รหัสผ่านชั่วคราวที่แอดมินตั้งให้ — แค่เตือนที่ปุ่ม ไม่บังคับเปลี่ยน
+  const shouldChangePassword = user?.mustChangePassword ?? false
 
   return (
     <SidebarProvider>
@@ -73,7 +83,7 @@ export function AppShell() {
                         <SidebarMenuItem key={item.id}>
                           <SidebarMenuButton
                             render={<Link to={item.route} />}
-                            isActive={location.pathname === item.route}
+                            isActive={isRouteActive(location.pathname, item.route)}
                           >
                             <Icon />
                             <span>{item.label}</span>
@@ -91,7 +101,7 @@ export function AppShell() {
                           render={
                             <SidebarMenuButton
                               isActive={items.some(
-                                (item) => location.pathname === item.route,
+                                (item) => isRouteActive(location.pathname, item.route),
                               )}
                             >
                               <span>{groupLabel}</span>
@@ -107,7 +117,7 @@ export function AppShell() {
                                 <SidebarMenuSubItem key={item.id}>
                                   <SidebarMenuSubButton
                                     render={<Link to={item.route} />}
-                                    isActive={location.pathname === item.route}
+                                    isActive={isRouteActive(location.pathname, item.route)}
                                   >
                                     <Icon />
                                     <span>{item.label}</span>
@@ -131,15 +141,39 @@ export function AppShell() {
             <p className="truncate text-sm font-medium">
               {user?.displayName ?? user?.username}
             </p>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => void logout()}
-              title="ออกจากระบบ"
-            >
-              <LogOut className="size-4" />
-              <span className="sr-only">ออกจากระบบ</span>
-            </Button>
+            <div className="flex shrink-0 items-center">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="relative"
+                onClick={() => setIsChangingPassword(true)}
+                title={
+                  shouldChangePassword
+                    ? 'เปลี่ยนรหัสผ่าน — ยังใช้รหัสชั่วคราวอยู่ ควรเปลี่ยน'
+                    : 'เปลี่ยนรหัสผ่าน'
+                }
+              >
+                <KeyRound className="size-4" />
+                {shouldChangePassword && (
+                  <span
+                    aria-hidden
+                    className="absolute top-1 right-1 size-2 rounded-full bg-warning ring-2 ring-sidebar"
+                  />
+                )}
+                <span className="sr-only">
+                  เปลี่ยนรหัสผ่าน{shouldChangePassword ? ' (ยังใช้รหัสชั่วคราว ควรเปลี่ยน)' : ''}
+                </span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => void logout()}
+                title="ออกจากระบบ"
+              >
+                <LogOut className="size-4" />
+                <span className="sr-only">ออกจากระบบ</span>
+              </Button>
+            </div>
           </div>
         </SidebarFooter>
       </Sidebar>
@@ -157,6 +191,8 @@ export function AppShell() {
           </div>
         </main>
       </SidebarInset>
+      {/* อยู่นอก Sidebar — บนมือถือเมนูเป็น sheet ที่ปิดแล้วถูก unmount ถ้าวางไว้ข้างในฟอร์มจะหายกลางคัน */}
+      <ChangePasswordDialog open={isChangingPassword} onOpenChange={setIsChangingPassword} />
     </SidebarProvider>
   )
 }

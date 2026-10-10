@@ -1,0 +1,44 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select id as \"id: PatientGroupId\", uuid as public_id, name, sort_order, is_active\n           from patient_group\n           where deleted_at is null\n           order by sort_order, name",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: PatientGroupId",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "public_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "sort_order",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "is_active",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "62dba531fc5c8c24bcb7f6b24801b7853809895ddc6ef6d9287f4fc1715256e5"
+}

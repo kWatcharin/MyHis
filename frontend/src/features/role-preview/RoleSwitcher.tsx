@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { toast } from 'sonner'
 
 import {
   AlertDialog,
@@ -12,6 +11,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { notify } from '@/lib/notify'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,7 +53,7 @@ export function RoleSwitcher() {
   const handleConfirm = () => {
     const target = pendingRole ?? null
     requestSwitch(target)
-    toast(`กำลังดูในฐานะ: ${labelFor(target)}`)
+    notify.info(`กำลังดูในฐานะ: ${labelFor(target)}`)
     setPendingRole(undefined)
   }
 

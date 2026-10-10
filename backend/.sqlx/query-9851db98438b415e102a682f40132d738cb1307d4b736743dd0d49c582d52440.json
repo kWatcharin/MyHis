@@ -1,0 +1,116 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select\n             u.id as \"user_id: UserId\", u.uuid as user_public_id, u.username, u.display_name,\n             u.is_active, u.must_change_password, u.locked_until, u.created_at,\n             p.uuid as \"prename_public_id?\", p.name as \"prename_name?\",\n             u.first_name, u.last_name, u.position, u.registered_at,\n             link.expires_at as \"registration_expires_at?\",\n             r.uuid as role_public_id, r.name as role_name\n           from users u\n           join user_roles ur on ur.user_id = u.id\n           join roles r on r.id = ur.role_id\n           left join prename p on p.id = u.prename_id\n           left join lateral (\n             select l.expires_at from registration_links l\n             where l.user_id = u.id and l.used_at is null and l.revoked_at is null\n             order by l.created_at desc\n             limit 1\n           ) link on true\n           order by u.created_at, u.id, r.name",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id: UserId",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_public_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "username",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "display_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "is_active",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "must_change_password",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "locked_until",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "prename_public_id?",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 9,
+        "name": "prename_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "first_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "last_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "position",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "registered_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 14,
+        "name": "registration_expires_at?",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 15,
+        "name": "role_public_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 16,
+        "name": "role_name",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "9851db98438b415e102a682f40132d738cb1307d4b736743dd0d49c582d52440"
+}

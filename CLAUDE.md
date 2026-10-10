@@ -45,12 +45,20 @@ my-his/
       ├─ app.rs                ประกอบ router ของทุกโมดูล + middleware กลาง
       ├─ config.rs             อ่าน environment variable
       ├─ crypto.rs             เข้ารหัสคอลัมน์ข้อมูลผู้ป่วย (AES-256-GCM) + blind index สำหรับค้นหา
+      ├─ token.rs              สุ่ม token + SHA-256 (session cookie, ลิงก์ลงทะเบียน) ใช้ร่วมกันหลายโมดูล
       ├─ state.rs              AppState (pool, config)
       ├─ error.rs              AppError และการแปลงเป็น HTTP response
       ├─ db.rs                 สร้าง connection pool, รัน migration ตอนเริ่ม
       ├─ domain/               ชนิดข้อมูลกลาง: UserId, User, Role, Permission
       ├─ auth/                 ดู docs/auth-design.md
-      ├─ users/                จัดการบัญชีผู้ใช้ (เฉพาะ admin)
+      ├─ users/                จัดการบัญชีผู้ใช้/role/เพจ (เฉพาะ admin, user.manage) — หน้า "ผู้ใช้งาน" /users กลุ่มเมนูลงทะเบียน
+      │                        สร้างบัญชี/รีเซ็ตรหัส = ออกลิงก์ลงทะเบียน (ไม่มีรหัสผ่านชั่วคราว)
+      ├─ registration/         ลงทะเบียน/ตั้งรหัสผ่านผ่านลิงก์ (สาธารณะ, หน้า /register#<token>) ผู้ใช้กรอกข้อมูลตัว + ตั้งรหัสเอง
+      ├─ budget_year/          ตั้งค่าปีงบประมาณ (หน้า master แรก ใช้สิทธิ์ user.manage)
+      ├─ disease/              ตั้งค่าโรค (หน้า master, สิทธิ์ user.manage เหมือน budget_year)
+      ├─ prename/ nationality/ patient_group/ lab/   master อื่น ๆ โครงเดียวกับ disease/
+      ├─ patient/              ลงทะเบียนผู้ป่วย + โรคประจำตัว (สิทธิ์ patient.read/write, เข้ารหัสด้วย crypto.rs)
+      ├─ lab_visit/            นัดหมายแล็ป (lab_visit_group + lab_visit) สิทธิ์ patient.* — คืนแค่ uuid คนไข้ ไม่แตะข้อมูลระบุตัว
       └─ audit/                บันทึกว่าใครทำอะไร
 ```
 

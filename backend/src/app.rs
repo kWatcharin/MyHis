@@ -30,6 +30,15 @@ fn api_router() -> Router<AppState> {
     Router::new()
         .merge(crate::auth::router())
         .merge(crate::users::router())
+        .merge(crate::budget_year::router())
+        .merge(crate::patient::router())
+        .merge(crate::disease::router())
+        .merge(crate::lab::router())
+        .merge(crate::lab_visit::router())
+        .merge(crate::patient_group::router())
+        .merge(crate::nationality::router())
+        .merge(crate::prename::router())
+        .merge(crate::registration::router())
 }
 
 async fn health() -> &'static str {

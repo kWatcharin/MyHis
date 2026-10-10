@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into lab_visit_group\n             (budget_year_id, patient_group_id, cd4_1st_date, cd4_2nd_date, vl_date, sort_order,\n              created_by, updated_by)\n           values\n             ($1, $2, $3, $4, $5,\n              coalesce($6, (select coalesce(max(sort_order), 0) + 1\n                              from lab_visit_group where deleted_at is null)),\n              $7, $7)\n           returning uuid",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "uuid",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Date",
+        "Date",
+        "Date",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "a41c631d38ba8c29d8d8f693ce8fe2cd17134ccdba8eeb1a9c232051dc2865cc"
+}

@@ -23,6 +23,9 @@ pub enum AuthError {
     InvalidCredentials,
     #[error("account temporarily locked")]
     AccountLocked { until: DateTime<Utc> },
+    /// เปลี่ยนรหัสผ่านเป็นค่าเดิม — เช่นใส่รหัสชั่วคราวที่แอดมินเห็นแล้วซ้ำ ซึ่งทำให้การเปลี่ยนรหัสไม่มีความหมาย
+    #[error("new password must be different from current password")]
+    PasswordUnchanged,
     #[error("required seed data missing: {0}")]
     MissingSeedRole(&'static str),
     #[error(transparent)]
@@ -197,6 +200,10 @@ pub async fn change_password(
     if !ok {
         return Err(AuthError::InvalidCredentials);
     }
+    // ตรวจหลัง verify รหัสเดิมผ่านแล้วเท่านั้น (ผู้เรียกรู้รหัสเดิมอยู่แล้ว เทียบตรง ๆ ไม่รั่วอะไร)
+    if new_password == current_password {
+        return Err(AuthError::PasswordUnchanged);
+    }
 
     let new_password_owned = new_password.to_string();
     let new_hash = tokio::task::spawn_blocking(move || password::hash(&new_password_owned))
@@ -267,6 +274,9 @@ pub async fn bootstrap_first_admin(pool: &PgPool, config: &Config) -> Result<(),
 
 /// รวม permission จากทุก role ที่ผู้ใช้ถืออยู่ (docs/auth-design.md ข้อ 10) — ใช้ทั้งจาก extractor
 /// (สร้าง CurrentUser) และ handler /auth/me
+///
+/// คืน None ถ้าไม่พบผู้ใช้ **หรือบัญชีถูกปิดใช้งาน** — extractor ตอบ 401 ให้ session ของบัญชีที่ปิดแล้ว
+/// ใช้ต่อไม่ได้ทันที (docs/auth-design.md ข้อ 2, 7) แม้แถว session ยังค้างอยู่ใน DB
 pub async fn current_user_with_permissions(
     pool: &PgPool,
     user_id: UserId,
@@ -274,6 +284,9 @@ pub async fn current_user_with_permissions(
     let Some(row) = repository::find_user_by_id(pool, user_id).await? else {
         return Ok(None);
     };
+    if !row.is_active {
+        return Ok(None);
+    }
     let permissions = repository::fetch_permissions_for_user(pool, user_id).await?;
     Ok(Some((
         User {

@@ -28,6 +28,12 @@ interface AuthContextValue {
   hasPermission: (permission: string) => boolean
   login: (username: string, password: string) => Promise<void>
   logout: () => Promise<void>
+  // โหลดข้อมูลผู้ใช้ (สิทธิ์) และเมนูใหม่จาก backend โดยไม่กลับไปสถานะ loading — เรียกหลังแก้ role/เพจ
+  // เพื่อให้เมนูซ้ายและสิทธิ์ที่ใช้งานอยู่สะท้อนการเปลี่ยนแปลงทันที ไม่ต้อง login ใหม่
+  refresh: () => Promise<void>
+  // เปลี่ยนรหัสผ่านของตัวเอง (POST /auth/password) แล้วโหลดข้อมูลผู้ใช้ใหม่ (mustChangePassword → false)
+  // backend เพิกถอน session อื่นทั้งหมดยกเว้นอันนี้ — error โยนเป็น ApiError ให้ผู้เรียกแปลข้อความเอง
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -105,13 +111,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const refresh = useCallback(async () => {
+    try {
+      const [me, menuItems] = await Promise.all([
+        api.get<UserResponse>('/auth/me'),
+        api.get<MenuItem[]>('/menu'),
+      ])
+      setUser(me)
+      setMenu(menuItems)
+    } catch (err) {
+      // session หมดอายุระหว่างใช้งาน (401) → กลับไปหน้า login ส่วน error อื่นปล่อยข้อมูลเดิมไว้
+      if (err instanceof ApiError && err.status === 401) {
+        setUser(null)
+        setMenu([])
+        setStatus('unauthenticated')
+      }
+    }
+  }, [])
+
+  const changePassword = useCallback(
+    async (currentPassword: string, newPassword: string) => {
+      await api.post('/auth/password', { currentPassword, newPassword })
+      await refresh()
+    },
+    [refresh],
+  )
+
   const hasPermission = useCallback(
     (permission: string) => user?.permissions.includes(permission) ?? false,
     [user],
   )
 
   return (
-    <AuthContext.Provider value={{ status, user, menu, hasPermission, login, logout }}>
+    <AuthContext.Provider
+      value={{ status, user, menu, hasPermission, login, logout, refresh, changePassword }}
+    >
       {children}
     </AuthContext.Provider>
   )

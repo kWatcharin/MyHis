@@ -1,0 +1,44 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into patient\n             (hn, hn_idx, nap_no, nap_no_idx, sort_order, prename_id, first_name, last_name,\n              birth_date, age, weight, height, sex, is_thai, nationality_id, is_active,\n              created_by, updated_by)\n           values\n             ($1, $2, $3, $4,\n              coalesce($5, (select coalesce(max(sort_order), 0) + 1 from patient where deleted_at is null)),\n              $6, $7, $8, $9, $10, $11::float8::numeric(5,2), $12::float8::numeric(5,2),\n              $13, $14, $15, $16, $17, $17)\n           returning id as \"id: PatientId\", uuid",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: PatientId",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "uuid",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Bytea",
+        "Bytea",
+        "Bytea",
+        "Int4",
+        "Int4",
+        "Bytea",
+        "Bytea",
+        "Date",
+        "Int4",
+        "Float8",
+        "Float8",
+        "Int4",
+        "Bool",
+        "Int4",
+        "Bool",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "20da38fe2cf44d32117b90ebf081523ec174f8019791943481572572ceacb289"
+}

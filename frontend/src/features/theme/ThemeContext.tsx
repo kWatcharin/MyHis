@@ -1,13 +1,14 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 
-export type Theme = 'dark' | 'ocean'
+export type Theme = 'light' | 'dark' | 'ocean'
 
 const STORAGE_KEY = 'my-his-theme'
 
-// ต้องตรงกับ class ที่นิยามไว้ใน src/index.css (.dark, .theme-ocean) และ script bootstrap ใน
+// ต้องตรงกับ class ที่นิยามไว้ใน src/index.css (.theme-light, .dark, .theme-ocean) และ script bootstrap ใน
 // index.html (กันกระพริบตอนโหลดหน้าแรก — แก้ตรงนี้ต้องไปแก้ที่นั่นด้วย)
 const THEME_CLASS: Record<Theme, string> = {
+  light: 'theme-light',
   dark: 'dark',
   ocean: 'theme-ocean',
 }
@@ -19,9 +20,16 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null)
 
+// ธีมที่มืด (ใช้กำหนด color-scheme ของ sonner ฯลฯ) — light เป็นธีมเดียวที่พื้นหลังสว่าง
+export function isDarkTheme(theme: Theme): boolean {
+  return theme !== 'light'
+}
+
+// ค่าที่ไม่รู้จัก/ว่าง (เช่น ผู้ใช้ไม่เคยเลือก) = dark เหมือนเดิม
 function readStoredTheme(): Theme {
   try {
-    return localStorage.getItem(STORAGE_KEY) === 'ocean' ? 'ocean' : 'dark'
+    const stored = localStorage.getItem(STORAGE_KEY)
+    return stored === 'light' || stored === 'ocean' ? stored : 'dark'
   } catch {
     return 'dark'
   }

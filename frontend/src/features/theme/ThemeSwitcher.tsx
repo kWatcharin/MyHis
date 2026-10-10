@@ -4,11 +4,12 @@ import type { Theme } from './ThemeContext'
 import { useTheme } from './ThemeContext'
 
 const OPTIONS: { value: Theme; label: string; swatch: string }[] = [
+  { value: 'light', label: 'สว่าง', swatch: '#f4f6fb' },
   { value: 'dark', label: 'มืด', swatch: '#171717' },
   { value: 'ocean', label: 'ทะเล', swatch: '#15d8b3' },
 ]
 
-// ตัวเลือกธีมแบบวงกลมสี — เรียบง่ายกว่า dropdown สำหรับตัวเลือกแค่ 2 อัน ไม่ต้องเพิ่ม shadcn
+// ตัวเลือกธีมแบบวงกลมสี — เรียบง่ายกว่า dropdown สำหรับตัวเลือกไม่กี่อัน ไม่ต้องเพิ่ม shadcn
 // component ใหม่ วงแหวนรอบวงกลมบอกว่าอันไหน active อยู่
 export function ThemeSwitcher() {
   const { theme, setTheme } = useTheme()
@@ -24,7 +25,7 @@ export function ThemeSwitcher() {
           title={option.label}
           onClick={() => setTheme(option.value)}
           className={cn(
-            'size-5 rounded-full ring-2 ring-offset-2 ring-offset-sidebar transition-colors',
+            'size-5 rounded-full border border-border ring-2 ring-offset-2 ring-offset-sidebar transition-colors',
             theme === option.value ? 'ring-foreground' : 'ring-transparent',
           )}
           style={{ backgroundColor: option.swatch }}

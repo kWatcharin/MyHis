@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select v.id as \"id: LabVisitId\", v.uuid as public_id, p.uuid as \"patient_public_id!\",\n                  v.take_med_year_range, v.take_med_month_range, v.vl_result, v.drug_recipe,\n                  v.sort_order\n           from lab_visit v\n           join patient p on p.id = v.patient_id\n           where v.lab_visit_group_id = $1 and v.deleted_at is null and p.deleted_at is null\n           order by v.sort_order, v.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: LabVisitId",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "public_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "patient_public_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "take_med_year_range",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "take_med_month_range",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "vl_result",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "drug_recipe",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "sort_order",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "4afa622091ce701ba3994d2441433d79f42c6fc3a5b2d410b13f3fc5123205b4"
+}

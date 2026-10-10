@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update registration_links set revoked_at = now()\n         where user_id = $1 and used_at is null and revoked_at is null",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "601568b33df6bb874b8d9f45150a622e63ab9bf96504ecae2e88217d4ce94777"
+}

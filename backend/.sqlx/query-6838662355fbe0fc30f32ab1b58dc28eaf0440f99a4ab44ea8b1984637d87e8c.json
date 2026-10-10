@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into lab_visit\n                 (patient_id, lab_visit_group_id, sort_order, created_by, updated_by)\n               values ($1, $2, $3, $4, $4)\n               returning uuid",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "uuid",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "6838662355fbe0fc30f32ab1b58dc28eaf0440f99a4ab44ea8b1984637d87e8c"
+}

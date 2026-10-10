@@ -1,7 +1,11 @@
 import { useState } from 'react'
-import { toast } from 'sonner'
 
+import { AddButton, DeleteButton, EditButton } from '@/components/layout/ActionButtons'
+import { ListToolbar } from '@/components/layout/ListToolbar'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { SearchForm } from '@/components/layout/SearchForm'
+import { TablePagination } from '@/components/layout/TablePagination'
+import { usePagination } from '@/components/layout/usePagination'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,7 +17,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   Table,
@@ -23,8 +26,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { useAuth } from '@/features/auth/AuthContext'
 import { useRolePreview } from '@/features/role-preview/RolePreviewContext'
 import { ApiError } from '@/lib/api'
+import { notify } from '@/lib/notify'
+import { hasCriteria, textIncludes } from '@/lib/search'
+import type { SearchValues } from '@/lib/search'
 
 import type { RoleFormValues } from './RoleFormDialog'
 import { RoleFormDialog } from './RoleFormDialog'
@@ -40,7 +47,7 @@ function roleErrorMessage(err: unknown): string {
     if (err.message === 'cannot rename a system role') return 'เปลี่ยนชื่อ role ของระบบไม่ได้'
     if (err.message === 'cannot delete a system role') return 'ลบ role ของระบบไม่ได้'
     if (err.message === 'role is still assigned to at least one user') {
-      return 'ลบไม่ได้ เพราะยังมีผู้ใช้ผูกกับ role นี้อยู่'
+      return 'ลบไม่ได้ เพราะยังมีผู้ใช้ผูกกับ role นี้อยู่ — ย้ายผู้ใช้ออกได้ที่หน้า "ผู้ใช้งาน"'
     }
   }
   return 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง'
@@ -54,10 +61,24 @@ type FormState = { mode: 'create' } | { mode: 'edit'; role: Role } | null
 export function RolesSettingsPage() {
   const { items: roles, status, refetch } = useAdminList(rolesApi.list)
   const { refetchCatalog } = useRolePreview()
+  // หลังแก้ role/เพจ ต้องโหลดสิทธิ์ของผู้ใช้เองและเมนูซ้ายใหม่ด้วย (ไม่ใช่แค่ตารางในหน้านี้)
+  const { refresh: refreshAuth } = useAuth()
 
   const [formState, setFormState] = useState<FormState>(null)
   const [pendingDelete, setPendingDelete] = useState<Role | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  // เงื่อนไขค้นหาที่ใช้กรองจริง (เปลี่ยนเมื่อกดปุ่ม "ค้นหา") — ช่องที่กรอกต้องตรงทุกช่อง
+  const [criteria, setCriteria] = useState<SearchValues>({})
+  const visibleRoles = roles.filter(
+    (role) =>
+      textIncludes(role.name, criteria.name ?? '') &&
+      textIncludes(role.description, criteria.description ?? '') &&
+      (role.permissions.length === 0
+        ? !(criteria.permission ?? '').trim()
+        : role.permissions.some((permission) => textIncludes(permission, criteria.permission ?? ''))),
+  )
+
+  const pagination = usePagination(visibleRoles)
 
   const handleFormSubmit = async (values: RoleFormValues) => {
     try {
@@ -71,7 +92,8 @@ export function RolesSettingsPage() {
     }
     await refetch()
     refetchCatalog()
-    toast(formState?.mode === 'edit' ? 'แก้ไข role แล้ว' : 'เพิ่ม role แล้ว')
+    await refreshAuth()
+    notify.saved(formState?.mode === 'edit', 'เพิ่ม role แล้ว', 'แก้ไข role แล้ว')
   }
 
   const handleDelete = async () => {
@@ -81,10 +103,11 @@ export function RolesSettingsPage() {
       await rolesApi.remove(pendingDelete.id)
       await refetch()
       refetchCatalog()
-      toast('ลบ role แล้ว')
+      await refreshAuth()
+      notify.deleted('ลบ role แล้ว')
       setPendingDelete(null)
     } catch (err) {
-      toast.error(roleErrorMessage(err))
+      notify.error(roleErrorMessage(err))
     } finally {
       setIsDeleting(false)
     }
@@ -92,11 +115,30 @@ export function RolesSettingsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader
-        title="การตั้งค่า role"
-        description="สร้าง แก้ไข ลบ role และกำหนดสิทธิ์ในแต่ละ role"
-        action={<Button onClick={() => setFormState({ mode: 'create' })}>+ เพิ่ม role</Button>}
+      <PageHeader title="การตั้งค่า role" description="สร้าง แก้ไข ลบ role และกำหนดสิทธิ์ในแต่ละ role" />
+
+      <SearchForm
+        id="role-search"
+        ariaLabel="ค้นหา role"
+        fields={[
+          { name: 'name', label: 'ชื่อ role' },
+          { name: 'description', label: 'คำอธิบาย' },
+          { name: 'permission', label: 'สิทธิ์', placeholder: 'เช่น patient หรือ user.manage' },
+        ]}
+        onSearch={(values) => {
+          setCriteria(values)
+          pagination.reset()
+        }}
       />
+
+      <ListToolbar
+        ready={status === 'ready'}
+        total={roles.length}
+        shown={visibleRoles.length}
+        filtered={hasCriteria(criteria)}
+      >
+        <AddButton onClick={() => setFormState({ mode: 'create' })}>เพิ่ม role</AddButton>
+      </ListToolbar>
 
       <Card>
         <CardContent className="px-0 sm:px-2">
@@ -106,7 +148,12 @@ export function RolesSettingsPage() {
           {status === 'error' && (
             <p className="p-4 text-sm text-destructive">โหลดข้อมูลไม่สำเร็จ ลองรีเฟรชหน้า</p>
           )}
-          {status === 'ready' && (
+          {status === 'ready' && roles.length > 0 && visibleRoles.length === 0 && (
+            <p className="p-4 text-sm text-muted-foreground">
+              ไม่พบ role ที่ตรงกับเงื่อนไข — กด &quot;ล้างข้อมูล&quot; เพื่อดูทั้งหมด
+            </p>
+          )}
+          {status === 'ready' && visibleRoles.length > 0 && (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -117,7 +164,7 @@ export function RolesSettingsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {roles.map((role) => (
+                {pagination.pagedItems.map((role) => (
                   <TableRow key={role.id}>
                     <TableCell className="font-medium">
                       {role.name}
@@ -140,27 +187,15 @@ export function RolesSettingsPage() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setFormState({ mode: 'edit', role })}
-                      >
-                        แก้ไข
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={role.isSystem}
-                        onClick={() => setPendingDelete(role)}
-                      >
-                        ลบ
-                      </Button>
+                      <EditButton onClick={() => setFormState({ mode: 'edit', role })} />
+                      <DeleteButton disabled={role.isSystem} onClick={() => setPendingDelete(role)} />
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           )}
+          {status === 'ready' && visibleRoles.length > 0 && <TablePagination {...pagination.props} />}
         </CardContent>
       </Card>
 
@@ -189,7 +224,11 @@ export function RolesSettingsPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void handleDelete()} disabled={isDeleting}>
+            <AlertDialogAction
+              variant="danger"
+              onClick={() => void handleDelete()}
+              disabled={isDeleting}
+            >
               {isDeleting ? 'กำลังลบ...' : 'ลบ'}
             </AlertDialogAction>
           </AlertDialogFooter>

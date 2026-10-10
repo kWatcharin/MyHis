@@ -1,0 +1,122 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select p.id as \"id: PatientId\", p.uuid as public_id, p.hn, p.nap_no,\n                  pr.uuid as \"prename_public_id!\", pr.name as \"prename_name!\",\n                  p.first_name, p.last_name, p.birth_date, p.age,\n                  p.weight::float8 as \"weight?\", p.height::float8 as \"height?\",\n                  p.sex, p.is_thai,\n                  n.uuid as \"nationality_public_id?\", n.national_name as \"nationality_name?\",\n                  p.sort_order, p.is_active\n           from patient p\n           join prename pr on pr.id = p.prename_id\n           left join nationality n on n.id = p.nationality_id\n           where p.deleted_at is null\n           order by p.sort_order, p.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: PatientId",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "public_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "hn",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 3,
+        "name": "nap_no",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 4,
+        "name": "prename_public_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "prename_name!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "first_name",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 7,
+        "name": "last_name",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 8,
+        "name": "birth_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 9,
+        "name": "age",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "weight?",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 11,
+        "name": "height?",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 12,
+        "name": "sex",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 13,
+        "name": "is_thai",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 14,
+        "name": "nationality_public_id?",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 15,
+        "name": "nationality_name?",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 16,
+        "name": "sort_order",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 17,
+        "name": "is_active",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      null,
+      null,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "2250f32b2c1ebb86d22a560b24657ea9a51c59f25619295f2fd610a7342bc9e9"
+}

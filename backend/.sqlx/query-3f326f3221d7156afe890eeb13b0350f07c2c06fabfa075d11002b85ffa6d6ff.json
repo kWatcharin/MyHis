@@ -1,0 +1,80 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select g.id as \"id: LabVisitGroupId\", g.uuid as public_id,\n                  y.uuid as \"budget_year_public_id!\", y.year as \"budget_year!\",\n                  pg.uuid as \"patient_group_public_id!\", pg.name as \"patient_group_name!\",\n                  g.cd4_1st_date as cd4_first_date, g.cd4_2nd_date as cd4_second_date, g.vl_date,\n                  g.sort_order,\n                  (select count(*)\n                     from lab_visit v\n                     join patient p on p.id = v.patient_id\n                    where v.lab_visit_group_id = g.id\n                      and v.deleted_at is null and p.deleted_at is null) as \"patient_count!\"\n           from lab_visit_group g\n           join budget_year y on y.id = g.budget_year_id\n           join patient_group pg on pg.id = g.patient_group_id\n           where g.deleted_at is null\n           order by g.sort_order, g.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: LabVisitGroupId",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "public_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "budget_year_public_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "budget_year!",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "patient_group_public_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "patient_group_name!",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "cd4_first_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 7,
+        "name": "cd4_second_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 8,
+        "name": "vl_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 9,
+        "name": "sort_order",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "patient_count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "3f326f3221d7156afe890eeb13b0350f07c2c06fabfa075d11002b85ffa6d6ff"
+}

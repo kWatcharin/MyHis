@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select id as \"id: PrenameId\" from prename where uuid = $1 and deleted_at is null",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: PrenameId",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "ab24cccd3fc3f92dbe6030420c77cb296ed22a63a5803385353073b6cc0398d2"
+}

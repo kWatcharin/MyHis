@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select v.id as \"id: LabVisitId\"\n           from lab_visit v\n           join lab_visit_group g on g.id = v.lab_visit_group_id\n           join patient p on p.id = v.patient_id\n           where v.uuid = $1 and v.deleted_at is null\n             and g.deleted_at is null and p.deleted_at is null",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: LabVisitId",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "03124d2915ae053bfd404c76d29d78be5e40a6e84c5a701e8b400ddcbedd757d"
+}

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update prename\n           set deleted_at = now(), deleted_by = $2, updated_by = $2, updated_at = now()\n           where id = $1 and deleted_at is null",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "db614a03d87ebcdc83ad16c4e44737d45feaba0ae52967960aacc5f1d495f98a"
+}

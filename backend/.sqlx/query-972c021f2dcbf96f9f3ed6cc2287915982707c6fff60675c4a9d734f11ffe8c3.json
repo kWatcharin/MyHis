@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into medical_condition\n                       (disease_id, patient_id, sort_order, created_by, updated_by)\n                     values ($1, $2, $3, $4, $4)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "972c021f2dcbf96f9f3ed6cc2287915982707c6fff60675c4a9d734f11ffe8c3"
+}

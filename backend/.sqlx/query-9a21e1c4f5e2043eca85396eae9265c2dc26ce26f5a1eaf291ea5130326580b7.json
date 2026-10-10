@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select id as \"id: LabId\", uuid as public_id, name, abbreviation, is_active, sort_order\n           from lab\n           where uuid = $1 and deleted_at is null",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: LabId",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "public_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "abbreviation",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "is_active",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "sort_order",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "9a21e1c4f5e2043eca85396eae9265c2dc26ce26f5a1eaf291ea5130326580b7"
+}

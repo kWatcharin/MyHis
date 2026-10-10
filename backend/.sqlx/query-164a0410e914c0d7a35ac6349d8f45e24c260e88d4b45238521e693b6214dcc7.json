@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select id, is_active from budget_year where uuid = $1 and deleted_at is null",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "is_active",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "164a0410e914c0d7a35ac6349d8f45e24c260e88d4b45238521e693b6214dcc7"
+}

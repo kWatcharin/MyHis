@@ -2,7 +2,7 @@
 //! `Permission` ไม่มี serde derive โดยตั้งใจ (ปิดตายใน Rust) — DTO รับเป็น `Vec<String>` แล้วให้
 //! handler แปลงผ่าน `Permission::parse` เอง ค่าที่แปลงไม่ได้ = `AppError::Validation`
 //!
-//! ชนิดที่ถือรหัสผ่านชั่วคราวเขียน Debug เองให้พิมพ์เป็น [redacted] (docs/rust-guidelines.md ข้อ 9)
+//! ชนิดที่ถือ token ของลิงก์ลงทะเบียนเขียน Debug เองให้พิมพ์เป็น [redacted] (docs/rust-guidelines.md ข้อ 9)
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -35,6 +35,27 @@ pub struct ReplaceUserRolesRequest {
     pub role_ids: Vec<Uuid>,
 }
 
+/// `PUT /users/{id}` — แทนที่ทั้งชุด (ช่องที่ไม่ส่ง/null = ล้างค่า) ตรวจค่าจริงที่ service
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct ReplaceUserRequest {
+    pub display_name: String,
+    pub prename_id: Option<Uuid>,
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
+    pub position: Option<String>,
+    pub role_ids: Vec<Uuid>,
+}
+
+// ชื่อ-สกุลเจ้าหน้าที่เป็นข้อมูลส่วนบุคคล — Debug ไม่พิมพ์ค่า
+impl std::fmt::Debug for ReplaceUserRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ReplaceUserRequest")
+            .field("role_ids", &self.role_ids)
+            .finish_non_exhaustive()
+    }
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RoleRef {
@@ -50,36 +71,51 @@ pub struct UserSummary {
     pub display_name: String,
     pub is_active: bool,
     pub must_change_password: bool,
+    /// ล็อกชั่วคราวจากการใส่รหัสผิดหลายครั้งถึงเวลานี้ (null หรือเวลาในอดีต = ไม่ล็อก) — รีเซ็ตรหัสปลดล็อกให้
+    pub locked_until: Option<DateTime<Utc>>,
+    pub prename_id: Option<Uuid>,
+    pub prename_name: Option<String>,
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
+    pub position: Option<String>,
+    /// ลงทะเบียน (ตั้งรหัสผ่านเองผ่านลิงก์) สำเร็จเมื่อ — null = ยังไม่ลงทะเบียน login ไม่ได้
+    pub registered_at: Option<DateTime<Utc>>,
+    /// หมดอายุของลิงก์ลงทะเบียน/ตั้งรหัสที่ค้างอยู่ (อาจหมดอายุแล้ว) — null = ไม่มีลิงก์ค้าง
+    pub registration_expires_at: Option<DateTime<Utc>>,
     pub roles: Vec<RoleRef>,
     pub created_at: DateTime<Utc>,
 }
 
+/// token ของลิงก์ลงทะเบียน/ตั้งรหัสใหม่ — อยู่ใน response นี้ครั้งเดียว (DB เก็บแค่ hash) หน้าเว็บประกอบเป็นลิงก์เอง
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CreateUserResponse {
-    pub user: UserSummary,
-    pub temporary_password: String,
+pub struct RegistrationLinkResponse {
+    pub registration_token: String,
+    pub registration_expires_at: DateTime<Utc>,
 }
 
-impl std::fmt::Debug for CreateUserResponse {
+impl std::fmt::Debug for RegistrationLinkResponse {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CreateUserResponse")
-            .field("user", &self.user)
-            .field("temporary_password", &"[redacted]")
+        f.debug_struct("RegistrationLinkResponse")
+            .field("registration_token", &"[redacted]")
+            .field("registration_expires_at", &self.registration_expires_at)
             .finish()
     }
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ResetPasswordResponse {
-    pub temporary_password: String,
+pub struct CreateUserResponse {
+    pub user: UserSummary,
+    #[serde(flatten)]
+    pub link: RegistrationLinkResponse,
 }
 
-impl std::fmt::Debug for ResetPasswordResponse {
+impl std::fmt::Debug for CreateUserResponse {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ResetPasswordResponse")
-            .field("temporary_password", &"[redacted]")
+        f.debug_struct("CreateUserResponse")
+            .field("user", &self.user.id)
+            .field("link", &self.link)
             .finish()
     }
 }

@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update prename\n           set\n               name = coalesce($3, name),\n               sort_order = coalesce($4, sort_order),\n               updated_by = $2,\n               updated_at = now()\n           where id = $1 and deleted_at is null",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "aa805d3ece3194a3ad7bd90e5ffd019b782ad1d991cddff973ffa1cf0e4f03e0"
+}

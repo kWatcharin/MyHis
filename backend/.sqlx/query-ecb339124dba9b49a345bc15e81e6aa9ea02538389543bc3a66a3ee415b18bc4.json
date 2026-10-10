@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update lab_visit\n           set take_med_year_range = $3, take_med_month_range = $4,\n               vl_result = $5, drug_recipe = $6,\n               sort_order = coalesce($7, sort_order),\n               updated_by = $2, updated_at = now()\n           where id = $1 and deleted_at is null",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Text",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ecb339124dba9b49a345bc15e81e6aa9ea02538389543bc3a66a3ee415b18bc4"
+}

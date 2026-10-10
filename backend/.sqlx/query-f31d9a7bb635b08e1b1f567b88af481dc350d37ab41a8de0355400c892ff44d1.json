@@ -1,0 +1,27 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into budget_year\n             (year, start_date, end_date, sort_order, is_active, created_by, updated_by)\n           values ($1, $2, $3, $4, $5, $6, $6)\n           returning id as \"id: BudgetYearId\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: BudgetYearId",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Date",
+        "Date",
+        "Int4",
+        "Bool",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f31d9a7bb635b08e1b1f567b88af481dc350d37ab41a8de0355400c892ff44d1"
+}

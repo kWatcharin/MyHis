@@ -5,6 +5,7 @@
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
+use chrono::Utc;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -22,6 +23,14 @@ fn user_to_summary(u: UserWithRoles) -> UserSummary {
         display_name: u.display_name,
         is_active: u.is_active,
         must_change_password: u.must_change_password,
+        locked_until: u.locked_until,
+        prename_id: u.prename_public_id,
+        prename_name: u.prename_name,
+        first_name: u.first_name,
+        last_name: u.last_name,
+        position: u.position,
+        registered_at: u.registered_at,
+        registration_expires_at: u.registration_expires_at,
         roles: u
             .roles
             .into_iter()
@@ -71,6 +80,13 @@ pub async fn list_users(
     Ok(Json(users.into_iter().map(user_to_summary).collect()))
 }
 
+fn link_response(link: service::IssuedLink) -> RegistrationLinkResponse {
+    RegistrationLinkResponse {
+        registration_token: link.token,
+        registration_expires_at: link.expires_at,
+    }
+}
+
 #[tracing::instrument(skip(state, current_user, payload))]
 pub async fn create_user(
     State(state): State<AppState>,
@@ -79,12 +95,14 @@ pub async fn create_user(
 ) -> Result<(StatusCode, Json<CreateUserResponse>), AppError> {
     payload.validate().map_err(validation)?;
 
+    let now = Utc::now();
     let created = service::create_user(
         &state.pool,
         &current_user,
         &payload.username,
         &payload.display_name,
         payload.role_id,
+        now,
     )
     .await?;
 
@@ -93,21 +111,53 @@ pub async fn create_user(
         username: created.username,
         display_name: created.display_name,
         is_active: true,
-        must_change_password: true,
+        must_change_password: false,
+        locked_until: None,
+        prename_id: None,
+        prename_name: None,
+        first_name: None,
+        last_name: None,
+        position: None,
+        registered_at: None,
+        registration_expires_at: Some(created.link.expires_at),
         roles: vec![RoleRef {
             id: created.role.public_id,
             name: created.role.name,
         }],
-        created_at: chrono::Utc::now(),
+        created_at: now,
     };
 
     Ok((
         StatusCode::CREATED,
         Json(CreateUserResponse {
             user,
-            temporary_password: created.temporary_password,
+            link: link_response(created.link),
         }),
     ))
+}
+
+#[tracing::instrument(skip_all)]
+pub async fn replace_user(
+    State(state): State<AppState>,
+    current_user: CurrentUser,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<ReplaceUserRequest>,
+) -> Result<StatusCode, AppError> {
+    service::replace_user(
+        &state.pool,
+        &current_user,
+        id,
+        service::ReplaceUserInput {
+            display_name: &payload.display_name,
+            prename_public_id: payload.prename_id,
+            first_name: payload.first_name.as_deref(),
+            last_name: payload.last_name.as_deref(),
+            position: payload.position.as_deref(),
+            role_public_ids: &payload.role_ids,
+        },
+    )
+    .await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 #[tracing::instrument(skip(state, current_user, payload))]
@@ -134,9 +184,9 @@ pub async fn reset_password(
     State(state): State<AppState>,
     current_user: CurrentUser,
     Path(id): Path<Uuid>,
-) -> Result<Json<ResetPasswordResponse>, AppError> {
-    let temporary_password = service::reset_password(&state.pool, &current_user, id).await?;
-    Ok(Json(ResetPasswordResponse { temporary_password }))
+) -> Result<Json<RegistrationLinkResponse>, AppError> {
+    let link = service::reset_password(&state.pool, &current_user, id, Utc::now()).await?;
+    Ok(Json(link_response(link)))
 }
 
 #[tracing::instrument(skip(state, current_user, payload))]

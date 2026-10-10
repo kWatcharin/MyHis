@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update users\n           set display_name = $2, prename_id = $3, first_name = $4, last_name = $5, position = $6,\n               updated_at = now()\n           where id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Int4",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "abb91411ebb0e9f47f0c30f8dd5a94e4eb22a08ce208c98b9eaa1682547d5dc8"
+}

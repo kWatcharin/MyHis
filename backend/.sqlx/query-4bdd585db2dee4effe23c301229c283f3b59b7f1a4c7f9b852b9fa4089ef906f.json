@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select coalesce(max(sort_order), 0) as \"last!\"\n           from lab_visit\n           where lab_visit_group_id = $1 and deleted_at is null",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "last!",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "4bdd585db2dee4effe23c301229c283f3b59b7f1a4c7f9b852b9fa4089ef906f"
+}

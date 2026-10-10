@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into registration_links (token_hash, user_id, created_by, expires_at)\n         values ($1, $2, $3, $4)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int4",
+        "Int4",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "414394bb7b93c07cf29766d4a49b2a5749902a60a2139de4f61a824631c30788"
+}

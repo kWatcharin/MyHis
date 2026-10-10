@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select id, disease_id from medical_condition\n         where patient_id = $1 and deleted_at is null",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "disease_id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "9957844709d0235fe5b990faab5b2d3dede9b216355e8f273d8b1ddf04c9fac4"
+}

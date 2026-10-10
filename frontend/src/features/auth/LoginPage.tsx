@@ -31,10 +31,12 @@ export function LoginPage() {
   const location = useLocation()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  // มาจากหน้าลงทะเบียน (RegisterPage) — เติมชื่อผู้ใช้ไว้ให้ / มาจาก RequireAuth — หน้าเดิมที่จะกลับไป
+  const navState = location.state as { from?: string; username?: string; registered?: boolean } | null
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { username: '', password: '' },
+    defaultValues: { username: navState?.username ?? '', password: '' },
   })
 
   // ระหว่างเช็ค /auth/me ตอนโหลดแอปครั้งแรก ยังไม่โชว์ฟอร์ม กันการกระพริบเห็นฟอร์ม login แป๊บเดียว
@@ -53,8 +55,7 @@ export function LoginPage() {
     setIsSubmitting(true)
     try {
       await login(values.username, values.password)
-      const from = (location.state as { from?: string } | null)?.from
-      navigate(from ?? '/dashboard', { replace: true })
+      navigate(navState?.from ?? '/dashboard', { replace: true })
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง')
     } finally {
@@ -79,7 +80,11 @@ export function LoginPage() {
             <HeartPulse className="size-5" />
           </div>
           <CardTitle>เข้าสู่ระบบ</CardTitle>
-          <CardDescription>my-his — เครื่องมือช่วยงานพยาบาล</CardDescription>
+          <CardDescription>
+            {navState?.registered
+              ? 'ตั้งรหัสผ่านเรียบร้อย — เข้าสู่ระบบด้วยรหัสผ่านที่เพิ่งตั้งได้เลย'
+              : 'my-his — เครื่องมือช่วยงานพยาบาล'}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={form.handleSubmit(onSubmit)} noValidate>

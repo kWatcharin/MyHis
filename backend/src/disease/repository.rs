@@ -1,0 +1,157 @@
+//! query SQLx ต่อตาราง disease (ห้ามรู้เรื่อง HTTP) ใช้ query!/query_as! ตรวจตอน compile
+//! ไม่ประกอบ SQL ด้วย format! (docs/rust-guidelines.md ข้อ 11) แถวที่ถูก soft delete
+//! (`deleted_at is not null`) ไม่ถูกคืนจากฟังก์ชันใดในนี้
+
+use sqlx::PgPool;
+use thiserror::Error;
+use uuid::Uuid;
+
+use crate::domain::{DiseaseId, UserId};
+
+#[derive(Debug, Error)]
+pub enum RepositoryError {
+    #[error("database error")]
+    Database(#[from] sqlx::Error),
+}
+
+impl RepositoryError {
+    /// เช็คว่า error เกิดจาก unique constraint ชนไหม (ชื่อโรคซ้ำ) — ให้ service แปลงเป็น Conflict
+    /// แทนที่จะ pre-check แข่งกับ concurrent request เอง
+    pub fn is_unique_violation(&self) -> bool {
+        matches!(self, RepositoryError::Database(e) if e.as_database_error().is_some_and(|d| d.is_unique_violation()))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DiseaseRow {
+    pub id: DiseaseId,
+    /// uuid ของแถว — id ที่ API เห็น
+    pub public_id: Uuid,
+    pub name: String,
+    pub abbreviation: String,
+    pub sort_order: i32,
+    pub is_active: bool,
+}
+
+pub async fn list_diseases(pool: &PgPool) -> Result<Vec<DiseaseRow>, RepositoryError> {
+    let rows = sqlx::query_as!(
+        DiseaseRow,
+        r#"select id as "id: DiseaseId", uuid as public_id, name, abbreviation, sort_order,
+                  is_active
+           from disease
+           where deleted_at is null
+           order by sort_order, name"#
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows)
+}
+
+pub async fn find_disease_by_public_id(
+    pool: &PgPool,
+    public_id: Uuid,
+) -> Result<Option<DiseaseRow>, RepositoryError> {
+    let row = sqlx::query_as!(
+        DiseaseRow,
+        r#"select id as "id: DiseaseId", uuid as public_id, name, abbreviation, sort_order,
+                  is_active
+           from disease
+           where uuid = $1 and deleted_at is null"#,
+        public_id
+    )
+    .fetch_optional(pool)
+    .await?;
+    Ok(row)
+}
+
+pub async fn insert_disease(
+    pool: &PgPool,
+    actor: UserId,
+    name: &str,
+    abbreviation: &str,
+    sort_order: i32,
+    is_active: bool,
+) -> Result<DiseaseId, RepositoryError> {
+    let row = sqlx::query!(
+        r#"insert into disease (name, abbreviation, sort_order, is_active, created_by, updated_by)
+           values ($1, $2, $3, $4, $5, $5)
+           returning id as "id: DiseaseId""#,
+        name,
+        abbreviation,
+        sort_order,
+        is_active,
+        actor.0
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(row.id)
+}
+
+pub struct UpdateDiseaseFields<'a> {
+    pub name: Option<&'a str>,
+    pub abbreviation: Option<&'a str>,
+    pub sort_order: Option<i32>,
+    pub is_active: Option<bool>,
+}
+
+/// partial update ผ่าน COALESCE — ค่า None ไม่แตะคอลัมน์เดิม (ทุกคอลัมน์ที่แก้ได้เป็น not null
+/// จึงไม่มีกรณี "ตั้งเป็น null")
+pub async fn update_disease(
+    pool: &PgPool,
+    actor: UserId,
+    id: DiseaseId,
+    fields: UpdateDiseaseFields<'_>,
+) -> Result<(), RepositoryError> {
+    sqlx::query!(
+        r#"update disease
+           set name = coalesce($3, name),
+               abbreviation = coalesce($4, abbreviation),
+               sort_order = coalesce($5, sort_order),
+               is_active = coalesce($6, is_active),
+               updated_by = $2,
+               updated_at = now()
+           where id = $1 and deleted_at is null"#,
+        id.0,
+        actor.0,
+        fields.name,
+        fields.abbreviation,
+        fields.sort_order,
+        fields.is_active
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// โรคนี้ยังถูกบันทึกเป็นโรคประจำตัว (`medical_condition` แถวที่ยังไม่ถูกลบ) อยู่ไหม — ใช้กันลบโรค
+/// ที่ยังมีข้อมูลคนไข้ผูกอยู่
+pub async fn disease_in_use(pool: &PgPool, id: DiseaseId) -> Result<bool, RepositoryError> {
+    let row = sqlx::query!(
+        r#"select exists(
+             select 1 from medical_condition where disease_id = $1 and deleted_at is null
+           ) as "exists!""#,
+        id.0
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(row.exists)
+}
+
+/// soft delete — ไม่ลบแถวจริง (CLAUDE.md) partial unique index นับเฉพาะแถวที่ยังไม่ถูกลบ
+/// จึงสร้างชื่อเดิมซ้ำได้หลังลบ
+pub async fn soft_delete_disease(
+    pool: &PgPool,
+    actor: UserId,
+    id: DiseaseId,
+) -> Result<(), RepositoryError> {
+    sqlx::query!(
+        r#"update disease
+           set deleted_at = now(), deleted_by = $2, updated_by = $2, updated_at = now()
+           where id = $1 and deleted_at is null"#,
+        id.0,
+        actor.0
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}

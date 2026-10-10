@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update users\n           set password_hash = $2, must_change_password = false, failed_attempts = 0,\n               locked_until = null, registered_at = coalesce(registered_at, $3), updated_at = $3\n           where id = $1\n           returning uuid as public_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "public_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e37edb8fc6d112668e482172692ddc67b4384f9d9f31820bd095ba37d488e8c4"
+}

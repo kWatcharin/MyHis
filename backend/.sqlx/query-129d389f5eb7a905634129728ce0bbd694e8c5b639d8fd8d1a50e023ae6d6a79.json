@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select id as \"id: PatientId\", uuid as public_id, is_active\n           from patient\n           where uuid = any($1) and deleted_at is null",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: PatientId",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "public_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "is_active",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "129d389f5eb7a905634129728ce0bbd694e8c5b639d8fd8d1a50e023ae6d6a79"
+}

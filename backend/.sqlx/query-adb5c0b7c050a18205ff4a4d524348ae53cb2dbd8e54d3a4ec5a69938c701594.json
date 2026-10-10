@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update medical_condition\n                     set sort_order = $2, updated_by = $3, updated_at = now()\n                     where id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "adb5c0b7c050a18205ff4a4d524348ae53cb2dbd8e54d3a4ec5a69938c701594"
+}

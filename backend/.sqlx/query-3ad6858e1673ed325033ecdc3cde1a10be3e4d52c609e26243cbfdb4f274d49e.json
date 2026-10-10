@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update nationality\n           set\n               national_name = coalesce($3, national_name),\n               nation = coalesce($4, nation),\n               sort_order = coalesce($5, sort_order),\n               is_active = coalesce($6, is_active),\n               updated_by = $2,\n               updated_at = now()\n           where id = $1 and deleted_at is null",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Varchar",
+        "Varchar",
+        "Int4",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3ad6858e1673ed325033ecdc3cde1a10be3e4d52c609e26243cbfdb4f274d49e"
+}

@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into lab (name, abbreviation, is_active, sort_order, created_by, updated_by)\n           values ($1, $2, $3, $4, $5, $5)\n           returning id as \"id: LabId\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: LabId",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Bool",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "2042c160de8ffef63f55672a18c7876ca2b625196bf6f3965dc86da0c2739dc0"
+}

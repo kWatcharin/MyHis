@@ -8,10 +8,13 @@
 - login / logout ที่ปลอดภัยพอสำหรับใช้งานจริงบนอินเทอร์เน็ต
 - รู้ว่า request ไหนมาจากใคร และผู้ใช้คนนั้นมีสิทธิ์อะไร
 - admin สร้างบัญชี ปิดบัญชี และรีเซ็ตรหัสผ่านให้ผู้ใช้ได้
+- **ลงทะเบียนผ่านลิงก์:** admin สร้างบัญชี/รีเซ็ตรหัสแล้วได้ลิงก์ใช้ครั้งเดียว (อายุ 3 วัน) ผู้ใช้เปิดลิงก์ กรอก
+  คำนำหน้า ชื่อ สกุล ตำแหน่ง และตั้งรหัสผ่านเอง — admin ไม่เห็นรหัสผ่านของใคร (เลิกใช้รหัสผ่านชั่วคราวแล้ว ดูหัวข้อ 8)
 - มีร่องรอยตรวจสอบย้อนหลังว่าใครทำอะไร
 
-สิ่งที่ **ยังไม่ทำ** ในรอบนี้: สมัครสมาชิกเอง, ยืนยันตัวตนสองชั้น (MFA), ลืมรหัสผ่านผ่านอีเมล,
-เข้าระบบด้วยบัญชี Google โครงสร้างที่วางไว้ต้องเติมสิ่งเหล่านี้ได้ทีหลังโดยไม่ต้องรื้อ
+สิ่งที่ **ยังไม่ทำ** ในรอบนี้: สมัครสมาชิกเองจากหน้า login (ทุกบัญชีเริ่มจาก admin), ยืนยันตัวตนสองชั้น (MFA),
+ลืมรหัสผ่านผ่านอีเมล (admin ออกลิงก์ตั้งรหัสใหม่ให้แทน), ส่งลิงก์ให้อัตโนมัติ (admin คัดลอกไปส่งเอง), เข้าระบบด้วย
+บัญชี Google โครงสร้างที่วางไว้ต้องเติมสิ่งเหล่านี้ได้ทีหลังโดยไม่ต้องรื้อ
 
 ## 2. ทางเลือกหลัก: session cookie ไม่ใช่ JWT
 
@@ -37,7 +40,8 @@ JWT จะเริ่มคุ้มเมื่อมีหลาย service �
 | Service | `auth/service.rs` | กฎทั้งหมด: lockout, ตรวจรหัสผ่าน, ออก/เพิกถอน session | import ชนิดข้อมูลของ Axum |
 | Repository | `auth/repository.rs` | query SQLx ต่อ `users`, `sessions` | รู้เรื่อง HTTP |
 
-ไฟล์เสริมในโมดูล: `dto.rs` (รูปแบบ JSON), `password.rs` (argon2), `session.rs` (สร้าง token และจัดการ cookie)
+ไฟล์เสริมในโมดูล: `dto.rs` (รูปแบบ JSON), `session.rs` (จัดการ cookie) — ส่วนที่โมดูลอื่นใช้ร่วมอยู่ที่ crate root:
+`password.rs` (argon2) และ `token.rs` (สุ่ม token + SHA-256 ใช้ทั้ง session และลิงก์ลงทะเบียน)
 
 ## 4. ตารางฐานข้อมูล
 
@@ -58,11 +62,15 @@ JWT จะเริ่มคุ้มเมื่อมีหลาย service �
 | uuid | uuid | unique — id ที่ API เห็น |
 | username | text | unique, เก็บเป็นตัวพิมพ์เล็กที่ตัดช่องว่างแล้ว |
 | display_name | text | ชื่อที่แสดงในหน้าจอ |
-| password_hash | text | argon2id พร้อม salt ในตัว |
+| password_hash | text | argon2id พร้อม salt ในตัว — บัญชีที่ยังไม่ตั้งรหัส (สร้างใหม่/หลังรีเซ็ต) เป็น hash ของค่าสุ่มที่ทิ้งไปแล้ว login ไม่มีทางผ่าน |
 | is_active | boolean | ปิดบัญชีโดยไม่ลบข้อมูล |
-| must_change_password | boolean | บังคับเปลี่ยนรหัสหลัง admin รีเซ็ตให้ |
+| must_change_password | boolean | ยังใช้รหัสผ่านชั่วคราว — เหลือแค่ bootstrap admin และบัญชีเดิมก่อนมีลิงก์ลงทะเบียน (การรีเซ็ตไม่ตั้งค่านี้แล้ว) |
 | failed_attempts | integer | นับความพยายามที่ผิดติดกัน |
 | locked_until | timestamptz | null ถ้าไม่ถูกล็อก |
+| prename_id | integer | nullable, FK ไป `prename` — คำนำหน้า (ผู้ใช้กรอกเองตอนลงทะเบียน admin แก้ได้) |
+| first_name / last_name | text | nullable — ชื่อ-สกุลเจ้าหน้าที่ (ไม่ใช่ข้อมูลผู้ป่วย จึงไม่เข้ารหัส) |
+| position | text | nullable — ตำแหน่ง เช่น พยาบาลวิชาชีพ |
+| registered_at | timestamptz | ตั้งรหัสผ่านเองผ่านลิงก์สำเร็จเมื่อ — null = ยังไม่ลงทะเบียน default `now()` (bootstrap admin ถือว่าลงทะเบียนแล้ว) |
 | created_at / updated_at | timestamptz | |
 
 role ของผู้ใช้ย้ายไปอยู่ตาราง `user_roles` แล้ว (ดูหัวข้อ 10) เพื่อให้คนหนึ่งมีได้หลาย role
@@ -122,6 +130,7 @@ primary key คือ (`user_id`, `role_id`) ต้องมี index บน `ro
 | icon | text | nullable, ชื่อ icon ให้ frontend เป็นคนแปลผลเอง |
 | route | text | unique, path ของหน้านี้ เช่น `/users`, `/shifts` |
 | sort_order | integer | default 0, ลำดับการแสดงผลในเมนู |
+| group_label | text | nullable, ชื่อกลุ่มเมนู (main page ที่กดพับ/กางได้) — หน้าที่ `group_label` เหมือนกันรวมอยู่กลุ่มเดียวกัน ลำดับกลุ่มตามหน้าแรกของกลุ่มใน `sort_order` null = เมนูเดี่ยวไม่อยู่ในกลุ่ม migration seed ไว้ 4 กลุ่ม: "ลงทะเบียน" (ผู้ป่วย `/patients` — ต้อง `patient.read`, ผู้ใช้งาน `/users` — ต้อง `user.manage`), "Lab" (นัดหมายแล็ป — ต้อง `patient.read`), "สิทธิ์" (การตั้งค่าเพจ, การตั้งค่า role) และ "การตั้งค่า" (หน้า master: ปีงบประมาณ, โรค, คำนำหน้า, สัญชาติ, กลุ่มคนไข้, แลป) — admin ย้าย/เปลี่ยนชื่อกลุ่มเองได้ผ่านหน้าการตั้งค่าเพจ |
 | created_at / updated_at | timestamptz | |
 
 **ไม่มี `is_system`** ต่างจาก `roles` โดยตั้งใจ — `is_system` บน `roles` มีไว้กัน role `admin`/`nurse`
@@ -166,6 +175,23 @@ primary key คือ (`page_id`, `permission`)
 
 ต้องมี index บน `user_id` (ใช้ตอน logout ทุกอุปกรณ์) และงานลบ session ที่หมดอายุทิ้งเป็นระยะ
 
+### registration_links
+
+ลิงก์ลงทะเบียน/ตั้งรหัสผ่านใหม่ที่ admin ออกให้ (หัวข้อ 8) — แพทเทิร์นเดียวกับ `sessions`: เก็บแค่ hash ของ token
+ไม่มี id/uuid ไม่ลบแถว (ใช้แล้วตั้ง `used_at`, ถูกแทนด้วยลิงก์ใหม่ตั้ง `revoked_at`)
+
+| คอลัมน์ | ชนิด | หมายเหตุ |
+|---|---|---|
+| token_hash | text | primary key, SHA-256 ของ token ในลิงก์ (token ดิบอยู่ใน response ครั้งเดียว ไม่เก็บ) |
+| user_id | integer | FK ไป `users.id` (on delete cascade) บัญชีที่ลิงก์นี้ใช้ตั้งรหัส |
+| created_by | integer | FK ไป `users.id` (on delete set null) admin ที่ออกลิงก์ |
+| created_at / expires_at | timestamptz | หมดอายุ = ออกลิงก์ + 3 วัน |
+| used_at | timestamptz | ลงทะเบียน/ตั้งรหัสสำเร็จเมื่อ — ใช้ซ้ำไม่ได้ |
+| revoked_at | timestamptz | ถูกแทนด้วยลิงก์ใหม่เมื่อ (ผู้ใช้หนึ่งคนมีลิงก์ที่ใช้ได้อย่างมากหนึ่งอัน) |
+
+index บน `user_id` — ลิงก์ "ใช้ได้" = `used_at` และ `revoked_at` เป็น null, ยังไม่หมดอายุ และบัญชียัง `is_active`
+(ปิดบัญชีแล้วลิงก์ใช้ไม่ได้ เปิดกลับแล้วลิงก์ที่ยังไม่หมดอายุใช้ได้อีก)
+
 ### audit_log
 
 | คอลัมน์ | ชนิด | หมายเหตุ |
@@ -190,20 +216,51 @@ primary key คือ (`page_id`, `permission`)
 | POST | `/auth/logout` | ต้อง login | ลบ session ปัจจุบันและล้าง cookie |
 | POST | `/auth/logout-all` | ต้อง login | ลบทุก session ของผู้ใช้คนนี้ |
 | GET | `/auth/me` | ต้อง login | คืนข้อมูลผู้ใช้ปัจจุบันพร้อมรายการ permission |
-| POST | `/auth/password` | ต้อง login | เปลี่ยนรหัสผ่านตัวเอง ต้องกรอกรหัสเดิมด้วย |
-| GET | `/users` | `user.manage` | รายชื่อผู้ใช้ |
-| POST | `/users` | `user.manage` | สร้างผู้ใช้ พร้อมรหัสผ่านชั่วคราวและ role เริ่มต้น |
-| PATCH | `/users/{id}` | `user.manage` | เปิด/ปิดบัญชี, เปลี่ยน display_name (ไม่รวม role — ดูแถว `/users/{id}/roles`) |
-| POST | `/users/{id}/reset-password` | `user.manage` | ตั้งรหัสชั่วคราวและเพิกถอน session ทั้งหมดของคนนั้น |
+| POST | `/auth/password` | ต้อง login | เปลี่ยนรหัสผ่านตัวเอง ต้องกรอกรหัสเดิมด้วย (ผิด → `401`) — รหัสใหม่ ≥ 12 ตัวและต้องไม่ซ้ำรหัสเดิม (`400`) หน้าเว็บเปิดจากปุ่มกุญแจท้ายเมนู (ไม่บังคับเปลี่ยน) |
+| GET | `/users` | `user.manage` | รายชื่อผู้ใช้ทั้งหมดพร้อม role, `isActive`, `mustChangePassword`, `lockedUntil` (null = ไม่ล็อก), ข้อมูลตัว (`prenameId/prenameName/firstName/lastName/position`), `registeredAt` (null = ยังไม่ลงทะเบียน) และ `registrationExpiresAt` (ลิงก์ที่ค้างอยู่ อาจหมดอายุแล้ว — null = ไม่มี) (โมดูล `users/` — หน้า "ผู้ใช้งาน" `/users` กลุ่มเมนูลงทะเบียน) |
+| POST | `/users` | `user.manage` | สร้างผู้ใช้ที่ยังไม่ลงทะเบียน + role เริ่มต้น → `201 { user, registrationToken, registrationExpiresAt }` (token ของลิงก์ลงทะเบียน อยู่ใน response ครั้งเดียว หน้าเว็บประกอบเป็น `/register#<token>`) — username เก็บเป็นตัวเล็กที่ trim แล้ว ยาว 3–32 ตัว เฉพาะ `a-z 0-9 . _ -` (`400 invalid username`), ชื่อที่แสดง 1–100 ตัว, `409 username already taken` |
+| PUT | `/users/{id}` | `user.manage` | ฟอร์มแก้ไข: **แทนที่ทั้งชุด** ชื่อที่แสดง + `prenameId/firstName/lastName/position` (null/ว่าง = ล้างค่า, ≤100 ตัว, คำนำหน้าต้องมีอยู่และไม่ถูกลบ `400 unknown prename`) + `roleIds` (กฎเดียวกับ `PUT /users/{id}/roles`) ในทรานแซกชันเดียว |
+| PATCH | `/users/{id}` | `user.manage` | เปิด/ปิดบัญชี, เปลี่ยน display_name (ไม่รวม role — ดูแถว `/users/{id}/roles`) — ปิดบัญชีแล้วลบ session ทั้งหมดของคนนั้นในทรานแซกชันเดียวกัน (ลิงก์ที่ค้างใช้ไม่ได้ระหว่างปิด); ปิดบัญชีตัวเองไม่ได้ (`400 cannot deactivate your own account`) |
+| POST | `/users/{id}/reset-password` | `user.manage` | รหัสเดิมใช้ไม่ได้ทันที + ปลดล็อก + เพิกถอน session ทั้งหมด + แทนลิงก์เดิมด้วยลิงก์ใหม่ ในทรานแซกชันเดียว → `{ registrationToken, registrationExpiresAt }` (ใช้ออกลิงก์ลงทะเบียนใหม่ให้คนที่ยังไม่ลงทะเบียนด้วย) — รีเซ็ตของตัวเองไม่ได้ (`400 cannot reset your own password` ใช้ `/auth/password` แทน) |
+| POST | `/registration/lookup` | สาธารณะ | `{ token }` → ข้อมูลบัญชีของลิงก์: `username, displayName, mode` (`register` = ลงทะเบียนครั้งแรก / `reset` = ตั้งรหัสใหม่), `expiresAt`, ข้อมูลตัวเดิม, `prenames` (ตัวเลือกคำนำหน้า) — ลิงก์ใช้ไม่ได้ทุกกรณีได้ `400 invalid or expired registration link` ข้อความเดียว (โมดูล `registration/` — หน้า `/register`) |
+| POST | `/registration/complete` | สาธารณะ | `{ token, newPassword, prenameId?, firstName?, lastName?, position? }` → 204 รหัส ≥ 12 ตัว; โหมด register บังคับคำนำหน้า/ชื่อ/สกุล (ตำแหน่งไม่บังคับ), โหมด reset ไม่แตะข้อมูลตัว — ใช้ลิงก์ครั้งเดียว ปลดล็อก ลบ session ของบัญชี token อยู่ใน body เสมอ (ไม่อยู่ใน URL ที่ไปติด log) |
 | GET | `/roles` | `user.manage` | รายชื่อ role ทั้งหมดพร้อม permission ที่มี |
 | POST | `/roles` | `user.manage` | สร้าง role ใหม่ พร้อมชุด permission เริ่มต้น |
 | PATCH | `/roles/{id}` | `user.manage` | แก้ description หรือแทนที่ชุด permission ทั้งหมด (full replace) — ถ้า `is_system` ห้ามแก้ `name` |
 | DELETE | `/roles/{id}` | `user.manage` | ลบ role — ปฏิเสธด้วย `409` ถ้ายังมีผู้ใช้ผูกอยู่ หรือถ้า `is_system` |
-| PUT | `/users/{id}/roles` | `user.manage` | แทนที่ชุด role ทั้งหมดของผู้ใช้คนนี้ (full replace) — ต้องมีอย่างน้อย 1 role เสมอ ส่ง array ว่างจะได้ `400` |
+| PUT | `/users/{id}/roles` | `user.manage` | แทนที่ชุด role ทั้งหมดของผู้ใช้คนนี้ (full replace) — ต้องมีอย่างน้อย 1 role เสมอ ส่ง array ว่างจะได้ `400`; uuid ซ้ำถูกตัดทิ้ง; แก้ของตัวเองต้องเหลือ role ที่ให้ `user.manage` (`400 cannot remove your own user management permission`) |
 | GET | `/pages` | `user.manage` | รายชื่อ page ทั้งหมดพร้อม permission ที่ต้องมี (สำหรับหน้าแอดมินจัดการเมนู) |
 | POST | `/pages` | `user.manage` | สร้าง page ใหม่ พร้อมชุด permission ที่ต้องการ |
 | PATCH | `/pages/{id}` | `user.manage` | แก้ label/icon/route/sort_order หรือแทนที่ชุด permission ทั้งหมด (full replace) |
 | DELETE | `/pages/{id}` | `user.manage` | ลบ page |
+| GET | `/budget-years` | `user.manage` | รายการปีงบประมาณที่ยังไม่ถูกลบ เรียง `sort_order` แล้ว `year` มาก→น้อย (โมดูล `budget_year/` — หน้า "ตั้งค่าปีงบประมาณ") |
+| POST | `/budget-years` | `user.manage` | สร้างปีงบประมาณ (`year` พ.ศ. 4 หลัก, `startDate`/`endDate` เป็น `YYYY-MM-DD`) — `409` ถ้าปีซ้ำ, `400` ถ้าวันสิ้นสุดก่อนวันเริ่ม |
+| PATCH | `/budget-years/{id}` | `user.manage` | แก้บางฟิลด์ (เช็คช่วงวันที่กับค่าเดิมของอีกฝั่งด้วย) |
+| DELETE | `/budget-years/{id}` | `user.manage` | soft delete — `409` ถ้ายังมี `lab_visit_group` (ที่ไม่ถูกลบ) อ้างปีนี้อยู่ |
+| GET | `/diseases` | `user.manage` | รายการโรคที่ยังไม่ถูกลบ เรียง `sort_order` แล้วชื่อ (โมดูล `disease/` — หน้า "ตั้งค่าโรค") |
+| POST | `/diseases` | `user.manage` | สร้างโรค (`name`, `abbreviation` ไม่เกิน 100 ตัวอักษร ไม่ว่างหลัง trim) — `409` ถ้าชื่อซ้ำ (ไม่สนตัวพิมพ์), `400` ถ้าค่าผิด |
+| PATCH | `/diseases/{id}` | `user.manage` | แก้บางฟิลด์ |
+| DELETE | `/diseases/{id}` | `user.manage` | soft delete — `409` ถ้ายังมี `medical_condition` (ที่ไม่ถูกลบ) อ้างโรคนี้อยู่ |
+| GET / POST | `/prenames` | `user.manage` | master คำนำหน้า (โมดูล `prename/`): list / สร้าง (`name`, `abbreviation` ไม่บังคับ, `sortOrder`) |
+| PATCH / DELETE | `/prenames/{id}` | `user.manage` | แก้ / soft delete — `409` ถ้าชื่อซ้ำ (ไม่สนตัวพิมพ์) หรือยังมี `patient` ใช้ |
+| GET / POST | `/nationalities` | `user.manage` | master สัญชาติ (`nationality/`): `nationalName`, `nation`, `sortOrder`, `isActive` |
+| PATCH / DELETE | `/nationalities/{id}` | `user.manage` | `409` ถ้า `nationalName` ซ้ำหรือยังมี `patient` ใช้ |
+| GET / POST | `/patient-groups` | `user.manage` | master กลุ่มคนไข้ (`patient_group/`): `name`, `sortOrder`, `isActive` |
+| PATCH / DELETE | `/patient-groups/{id}` | `user.manage` | `409` ถ้าชื่อซ้ำหรือยังมี `visit_group`/`lab_visit_group` ใช้ |
+| GET / POST | `/labs` | `user.manage` | master แลป (`lab/`): `name`, `abbreviation` ไม่บังคับ, `sortOrder`, `isActive` |
+| PATCH / DELETE | `/labs/{id}` | `user.manage` | `409` ถ้าชื่อซ้ำ (ยังไม่มีตารางอ้าง `lab` จึงลบได้เสมอ) |
+| GET | `/patients` | `patient.read` | ผู้ป่วยทั้งหมดที่ยังไม่ถูกลบ (HN/เลขประจำตัว/ชื่อ-สกุลถอดรหัสแล้ว) พร้อมโรคประจำตัว (โมดูล `patient/` — หน้า "ผู้ป่วย" กลุ่มเมนูลงทะเบียน) |
+| GET | `/patients/options` | `patient.read` | ตัวเลือกของฟอร์ม: คำนำหน้า, สัญชาติและโรค (เฉพาะที่ใช้งานอยู่) — อ่านผ่านโมดูลนี้ เพราะ `/diseases` ฯลฯ ต้อง `user.manage` |
+| POST | `/patients` | `patient.write` | ลงทะเบียน (รวม `diseaseIds` โรคประจำตัว) — `409 hn already registered` ถ้า HN ซ้ำ, `400` ถ้าค่าผิด/อ้าง master ที่ไม่มี/โรคปิดใช้งาน |
+| PUT | `/patients/{id}` | `patient.write` | **แทนที่ทั้งชุด** (ฟิลด์ nullable ส่ง null = ล้างค่า; `diseaseIds` แทนที่โรคที่ผูกอยู่ทั้งหมด) |
+| DELETE | `/patients/{id}` | `patient.write` | soft delete ผู้ป่วยพร้อมโรคประจำตัว (ปล่อย HN ให้ใช้ซ้ำ) |
+| GET | `/lab-visit-groups` | `patient.read` | นัดหมายแล็ปทั้งหมด (หัวนัดหมาย: ปีงบประมาณ + กลุ่มคนไข้ + วันนัด CD4 ครั้งที่ 1/2 + วันนัด VL + จำนวนคนไข้) (โมดูล `lab_visit/` — หน้า "นัดหมายแล็ป" กลุ่มเมนู Lab) |
+| GET | `/lab-visit-groups/options` | `patient.read` | ตัวเลือกของฟอร์ม: ปีงบประมาณ, กลุ่มคนไข้ (ที่ยังไม่ถูกลบ พร้อม `isActive`) — เพราะ `/budget-years`, `/patient-groups` ต้อง `user.manage` |
+| POST | `/lab-visit-groups` | `patient.write` | สร้างนัดหมาย → `201 { id }` — `409 lab visit group already exists` ถ้าปี+กลุ่มซ้ำ, `400` ถ้า CD4 ครั้งที่ 2 ไม่หลังครั้งที่ 1 หรืออ้าง master ที่ไม่มี/ปิดใช้งาน |
+| GET | `/lab-visit-groups/{id}` | `patient.read` | หัวนัดหมาย + `visits` (รายชื่อคนไข้: `patientId` เป็น uuid **ไม่มีข้อมูลระบุตัว** — หน้าเว็บ join กับ `/patients` เอง) ไม่รวมคนไข้ที่ถูกลบจากทะเบียน |
+| PUT / DELETE | `/lab-visit-groups/{id}` | `patient.write` | แทนที่หัวนัดหมาย (คงปีงบ/กลุ่มที่ถูกปิดใช้งานภายหลังไว้ได้) / soft delete พร้อมรายชื่อคนไข้ทั้งหมด |
+| POST | `/lab-visit-groups/{id}/visits` | `patient.write` | `{ patientIds }` เพิ่มคนไข้หลายคน (ต่อท้ายตามลำดับที่ส่ง, ตัดซ้ำ) — ทั้งชุดถูกปฏิเสธถ้ามีคนไม่พบ/ปิดใช้งาน (`400`) หรืออยู่ในนัดหมายแล้ว (`409`) |
+| PUT / DELETE | `/lab-visits/{id}` | `patient.write` | แทนที่ระยะเวลากินยา (ปี 0–100, เดือน 0–11), ผล VL, สูตรยา, ลำดับ / เอาคนไข้ออกจากนัดหมาย (soft delete เพิ่มกลับได้) |
 | GET | `/menu` | ต้อง login | คืนรายชื่อ page ที่ผู้ใช้ปัจจุบันเข้าถึงได้ เรียงตาม `sort_order` — ดูหัวข้อ 11 |
 | GET | `/health` | สาธารณะ | สำหรับ healthcheck ของ container |
 
@@ -238,7 +295,8 @@ primary key คือ (`page_id`, `permission`)
 
 Extractor อ่าน cookie แล้ว hash ค่าที่ได้ ไปหาในตาราง `sessions` ด้วย hash นั้น
 เงื่อนไขที่ต้องผ่านครบ: มี session อยู่จริง, ยังไม่เลย `idle_expires_at` และ `absolute_expires_at`,
-เจ้าของ session ยัง `is_active`
+เจ้าของ session ยัง `is_active` (ตรวจใน `auth::service::current_user_with_permissions` — บัญชีที่ถูกปิด
+ได้ `401` ทันทีแม้แถว session ยังค้างอยู่ และ `PATCH /users/{id}` ที่ปิดบัญชีก็ลบ session ของคนนั้นทิ้งด้วย)
 
 ถ้าผ่าน ให้เลื่อน `idle_expires_at` ออกไป แต่ **ไม่ต้องเขียน DB ทุก request**
 ให้เขียนเมื่อเวลาที่ผ่านไปมากกว่าเกณฑ์ (เช่น หนึ่งนาที) เท่านั้น เพื่อลดภาระการเขียน
@@ -264,6 +322,21 @@ Extractor อ่าน cookie แล้ว hash ค่าที่ได้ ไ�
 - ความยาวขั้นต่ำ 12 ตัวอักษร ไม่บังคับรูปแบบตัวอักษรพิเศษ ความยาวมีผลมากกว่าความซับซ้อน
 - ตรวจกับรายการรหัสผ่านยอดนิยมแบบสั้น ๆ ได้ถ้าอยากเพิ่มภายหลัง
 - เปลี่ยนรหัสผ่านสำเร็จ ให้เพิกถอน session อื่นทั้งหมดยกเว้นอันปัจจุบัน
+- รหัสใหม่ต้องไม่ซ้ำรหัสเดิม (กันใส่รหัสชั่วคราวที่แอดมินเห็นแล้วซ้ำ ซึ่งทำให้การเปลี่ยนไม่มีความหมาย)
+- **ไม่มีรหัสผ่านชั่วคราวแล้ว — ใช้ลิงก์ลงทะเบียน/ตั้งรหัสใหม่แทน:**
+  - สร้างผู้ใช้/รีเซ็ตรหัส ตั้ง `password_hash` เป็น hash ของค่าสุ่ม 256 บิตที่ทิ้งทันที (login ไม่ผ่านแบบเดียวกับรหัสผิด)
+    แล้วออกลิงก์ `/register#<token>` ใช้ครั้งเดียว อายุ 3 วัน (ตาราง `registration_links` เก็บแค่ SHA-256 ของ token)
+  - token อยู่หลัง `#` — ไม่ถูกส่งไป server ตอนเปิดหน้า (ไม่ติด log/Referer) หน้าเว็บอ่านแล้วลบออกจาก URL ทันที
+    และส่งให้ API ใน body ของ POST เท่านั้น
+  - ลิงก์ใช้ไม่ได้ทุกกรณีได้ข้อความกลางเดียว ตรวจลิงก์ (ราคาถูก) ก่อนคำนวณ argon2 เสมอ จึงไม่เปิดช่อง DoS
+    และ token 256 บิตเดาไม่ได้ จึงไม่ต้องมี rate limit เพิ่ม
+  - ลงทะเบียนครั้งแรก: ผู้ใช้กรอกคำนำหน้า ชื่อ สกุล (บังคับ) ตำแหน่ง (ไม่บังคับ) + ตั้งรหัส → `registered_at`
+    ลิงก์จากการรีเซ็ต: ตั้งรหัสใหม่อย่างเดียว — ทั้งสองแบบปลดล็อก ลบ session เก่า audit `user_registered` /
+    `user_password_set` (actor = เจ้าของบัญชี)
+  - ลิงก์ชี้ไปที่ origin ที่แอดมินเปิดหน้าอยู่ — ระบบที่เปิดผ่าน localhost ได้ลิงก์ที่เปิดได้แค่เครื่องนั้น
+    (หน้าเว็บเตือน) ส่งให้มือถือได้จริงเมื่อเปิดผ่านโดเมน HTTPS (cookie เป็น `Secure`)
+- `must_change_password` เหลือแค่ bootstrap admin และบัญชีเดิมที่สร้างด้วยรหัสชั่วคราวก่อนมีลิงก์ — ไม่บังคับเปลี่ยน
+  แค่ทำให้หน้าเว็บเตือนที่ปุ่มเปลี่ยนรหัสผ่าน
 
 ## 9. การล็อกชั่วคราว
 
@@ -284,12 +357,24 @@ Extractor อ่าน cookie แล้ว hash ค่าที่ได้ ไ�
   เด็ดขาด (กันไม่ให้มี user ที่ login ได้แต่ไม่มีสิทธิ์อะไรเลยโดยไม่ตั้งใจ) — `PUT /users/{id}/roles`
   ที่ส่ง array ว่างต้องถูกปฏิเสธด้วย `400`
 - `Permission` เป็น enum ปิดตายใน Rust เหมือนเดิม เช่น `UserManage`, `ShiftRead`, `ShiftWrite`,
-  `AuditRead` (แต่ละตัวผูกกับ authorization check จริงในโค้ด สร้างผ่าน UI ไม่ได้)
+  `AuditRead`, `PatientRead`, `PatientWrite` (แต่ละตัวผูกกับ authorization check จริงในโค้ด สร้างผ่าน UI ไม่ได้)
+  — `patient.read` / `patient.write` คุมข้อมูลผู้ป่วย (ข้อมูลระบุตัวคนไข้) แยกจาก `shift.*` โดยตั้งใจ และ
+  **write ไม่ implies read** (service ตรวจแยกกัน) migration `…_patient_page.sql` ให้ทั้งสองแก่ role system
+  `admin` และ `nurse`; role ที่ admin สร้างเองต้องตั้งเอง — นัดหมายแล็ป (`lab_visit/`) ใช้สองสิทธิ์นี้ด้วย
+  (ไม่มี permission แยก) เพราะหน้านั้นแสดงชื่อ/HN คนไข้ที่ join จาก `GET /patients`
 - **Role ไม่ใช่ Rust enum ปิดตายอีกต่อไป** — เป็นข้อมูลในตาราง `roles` ที่ admin สร้าง/แก้/ลบได้เอง
   ผ่าน API ในหัวข้อ 5 ยกเว้น 2 ตัวที่ seed มาตอน migration แรก (`admin`, `nurse`,
   `is_system = true`) ที่ลบและเปลี่ยนชื่อไม่ได้
 - Permission ที่ผู้ใช้มีจริง = **union** ของ permission จากทุก role ที่ผู้ใช้ถืออยู่ (join
   `user_roles` → `role_permissions` แล้ว dedupe) — `GET /auth/me` คืนค่าที่รวมแล้วนี้
+- **กันแอดมินล็อกตัวเองออก (service ของ `users/`):** ปิดบัญชีตัวเอง, รีเซ็ตรหัสของตัวเอง และแทน role ของ
+  ตัวเองด้วยชุดที่ไม่มี `user.manage` ถูกปฏิเสธด้วย `400` — ผู้กระทำมี `user.manage` เสมอ และหลังทุกคำสั่ง
+  ของหน้าจัดการผู้ใช้ยังเป็นผู้ใช้ active ที่มี `user.manage` ระบบจึงไม่เหลือแอดมิน 0 คนผ่านทางนี้
+  (ข้อจำกัดที่รู้: `PATCH /roles/{id}` ยังถอด `user.manage` ออกจาก role ที่แอดมินถืออยู่ได้)
+- **audit ของการจัดการผู้ใช้:** ทุกการเขียนของ `/users*` บันทึก `audit_log` ในทรานแซกชันเดียวกัน —
+  action `user_created`, `user_updated` (แก้ชื่อ/ข้อมูลตัว), `user_activated`, `user_deactivated`, `user_password_reset`,
+  `user_roles_replaced` (เฉพาะเมื่อชุด role เปลี่ยนจริง) target_type `user`, target_id เป็น uuid ของผู้ใช้ ไม่มี metadata
+  และ `user_registered` / `user_password_set` เมื่อผู้ใช้ใช้ลิงก์สำเร็จ (actor = เจ้าของบัญชีเอง) — role/page ยังไม่มี audit
 
 จุดที่ตรวจสิทธิ์
 

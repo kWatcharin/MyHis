@@ -1,0 +1,1196 @@
+[
+  {
+    "en": "Thailand",
+    "nationalName": "ไทย",
+    "nation": "ไทย",
+    "sortOrder": 1
+  },
+  {
+    "en": "Afghanistan",
+    "nationalName": "อัฟกานิสถาน",
+    "nation": "อัฟกานิสถาน",
+    "sortOrder": 2
+  },
+  {
+    "en": "Albania",
+    "nationalName": "แอลเบเนีย",
+    "nation": "แอลเบเนีย",
+    "sortOrder": 3
+  },
+  {
+    "en": "Algeria",
+    "nationalName": "แอลจีเรีย",
+    "nation": "แอลจีเรีย",
+    "sortOrder": 4
+  },
+  {
+    "en": "Andorra",
+    "nationalName": "อันดอร์รา",
+    "nation": "อันดอร์รา",
+    "sortOrder": 5
+  },
+  {
+    "en": "Angola",
+    "nationalName": "แองโกลา",
+    "nation": "แองโกลา",
+    "sortOrder": 6
+  },
+  {
+    "en": "Antigua and Barbuda",
+    "nationalName": "แอนติกาและบาร์บูดา",
+    "nation": "แอนติกาและบาร์บูดา",
+    "sortOrder": 7
+  },
+  {
+    "en": "Argentina",
+    "nationalName": "อาร์เจนตินา",
+    "nation": "อาร์เจนตินา",
+    "sortOrder": 8
+  },
+  {
+    "en": "Armenia",
+    "nationalName": "อาร์เมเนีย",
+    "nation": "อาร์เมเนีย",
+    "sortOrder": 9
+  },
+  {
+    "en": "Australia",
+    "nationalName": "ออสเตรเลีย",
+    "nation": "ออสเตรเลีย",
+    "sortOrder": 10
+  },
+  {
+    "en": "Austria",
+    "nationalName": "ออสเตรีย",
+    "nation": "ออสเตรีย",
+    "sortOrder": 11
+  },
+  {
+    "en": "Azerbaijan",
+    "nationalName": "อาเซอร์ไบจาน",
+    "nation": "อาเซอร์ไบจาน",
+    "sortOrder": 12
+  },
+  {
+    "en": "Bahamas",
+    "nationalName": "บาฮามาส",
+    "nation": "บาฮามาส",
+    "sortOrder": 13
+  },
+  {
+    "en": "Bahrain",
+    "nationalName": "บาห์เรน",
+    "nation": "บาห์เรน",
+    "sortOrder": 14
+  },
+  {
+    "en": "Bangladesh",
+    "nationalName": "บังกลาเทศ",
+    "nation": "บังกลาเทศ",
+    "sortOrder": 15
+  },
+  {
+    "en": "Barbados",
+    "nationalName": "บาร์เบโดส",
+    "nation": "บาร์เบโดส",
+    "sortOrder": 16
+  },
+  {
+    "en": "Belarus",
+    "nationalName": "เบลารุส",
+    "nation": "เบลารุส",
+    "sortOrder": 17
+  },
+  {
+    "en": "Belgium",
+    "nationalName": "เบลเยียม",
+    "nation": "เบลเยียม",
+    "sortOrder": 18
+  },
+  {
+    "en": "Belize",
+    "nationalName": "เบลีซ",
+    "nation": "เบลีซ",
+    "sortOrder": 19
+  },
+  {
+    "en": "Benin",
+    "nationalName": "เบนิน",
+    "nation": "เบนิน",
+    "sortOrder": 20
+  },
+  {
+    "en": "Bhutan",
+    "nationalName": "ภูฏาน",
+    "nation": "ภูฏาน",
+    "sortOrder": 21
+  },
+  {
+    "en": "Bolivia",
+    "nationalName": "โบลิเวีย",
+    "nation": "โบลิเวีย",
+    "sortOrder": 22
+  },
+  {
+    "en": "Bosnia and Herzegovina",
+    "nationalName": "บอสเนียและเฮอร์เซโกวีนา",
+    "nation": "บอสเนียและเฮอร์เซโกวีนา",
+    "sortOrder": 23
+  },
+  {
+    "en": "Botswana",
+    "nationalName": "บอตสวานา",
+    "nation": "บอตสวานา",
+    "sortOrder": 24
+  },
+  {
+    "en": "Brazil",
+    "nationalName": "บราซิล",
+    "nation": "บราซิล",
+    "sortOrder": 25
+  },
+  {
+    "en": "Brunei",
+    "nationalName": "บรูไน",
+    "nation": "บรูไน",
+    "sortOrder": 26
+  },
+  {
+    "en": "Bulgaria",
+    "nationalName": "บัลแกเรีย",
+    "nation": "บัลแกเรีย",
+    "sortOrder": 27
+  },
+  {
+    "en": "Burkina Faso",
+    "nationalName": "บูร์กินาฟาโซ",
+    "nation": "บูร์กินาฟาโซ",
+    "sortOrder": 28
+  },
+  {
+    "en": "Burundi",
+    "nationalName": "บุรุนดี",
+    "nation": "บุรุนดี",
+    "sortOrder": 29
+  },
+  {
+    "en": "Cabo Verde",
+    "nationalName": "กาบูเวร์ดี",
+    "nation": "กาบูเวร์ดี",
+    "sortOrder": 30
+  },
+  {
+    "en": "Cambodia",
+    "nationalName": "กัมพูชา",
+    "nation": "กัมพูชา",
+    "sortOrder": 31
+  },
+  {
+    "en": "Cameroon",
+    "nationalName": "แคเมอรูน",
+    "nation": "แคเมอรูน",
+    "sortOrder": 32
+  },
+  {
+    "en": "Canada",
+    "nationalName": "แคนาดา",
+    "nation": "แคนาดา",
+    "sortOrder": 33
+  },
+  {
+    "en": "Central African Republic",
+    "nationalName": "แอฟริกากลาง",
+    "nation": "สาธารณรัฐแอฟริกากลาง",
+    "sortOrder": 34
+  },
+  {
+    "en": "Chad",
+    "nationalName": "ชาด",
+    "nation": "ชาด",
+    "sortOrder": 35
+  },
+  {
+    "en": "Chile",
+    "nationalName": "ชิลี",
+    "nation": "ชิลี",
+    "sortOrder": 36
+  },
+  {
+    "en": "China",
+    "nationalName": "จีน",
+    "nation": "จีน",
+    "sortOrder": 37
+  },
+  {
+    "en": "Colombia",
+    "nationalName": "โคลอมเบีย",
+    "nation": "โคลอมเบีย",
+    "sortOrder": 38
+  },
+  {
+    "en": "Comoros",
+    "nationalName": "คอโมโรส",
+    "nation": "คอโมโรส",
+    "sortOrder": 39
+  },
+  {
+    "en": "Congo",
+    "nationalName": "คองโก (สาธารณรัฐคองโก)",
+    "nation": "สาธารณรัฐคองโก",
+    "sortOrder": 40
+  },
+  {
+    "en": "Congo, Democratic Republic of the",
+    "nationalName": "คองโก (ประชาธิปไตย)",
+    "nation": "สาธารณรัฐประชาธิปไตยคองโก",
+    "sortOrder": 41
+  },
+  {
+    "en": "Costa Rica",
+    "nationalName": "คอสตาริกา",
+    "nation": "คอสตาริกา",
+    "sortOrder": 42
+  },
+  {
+    "en": "Cote d'Ivoire",
+    "nationalName": "ไอวอรีโคสต์",
+    "nation": "ไอวอรีโคสต์",
+    "sortOrder": 43
+  },
+  {
+    "en": "Croatia",
+    "nationalName": "โครเอเชีย",
+    "nation": "โครเอเชีย",
+    "sortOrder": 44
+  },
+  {
+    "en": "Cuba",
+    "nationalName": "คิวบา",
+    "nation": "คิวบา",
+    "sortOrder": 45
+  },
+  {
+    "en": "Cyprus",
+    "nationalName": "ไซปรัส",
+    "nation": "ไซปรัส",
+    "sortOrder": 46
+  },
+  {
+    "en": "Czechia",
+    "nationalName": "เช็ก",
+    "nation": "สาธารณรัฐเช็ก",
+    "sortOrder": 47
+  },
+  {
+    "en": "Denmark",
+    "nationalName": "เดนมาร์ก",
+    "nation": "เดนมาร์ก",
+    "sortOrder": 48
+  },
+  {
+    "en": "Djibouti",
+    "nationalName": "จิบูตี",
+    "nation": "จิบูตี",
+    "sortOrder": 49
+  },
+  {
+    "en": "Dominica",
+    "nationalName": "โดมินิกา",
+    "nation": "โดมินิกา",
+    "sortOrder": 50
+  },
+  {
+    "en": "Dominican Republic",
+    "nationalName": "โดมินิกัน",
+    "nation": "สาธารณรัฐโดมินิกัน",
+    "sortOrder": 51
+  },
+  {
+    "en": "Ecuador",
+    "nationalName": "เอกวาดอร์",
+    "nation": "เอกวาดอร์",
+    "sortOrder": 52
+  },
+  {
+    "en": "Egypt",
+    "nationalName": "อียิปต์",
+    "nation": "อียิปต์",
+    "sortOrder": 53
+  },
+  {
+    "en": "El Salvador",
+    "nationalName": "เอลซัลวาดอร์",
+    "nation": "เอลซัลวาดอร์",
+    "sortOrder": 54
+  },
+  {
+    "en": "Equatorial Guinea",
+    "nationalName": "อิเควทอเรียลกินี",
+    "nation": "อิเควทอเรียลกินี",
+    "sortOrder": 55
+  },
+  {
+    "en": "Eritrea",
+    "nationalName": "เอริเทรีย",
+    "nation": "เอริเทรีย",
+    "sortOrder": 56
+  },
+  {
+    "en": "Estonia",
+    "nationalName": "เอสโตเนีย",
+    "nation": "เอสโตเนีย",
+    "sortOrder": 57
+  },
+  {
+    "en": "Eswatini",
+    "nationalName": "เอสวาตีนี",
+    "nation": "เอสวาตีนี",
+    "sortOrder": 58
+  },
+  {
+    "en": "Ethiopia",
+    "nationalName": "เอธิโอเปีย",
+    "nation": "เอธิโอเปีย",
+    "sortOrder": 59
+  },
+  {
+    "en": "Fiji",
+    "nationalName": "ฟิจิ",
+    "nation": "ฟิจิ",
+    "sortOrder": 60
+  },
+  {
+    "en": "Finland",
+    "nationalName": "ฟินแลนด์",
+    "nation": "ฟินแลนด์",
+    "sortOrder": 61
+  },
+  {
+    "en": "France",
+    "nationalName": "ฝรั่งเศส",
+    "nation": "ฝรั่งเศส",
+    "sortOrder": 62
+  },
+  {
+    "en": "Gabon",
+    "nationalName": "กาบอง",
+    "nation": "กาบอง",
+    "sortOrder": 63
+  },
+  {
+    "en": "Gambia",
+    "nationalName": "แกมเบีย",
+    "nation": "แกมเบีย",
+    "sortOrder": 64
+  },
+  {
+    "en": "Georgia",
+    "nationalName": "จอร์เจีย",
+    "nation": "จอร์เจีย",
+    "sortOrder": 65
+  },
+  {
+    "en": "Germany",
+    "nationalName": "เยอรมัน",
+    "nation": "เยอรมนี",
+    "sortOrder": 66
+  },
+  {
+    "en": "Ghana",
+    "nationalName": "กานา",
+    "nation": "กานา",
+    "sortOrder": 67
+  },
+  {
+    "en": "Greece",
+    "nationalName": "กรีซ",
+    "nation": "กรีซ",
+    "sortOrder": 68
+  },
+  {
+    "en": "Grenada",
+    "nationalName": "เกรเนดา",
+    "nation": "เกรเนดา",
+    "sortOrder": 69
+  },
+  {
+    "en": "Guatemala",
+    "nationalName": "กัวเตมาลา",
+    "nation": "กัวเตมาลา",
+    "sortOrder": 70
+  },
+  {
+    "en": "Guinea",
+    "nationalName": "กินี",
+    "nation": "กินี",
+    "sortOrder": 71
+  },
+  {
+    "en": "Guinea-Bissau",
+    "nationalName": "กินี-บิสเซา",
+    "nation": "กินี-บิสเซา",
+    "sortOrder": 72
+  },
+  {
+    "en": "Guyana",
+    "nationalName": "กายอานา",
+    "nation": "กายอานา",
+    "sortOrder": 73
+  },
+  {
+    "en": "Haiti",
+    "nationalName": "เฮติ",
+    "nation": "เฮติ",
+    "sortOrder": 74
+  },
+  {
+    "en": "Holy See (Vatican City)",
+    "nationalName": "นครรัฐวาติกัน",
+    "nation": "นครรัฐวาติกัน",
+    "sortOrder": 75
+  },
+  {
+    "en": "Honduras",
+    "nationalName": "ฮอนดูรัส",
+    "nation": "ฮอนดูรัส",
+    "sortOrder": 76
+  },
+  {
+    "en": "Hong Kong",
+    "nationalName": "ฮ่องกง",
+    "nation": "ฮ่องกง",
+    "sortOrder": 77
+  },
+  {
+    "en": "Hungary",
+    "nationalName": "ฮังการี",
+    "nation": "ฮังการี",
+    "sortOrder": 78
+  },
+  {
+    "en": "Iceland",
+    "nationalName": "ไอซ์แลนด์",
+    "nation": "ไอซ์แลนด์",
+    "sortOrder": 79
+  },
+  {
+    "en": "India",
+    "nationalName": "อินเดีย",
+    "nation": "อินเดีย",
+    "sortOrder": 80
+  },
+  {
+    "en": "Indonesia",
+    "nationalName": "อินโดนีเซีย",
+    "nation": "อินโดนีเซีย",
+    "sortOrder": 81
+  },
+  {
+    "en": "Iran",
+    "nationalName": "อิหร่าน",
+    "nation": "อิหร่าน",
+    "sortOrder": 82
+  },
+  {
+    "en": "Iraq",
+    "nationalName": "อิรัก",
+    "nation": "อิรัก",
+    "sortOrder": 83
+  },
+  {
+    "en": "Ireland",
+    "nationalName": "ไอร์แลนด์",
+    "nation": "ไอร์แลนด์",
+    "sortOrder": 84
+  },
+  {
+    "en": "Israel",
+    "nationalName": "อิสราเอล",
+    "nation": "อิสราเอล",
+    "sortOrder": 85
+  },
+  {
+    "en": "Italy",
+    "nationalName": "อิตาลี",
+    "nation": "อิตาลี",
+    "sortOrder": 86
+  },
+  {
+    "en": "Jamaica",
+    "nationalName": "จาเมกา",
+    "nation": "จาเมกา",
+    "sortOrder": 87
+  },
+  {
+    "en": "Japan",
+    "nationalName": "ญี่ปุ่น",
+    "nation": "ญี่ปุ่น",
+    "sortOrder": 88
+  },
+  {
+    "en": "Jordan",
+    "nationalName": "จอร์แดน",
+    "nation": "จอร์แดน",
+    "sortOrder": 89
+  },
+  {
+    "en": "Kazakhstan",
+    "nationalName": "คาซัคสถาน",
+    "nation": "คาซัคสถาน",
+    "sortOrder": 90
+  },
+  {
+    "en": "Kenya",
+    "nationalName": "เคนยา",
+    "nation": "เคนยา",
+    "sortOrder": 91
+  },
+  {
+    "en": "Kiribati",
+    "nationalName": "คิริบาส",
+    "nation": "คิริบาส",
+    "sortOrder": 92
+  },
+  {
+    "en": "Kosovo",
+    "nationalName": "โคโซโว",
+    "nation": "โคโซโว",
+    "sortOrder": 93
+  },
+  {
+    "en": "Kuwait",
+    "nationalName": "คูเวต",
+    "nation": "คูเวต",
+    "sortOrder": 94
+  },
+  {
+    "en": "Kyrgyzstan",
+    "nationalName": "คีร์กีซสถาน",
+    "nation": "คีร์กีซสถาน",
+    "sortOrder": 95
+  },
+  {
+    "en": "Laos",
+    "nationalName": "ลาว",
+    "nation": "ลาว",
+    "sortOrder": 96
+  },
+  {
+    "en": "Latvia",
+    "nationalName": "ลัตเวีย",
+    "nation": "ลัตเวีย",
+    "sortOrder": 97
+  },
+  {
+    "en": "Lebanon",
+    "nationalName": "เลบานอน",
+    "nation": "เลบานอน",
+    "sortOrder": 98
+  },
+  {
+    "en": "Lesotho",
+    "nationalName": "เลโซโท",
+    "nation": "เลโซโท",
+    "sortOrder": 99
+  },
+  {
+    "en": "Liberia",
+    "nationalName": "ไลบีเรีย",
+    "nation": "ไลบีเรีย",
+    "sortOrder": 100
+  },
+  {
+    "en": "Libya",
+    "nationalName": "ลิเบีย",
+    "nation": "ลิเบีย",
+    "sortOrder": 101
+  },
+  {
+    "en": "Liechtenstein",
+    "nationalName": "ลิกเตนสไตน์",
+    "nation": "ลิกเตนสไตน์",
+    "sortOrder": 102
+  },
+  {
+    "en": "Lithuania",
+    "nationalName": "ลิทัวเนีย",
+    "nation": "ลิทัวเนีย",
+    "sortOrder": 103
+  },
+  {
+    "en": "Luxembourg",
+    "nationalName": "ลักเซมเบิร์ก",
+    "nation": "ลักเซมเบิร์ก",
+    "sortOrder": 104
+  },
+  {
+    "en": "Macao",
+    "nationalName": "มาเก๊า",
+    "nation": "มาเก๊า",
+    "sortOrder": 105
+  },
+  {
+    "en": "Madagascar",
+    "nationalName": "มาดากัสการ์",
+    "nation": "มาดากัสการ์",
+    "sortOrder": 106
+  },
+  {
+    "en": "Malawi",
+    "nationalName": "มาลาวี",
+    "nation": "มาลาวี",
+    "sortOrder": 107
+  },
+  {
+    "en": "Malaysia",
+    "nationalName": "มาเลเซีย",
+    "nation": "มาเลเซีย",
+    "sortOrder": 108
+  },
+  {
+    "en": "Maldives",
+    "nationalName": "มัลดีฟส์",
+    "nation": "มัลดีฟส์",
+    "sortOrder": 109
+  },
+  {
+    "en": "Mali",
+    "nationalName": "มาลี",
+    "nation": "มาลี",
+    "sortOrder": 110
+  },
+  {
+    "en": "Malta",
+    "nationalName": "มอลตา",
+    "nation": "มอลตา",
+    "sortOrder": 111
+  },
+  {
+    "en": "Marshall Islands",
+    "nationalName": "หมู่เกาะมาร์แชลล์",
+    "nation": "หมู่เกาะมาร์แชลล์",
+    "sortOrder": 112
+  },
+  {
+    "en": "Mauritania",
+    "nationalName": "มอริเตเนีย",
+    "nation": "มอริเตเนีย",
+    "sortOrder": 113
+  },
+  {
+    "en": "Mauritius",
+    "nationalName": "มอริเชียส",
+    "nation": "มอริเชียส",
+    "sortOrder": 114
+  },
+  {
+    "en": "Mexico",
+    "nationalName": "เม็กซิโก",
+    "nation": "เม็กซิโก",
+    "sortOrder": 115
+  },
+  {
+    "en": "Micronesia",
+    "nationalName": "ไมโครนีเซีย",
+    "nation": "ไมโครนีเซีย",
+    "sortOrder": 116
+  },
+  {
+    "en": "Moldova",
+    "nationalName": "มอลโดวา",
+    "nation": "มอลโดวา",
+    "sortOrder": 117
+  },
+  {
+    "en": "Monaco",
+    "nationalName": "โมนาโก",
+    "nation": "โมนาโก",
+    "sortOrder": 118
+  },
+  {
+    "en": "Mongolia",
+    "nationalName": "มองโกเลีย",
+    "nation": "มองโกเลีย",
+    "sortOrder": 119
+  },
+  {
+    "en": "Montenegro",
+    "nationalName": "มอนเตเนโกร",
+    "nation": "มอนเตเนโกร",
+    "sortOrder": 120
+  },
+  {
+    "en": "Morocco",
+    "nationalName": "โมร็อกโก",
+    "nation": "โมร็อกโก",
+    "sortOrder": 121
+  },
+  {
+    "en": "Mozambique",
+    "nationalName": "โมซัมบิก",
+    "nation": "โมซัมบิก",
+    "sortOrder": 122
+  },
+  {
+    "en": "Myanmar",
+    "nationalName": "พม่า",
+    "nation": "เมียนมา",
+    "sortOrder": 123
+  },
+  {
+    "en": "Namibia",
+    "nationalName": "นามิเบีย",
+    "nation": "นามิเบีย",
+    "sortOrder": 124
+  },
+  {
+    "en": "Nauru",
+    "nationalName": "นาอูรู",
+    "nation": "นาอูรู",
+    "sortOrder": 125
+  },
+  {
+    "en": "Nepal",
+    "nationalName": "เนปาล",
+    "nation": "เนปาล",
+    "sortOrder": 126
+  },
+  {
+    "en": "Netherlands",
+    "nationalName": "ดัตช์",
+    "nation": "เนเธอร์แลนด์",
+    "sortOrder": 127
+  },
+  {
+    "en": "New Zealand",
+    "nationalName": "นิวซีแลนด์",
+    "nation": "นิวซีแลนด์",
+    "sortOrder": 128
+  },
+  {
+    "en": "Nicaragua",
+    "nationalName": "นิการากัว",
+    "nation": "นิการากัว",
+    "sortOrder": 129
+  },
+  {
+    "en": "Niger",
+    "nationalName": "ไนเจอร์",
+    "nation": "ไนเจอร์",
+    "sortOrder": 130
+  },
+  {
+    "en": "Nigeria",
+    "nationalName": "ไนจีเรีย",
+    "nation": "ไนจีเรีย",
+    "sortOrder": 131
+  },
+  {
+    "en": "North Korea",
+    "nationalName": "เกาหลีเหนือ",
+    "nation": "เกาหลีเหนือ",
+    "sortOrder": 132
+  },
+  {
+    "en": "North Macedonia",
+    "nationalName": "มาซิโดเนียเหนือ",
+    "nation": "มาซิโดเนียเหนือ",
+    "sortOrder": 133
+  },
+  {
+    "en": "Norway",
+    "nationalName": "นอร์เวย์",
+    "nation": "นอร์เวย์",
+    "sortOrder": 134
+  },
+  {
+    "en": "Oman",
+    "nationalName": "โอมาน",
+    "nation": "โอมาน",
+    "sortOrder": 135
+  },
+  {
+    "en": "Pakistan",
+    "nationalName": "ปากีสถาน",
+    "nation": "ปากีสถาน",
+    "sortOrder": 136
+  },
+  {
+    "en": "Palau",
+    "nationalName": "ปาเลา",
+    "nation": "ปาเลา",
+    "sortOrder": 137
+  },
+  {
+    "en": "Palestine",
+    "nationalName": "ปาเลสไตน์",
+    "nation": "ปาเลสไตน์",
+    "sortOrder": 138
+  },
+  {
+    "en": "Panama",
+    "nationalName": "ปานามา",
+    "nation": "ปานามา",
+    "sortOrder": 139
+  },
+  {
+    "en": "Papua New Guinea",
+    "nationalName": "ปาปัวนิวกินี",
+    "nation": "ปาปัวนิวกินี",
+    "sortOrder": 140
+  },
+  {
+    "en": "Paraguay",
+    "nationalName": "ปารากวัย",
+    "nation": "ปารากวัย",
+    "sortOrder": 141
+  },
+  {
+    "en": "Peru",
+    "nationalName": "เปรู",
+    "nation": "เปรู",
+    "sortOrder": 142
+  },
+  {
+    "en": "Philippines",
+    "nationalName": "ฟิลิปปินส์",
+    "nation": "ฟิลิปปินส์",
+    "sortOrder": 143
+  },
+  {
+    "en": "Poland",
+    "nationalName": "โปแลนด์",
+    "nation": "โปแลนด์",
+    "sortOrder": 144
+  },
+  {
+    "en": "Portugal",
+    "nationalName": "โปรตุเกส",
+    "nation": "โปรตุเกส",
+    "sortOrder": 145
+  },
+  {
+    "en": "Qatar",
+    "nationalName": "กาตาร์",
+    "nation": "กาตาร์",
+    "sortOrder": 146
+  },
+  {
+    "en": "Romania",
+    "nationalName": "โรมาเนีย",
+    "nation": "โรมาเนีย",
+    "sortOrder": 147
+  },
+  {
+    "en": "Russia",
+    "nationalName": "รัสเซีย",
+    "nation": "รัสเซีย",
+    "sortOrder": 148
+  },
+  {
+    "en": "Rwanda",
+    "nationalName": "รวันดา",
+    "nation": "รวันดา",
+    "sortOrder": 149
+  },
+  {
+    "en": "Saint Kitts and Nevis",
+    "nationalName": "เซนต์คิตส์และเนวิส",
+    "nation": "เซนต์คิตส์และเนวิส",
+    "sortOrder": 150
+  },
+  {
+    "en": "Saint Lucia",
+    "nationalName": "เซนต์ลูเซีย",
+    "nation": "เซนต์ลูเซีย",
+    "sortOrder": 151
+  },
+  {
+    "en": "Saint Vincent and the Grenadines",
+    "nationalName": "เซนต์วินเซนต์และเกรนาดีนส์",
+    "nation": "เซนต์วินเซนต์และเกรนาดีนส์",
+    "sortOrder": 152
+  },
+  {
+    "en": "Samoa",
+    "nationalName": "ซามัว",
+    "nation": "ซามัว",
+    "sortOrder": 153
+  },
+  {
+    "en": "San Marino",
+    "nationalName": "ซานมารีโน",
+    "nation": "ซานมารีโน",
+    "sortOrder": 154
+  },
+  {
+    "en": "Sao Tome and Principe",
+    "nationalName": "เซาตูเมและปรินซิปี",
+    "nation": "เซาตูเมและปรินซิปี",
+    "sortOrder": 155
+  },
+  {
+    "en": "Saudi Arabia",
+    "nationalName": "ซาอุดีอาระเบีย",
+    "nation": "ซาอุดีอาระเบีย",
+    "sortOrder": 156
+  },
+  {
+    "en": "Senegal",
+    "nationalName": "เซเนกัล",
+    "nation": "เซเนกัล",
+    "sortOrder": 157
+  },
+  {
+    "en": "Serbia",
+    "nationalName": "เซอร์เบีย",
+    "nation": "เซอร์เบีย",
+    "sortOrder": 158
+  },
+  {
+    "en": "Seychelles",
+    "nationalName": "เซเชลส์",
+    "nation": "เซเชลส์",
+    "sortOrder": 159
+  },
+  {
+    "en": "Sierra Leone",
+    "nationalName": "เซียร์ราลีโอน",
+    "nation": "เซียร์ราลีโอน",
+    "sortOrder": 160
+  },
+  {
+    "en": "Singapore",
+    "nationalName": "สิงคโปร์",
+    "nation": "สิงคโปร์",
+    "sortOrder": 161
+  },
+  {
+    "en": "Slovakia",
+    "nationalName": "สโลวัก",
+    "nation": "สโลวาเกีย",
+    "sortOrder": 162
+  },
+  {
+    "en": "Slovenia",
+    "nationalName": "สโลวีเนีย",
+    "nation": "สโลวีเนีย",
+    "sortOrder": 163
+  },
+  {
+    "en": "Solomon Islands",
+    "nationalName": "หมู่เกาะโซโลมอน",
+    "nation": "หมู่เกาะโซโลมอน",
+    "sortOrder": 164
+  },
+  {
+    "en": "Somalia",
+    "nationalName": "โซมาเลีย",
+    "nation": "โซมาเลีย",
+    "sortOrder": 165
+  },
+  {
+    "en": "South Africa",
+    "nationalName": "แอฟริกาใต้",
+    "nation": "แอฟริกาใต้",
+    "sortOrder": 166
+  },
+  {
+    "en": "South Korea",
+    "nationalName": "เกาหลีใต้",
+    "nation": "เกาหลีใต้",
+    "sortOrder": 167
+  },
+  {
+    "en": "South Sudan",
+    "nationalName": "ซูดานใต้",
+    "nation": "ซูดานใต้",
+    "sortOrder": 168
+  },
+  {
+    "en": "Spain",
+    "nationalName": "สเปน",
+    "nation": "สเปน",
+    "sortOrder": 169
+  },
+  {
+    "en": "Sri Lanka",
+    "nationalName": "ศรีลังกา",
+    "nation": "ศรีลังกา",
+    "sortOrder": 170
+  },
+  {
+    "en": "Sudan",
+    "nationalName": "ซูดาน",
+    "nation": "ซูดาน",
+    "sortOrder": 171
+  },
+  {
+    "en": "Suriname",
+    "nationalName": "ซูรินาม",
+    "nation": "ซูรินาม",
+    "sortOrder": 172
+  },
+  {
+    "en": "Sweden",
+    "nationalName": "สวีเดน",
+    "nation": "สวีเดน",
+    "sortOrder": 173
+  },
+  {
+    "en": "Switzerland",
+    "nationalName": "สวิส",
+    "nation": "สวิตเซอร์แลนด์",
+    "sortOrder": 174
+  },
+  {
+    "en": "Syria",
+    "nationalName": "ซีเรีย",
+    "nation": "ซีเรีย",
+    "sortOrder": 175
+  },
+  {
+    "en": "Taiwan",
+    "nationalName": "ไต้หวัน",
+    "nation": "ไต้หวัน",
+    "sortOrder": 176
+  },
+  {
+    "en": "Tajikistan",
+    "nationalName": "ทาจิกิสถาน",
+    "nation": "ทาจิกิสถาน",
+    "sortOrder": 177
+  },
+  {
+    "en": "Tanzania",
+    "nationalName": "แทนซาเนีย",
+    "nation": "แทนซาเนีย",
+    "sortOrder": 178
+  },
+  {
+    "en": "Timor-Leste",
+    "nationalName": "ติมอร์-เลสเต",
+    "nation": "ติมอร์-เลสเต",
+    "sortOrder": 179
+  },
+  {
+    "en": "Togo",
+    "nationalName": "โตโก",
+    "nation": "โตโก",
+    "sortOrder": 180
+  },
+  {
+    "en": "Tonga",
+    "nationalName": "ตองกา",
+    "nation": "ตองกา",
+    "sortOrder": 181
+  },
+  {
+    "en": "Trinidad and Tobago",
+    "nationalName": "ตรินิแดดและโตเบโก",
+    "nation": "ตรินิแดดและโตเบโก",
+    "sortOrder": 182
+  },
+  {
+    "en": "Tunisia",
+    "nationalName": "ตูนิเซีย",
+    "nation": "ตูนิเซีย",
+    "sortOrder": 183
+  },
+  {
+    "en": "Turkiye",
+    "nationalName": "ตุรกี",
+    "nation": "ตุรกี",
+    "sortOrder": 184
+  },
+  {
+    "en": "Turkmenistan",
+    "nationalName": "เติร์กเมนิสถาน",
+    "nation": "เติร์กเมนิสถาน",
+    "sortOrder": 185
+  },
+  {
+    "en": "Tuvalu",
+    "nationalName": "ตูวาลู",
+    "nation": "ตูวาลู",
+    "sortOrder": 186
+  },
+  {
+    "en": "Uganda",
+    "nationalName": "ยูกันดา",
+    "nation": "ยูกันดา",
+    "sortOrder": 187
+  },
+  {
+    "en": "Ukraine",
+    "nationalName": "ยูเครน",
+    "nation": "ยูเครน",
+    "sortOrder": 188
+  },
+  {
+    "en": "United Arab Emirates",
+    "nationalName": "สหรัฐอาหรับเอมิเรตส์",
+    "nation": "สหรัฐอาหรับเอมิเรตส์",
+    "sortOrder": 189
+  },
+  {
+    "en": "United Kingdom",
+    "nationalName": "อังกฤษ",
+    "nation": "สหราชอาณาจักร",
+    "sortOrder": 190
+  },
+  {
+    "en": "United States",
+    "nationalName": "อเมริกัน",
+    "nation": "สหรัฐอเมริกา",
+    "sortOrder": 191
+  },
+  {
+    "en": "Uruguay",
+    "nationalName": "อุรุกวัย",
+    "nation": "อุรุกวัย",
+    "sortOrder": 192
+  },
+  {
+    "en": "Uzbekistan",
+    "nationalName": "อุซเบกิสถาน",
+    "nation": "อุซเบกิสถาน",
+    "sortOrder": 193
+  },
+  {
+    "en": "Vanuatu",
+    "nationalName": "วานูอาตู",
+    "nation": "วานูอาตู",
+    "sortOrder": 194
+  },
+  {
+    "en": "Venezuela",
+    "nationalName": "เวเนซุเอลา",
+    "nation": "เวเนซุเอลา",
+    "sortOrder": 195
+  },
+  {
+    "en": "Vietnam",
+    "nationalName": "เวียดนาม",
+    "nation": "เวียดนาม",
+    "sortOrder": 196
+  },
+  {
+    "en": "Yemen",
+    "nationalName": "เยเมน",
+    "nation": "เยเมน",
+    "sortOrder": 197
+  },
+  {
+    "en": "Zambia",
+    "nationalName": "แซมเบีย",
+    "nation": "แซมเบีย",
+    "sortOrder": 198
+  },
+  {
+    "en": "Zimbabwe",
+    "nationalName": "ซิมบับเว",
+    "nation": "ซิมบับเว",
+    "sortOrder": 199
+  }
+]

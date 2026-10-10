@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select id as \"id: PrenameId\", uuid as public_id, name, abbreviation, sort_order\n           from prename\n           where uuid = $1 and deleted_at is null",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: PrenameId",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "public_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "abbreviation",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "sort_order",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "901b04037b0201076e76bd218a6636b80668008a90a96a345f9d672b4766882a"
+}

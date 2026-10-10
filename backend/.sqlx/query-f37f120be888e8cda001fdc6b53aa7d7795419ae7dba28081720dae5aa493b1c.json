@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select role_id as \"role_id: RoleId\" from user_roles where user_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "role_id: RoleId",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f37f120be888e8cda001fdc6b53aa7d7795419ae7dba28081720dae5aa493b1c"
+}

@@ -1,0 +1,44 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select mc.patient_id as \"patient_id: PatientId\", mc.uuid as public_id,\n                  d.uuid as disease_public_id, d.name, d.abbreviation\n           from medical_condition mc\n           join disease d on d.id = mc.disease_id\n           where mc.deleted_at is null\n           order by mc.patient_id, mc.sort_order, mc.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "patient_id: PatientId",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "public_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "disease_public_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "abbreviation",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "1de89e67317e9add83826d340981b7751df505a59b88c3430c6bb4a7f42da79e"
+}

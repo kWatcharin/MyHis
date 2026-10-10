@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select r.id as \"id: RoleId\",\n                  exists(select 1 from role_permissions rp\n                         where rp.role_id = r.id and rp.permission = $2) as \"grants_user_manage!\"\n           from roles r\n           where r.uuid = any($1)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: RoleId",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "grants_user_manage!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "927478a84d73d902d58b02eeb4606c1223bd13bb13347fa6d992ddb30933f39f"
+}

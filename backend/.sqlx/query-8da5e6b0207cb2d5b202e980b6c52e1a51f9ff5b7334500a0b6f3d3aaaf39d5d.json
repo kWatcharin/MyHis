@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select (exists(select 1 from patient where prename_id = $1 and deleted_at is null)\n                   or exists(select 1 from users where prename_id = $1)) as \"exists!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "exists!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "8da5e6b0207cb2d5b202e980b6c52e1a51f9ff5b7334500a0b6f3d3aaaf39d5d"
+}

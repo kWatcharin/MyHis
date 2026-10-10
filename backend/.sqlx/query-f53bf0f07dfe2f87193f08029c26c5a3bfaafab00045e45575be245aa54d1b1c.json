@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select d.uuid\n           from medical_condition mc\n           join disease d on d.id = mc.disease_id\n           where mc.patient_id = $1 and mc.deleted_at is null",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "uuid",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f53bf0f07dfe2f87193f08029c26c5a3bfaafab00045e45575be245aa54d1b1c"
+}

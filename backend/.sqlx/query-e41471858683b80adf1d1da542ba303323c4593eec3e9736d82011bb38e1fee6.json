@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select id as \"id: DiseaseId\", uuid as public_id, name, abbreviation, sort_order,\n                  is_active\n           from disease\n           where uuid = $1 and deleted_at is null",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: DiseaseId",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "public_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "abbreviation",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "sort_order",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "is_active",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "e41471858683b80adf1d1da542ba303323c4593eec3e9736d82011bb38e1fee6"
+}

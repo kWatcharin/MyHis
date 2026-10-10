@@ -1,7 +1,13 @@
 import { useState } from 'react'
-import { toast } from 'sonner'
 
+import { AddButton, DeleteButton, EditButton } from '@/components/layout/ActionButtons'
+import { ListToolbar } from '@/components/layout/ListToolbar'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { SearchForm } from '@/components/layout/SearchForm'
+import { SortableTableHead } from '@/components/layout/SortableTableHead'
+import { TablePagination } from '@/components/layout/TablePagination'
+import { usePagination } from '@/components/layout/usePagination'
+import { useSort } from '@/components/layout/useSort'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,7 +19,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   Table,
@@ -23,9 +28,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { useAuth } from '@/features/auth/AuthContext'
 import { useRolePreview } from '@/features/role-preview/RolePreviewContext'
 import { resolveIcon } from '@/lib/icons'
 import { ApiError } from '@/lib/api'
+import { notify } from '@/lib/notify'
+import { hasCriteria, textIncludes } from '@/lib/search'
+import type { SearchValues } from '@/lib/search'
 
 import type { PageFormValues } from './PageFormDialog'
 import { PageFormDialog } from './PageFormDialog'
@@ -48,10 +57,20 @@ type FormState = { mode: 'create' } | { mode: 'edit'; page: Page } | null
 export function PagesSettingsPage() {
   const { items: pages, status, refetch } = useAdminList(pagesApi.list)
   const { refetchCatalog } = useRolePreview()
+  // หลังแก้ role/เพจ ต้องโหลดสิทธิ์ของผู้ใช้เองและเมนูซ้ายใหม่ด้วย (ไม่ใช่แค่ตารางในหน้านี้)
+  const { refresh: refreshAuth } = useAuth()
 
   const [formState, setFormState] = useState<FormState>(null)
   const [pendingDelete, setPendingDelete] = useState<Page | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  // เงื่อนไขค้นหาที่ใช้กรองจริง (เปลี่ยนเมื่อกดปุ่ม "ค้นหา") — ช่องที่กรอกต้องตรงทุกช่อง
+  const [criteria, setCriteria] = useState<SearchValues>({})
+  const visiblePages = pages.filter(
+    (page) =>
+      textIncludes(page.label, criteria.label ?? '') &&
+      textIncludes(page.groupLabel, criteria.groupLabel ?? '') &&
+      textIncludes(page.route, criteria.route ?? ''),
+  )
 
   const existingGroupLabels = [
     ...new Set(
@@ -60,6 +79,10 @@ export function PagesSettingsPage() {
         .filter((label): label is string => label !== null && label !== ''),
     ),
   ]
+
+  // เรียงตามคอลัมน์ "ลำดับ" เมื่อกดหัวตาราง (หลังกรอง ก่อนแบ่งหน้า)
+  const sort = useSort(visiblePages, (row) => row.sortOrder)
+  const pagination = usePagination(sort.sorted)
 
   const handleFormSubmit = async (values: PageFormValues) => {
     try {
@@ -73,7 +96,8 @@ export function PagesSettingsPage() {
     }
     await refetch()
     refetchCatalog()
-    toast(formState?.mode === 'edit' ? 'แก้ไขเพจแล้ว' : 'เพิ่มเพจแล้ว')
+    await refreshAuth()
+    notify.saved(formState?.mode === 'edit', 'เพิ่มเพจแล้ว', 'แก้ไขเพจแล้ว')
   }
 
   const handleDelete = async () => {
@@ -83,10 +107,11 @@ export function PagesSettingsPage() {
       await pagesApi.remove(pendingDelete.id)
       await refetch()
       refetchCatalog()
-      toast('ลบเพจแล้ว')
+      await refreshAuth()
+      notify.deleted('ลบเพจแล้ว')
       setPendingDelete(null)
     } catch (err) {
-      toast.error(pageErrorMessage(err))
+      notify.error(pageErrorMessage(err))
     } finally {
       setIsDeleting(false)
     }
@@ -97,8 +122,30 @@ export function PagesSettingsPage() {
       <PageHeader
         title="การตั้งค่าเพจ"
         description="สร้าง แก้ไข ลบเพจ และกำหนดว่าใครเห็นเพจไหนในเมนู"
-        action={<Button onClick={() => setFormState({ mode: 'create' })}>+ เพิ่มเพจ</Button>}
       />
+
+      <SearchForm
+        id="page-search"
+        ariaLabel="ค้นหาเพจ"
+        fields={[
+          { name: 'label', label: 'ชื่อเพจ' },
+          { name: 'groupLabel', label: 'กลุ่ม' },
+          { name: 'route', label: 'route', placeholder: 'เช่น /settings' },
+        ]}
+        onSearch={(values) => {
+          setCriteria(values)
+          pagination.reset()
+        }}
+      />
+
+      <ListToolbar
+        ready={status === 'ready'}
+        total={pages.length}
+        shown={visiblePages.length}
+        filtered={hasCriteria(criteria)}
+      >
+        <AddButton onClick={() => setFormState({ mode: 'create' })}>เพิ่มเพจ</AddButton>
+      </ListToolbar>
 
       <Card>
         <CardContent className="px-0 sm:px-2">
@@ -108,23 +155,37 @@ export function PagesSettingsPage() {
           {status === 'error' && (
             <p className="p-4 text-sm text-destructive">โหลดข้อมูลไม่สำเร็จ ลองรีเฟรชหน้า</p>
           )}
-          {status === 'ready' && (
+          {status === 'ready' && pages.length > 0 && visiblePages.length === 0 && (
+            <p className="p-4 text-sm text-muted-foreground">
+              ไม่พบเพจที่ตรงกับเงื่อนไข — กด &quot;ล้างข้อมูล&quot; เพื่อดูทั้งหมด
+            </p>
+          )}
+          {status === 'ready' && visiblePages.length > 0 && (
             <Table>
               <TableHeader>
                 <TableRow>
+                  <SortableTableHead
+                    direction={sort.direction}
+                    onSort={() => {
+                      sort.toggle()
+                      pagination.reset()
+                    }}
+                  >
+                    ลำดับ
+                  </SortableTableHead>
                   <TableHead>เพจ</TableHead>
                   <TableHead>กลุ่ม</TableHead>
                   <TableHead>route</TableHead>
-                  <TableHead>ลำดับ</TableHead>
                   <TableHead>สิทธิ์ที่ต้องมี</TableHead>
                   <TableHead className="text-right">จัดการ</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {pages.map((page) => {
+                {pagination.pagedItems.map((page) => {
                   const Icon = resolveIcon(page.icon)
                   return (
                     <TableRow key={page.id}>
+                      <TableCell className="text-muted-foreground">{page.sortOrder}</TableCell>
                       <TableCell className="flex items-center gap-2 font-medium">
                         <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
                           <Icon className="size-3.5" />
@@ -137,7 +198,6 @@ export function PagesSettingsPage() {
                       <TableCell className="font-mono text-sm text-muted-foreground">
                         {page.route}
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{page.sortOrder}</TableCell>
                       <TableCell>
                         {page.permissions.length === 0 ? (
                           <span className="text-sm text-muted-foreground">สาธารณะ</span>
@@ -152,16 +212,8 @@ export function PagesSettingsPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setFormState({ mode: 'edit', page })}
-                        >
-                          แก้ไข
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => setPendingDelete(page)}>
-                          ลบ
-                        </Button>
+                        <EditButton onClick={() => setFormState({ mode: 'edit', page })} />
+                        <DeleteButton onClick={() => setPendingDelete(page)} />
                       </TableCell>
                     </TableRow>
                   )
@@ -169,6 +221,7 @@ export function PagesSettingsPage() {
               </TableBody>
             </Table>
           )}
+          {status === 'ready' && visiblePages.length > 0 && <TablePagination {...pagination.props} />}
         </CardContent>
       </Card>
 
@@ -199,7 +252,11 @@ export function PagesSettingsPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void handleDelete()} disabled={isDeleting}>
+            <AlertDialogAction
+              variant="danger"
+              onClick={() => void handleDelete()}
+              disabled={isDeleting}
+            >
               {isDeleting ? 'กำลังลบ...' : 'ลบ'}
             </AlertDialogAction>
           </AlertDialogFooter>

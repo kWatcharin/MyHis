@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select patient_id as \"patient_id: PatientId\"\n           from lab_visit\n           where lab_visit_group_id = $1 and deleted_at is null",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "patient_id: PatientId",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e409c8cd8dbbe4e525376c148925445057bfdd2f1bf5befb6064efa934c10797"
+}
