@@ -30,6 +30,13 @@ export function toLoginError(err: unknown): LoginError {
         null,
       )
     }
+    // Turnstile (ตรวจก่อนดูชื่อผู้ใช้ — backend ไม่นับเป็นครั้งที่ผิด จึงไม่แตะตัวนับ)
+    if (err.message === 'captcha failed') {
+      return new LoginError('ยืนยันว่าไม่ใช่บอทไม่สำเร็จ ลองใหม่อีกครั้ง', null, null)
+    }
+    if (err.message === 'captcha unavailable') {
+      return new LoginError('ระบบตรวจสอบความปลอดภัยไม่ตอบ ลองใหม่อีกครั้ง', null, null)
+    }
     if (err.message === 'account temporarily locked') {
       return new LoginError(
         `ลองผิดครบ ${MAX_LOGIN_ATTEMPTS} ครั้ง — ล็อกชั่วคราว`,

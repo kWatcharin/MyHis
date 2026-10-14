@@ -6,6 +6,7 @@ use std::sync::Arc;
 use sqlx::PgPool;
 
 use crate::config::Config;
+use crate::turnstile::Turnstile;
 
 #[derive(Debug, Clone)]
 pub struct AppState {
@@ -14,4 +15,6 @@ pub struct AppState {
     /// PHC hash คงที่ที่คำนวณไว้ตอน startup ใช้ verify ตอน login ไม่พบ username เพื่อให้เวลาตอบ
     /// กลับใกล้เคียงกับกรณีรหัสผ่านผิดจริง (timing-safe — docs/auth-design.md ข้อ 6)
     pub dummy_password_hash: Arc<str>,
+    /// ตัวตรวจ Cloudflare Turnstile ตอน login — None = ปิด (ไม่ได้ตั้ง key, เทสส่วนใหญ่)
+    pub turnstile: Option<Arc<Turnstile>>,
 }

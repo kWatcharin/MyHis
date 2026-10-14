@@ -39,6 +39,10 @@ pub enum AppError {
     #[error("{0}")]
     Validation(String),
 
+    /// บริการภายนอกที่ต้องใช้ไม่ตอบ (เช่น Cloudflare Turnstile ตอน login) → 503 ลองใหม่ภายหลัง
+    #[error("{0}")]
+    Unavailable(String),
+
     #[error("database error")]
     Database(#[from] sqlx::Error),
 
@@ -69,7 +73,10 @@ impl From<crate::auth::AuthError> for AppError {
                 AppError::LoginRejected { remaining_attempts }
             }
             AuthError::AccountLocked { until } => AppError::AccountLocked { until },
-            err @ AuthError::PasswordUnchanged => AppError::Validation(err.to_string()),
+            err @ (AuthError::PasswordUnchanged | AuthError::CaptchaFailed) => {
+                AppError::Validation(err.to_string())
+            }
+            err @ AuthError::CaptchaUnavailable => AppError::Unavailable(err.to_string()),
             AuthError::Repository(e) => e.into(),
             AuthError::MissingSeedRole(name) => {
                 AppError::DataIntegrity(format!("required seed data missing: {name}"))
@@ -350,6 +357,7 @@ impl AppError {
             AppError::NotFound => StatusCode::NOT_FOUND,
             AppError::Conflict(_) => StatusCode::CONFLICT,
             AppError::Validation(_) => StatusCode::BAD_REQUEST,
+            AppError::Unavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
             AppError::Database(_) | AppError::DataIntegrity(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }

@@ -16,10 +16,25 @@ import {
 } from '@/components/ui/card'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 import { useAuth } from './AuthContext'
 import { LoginError, MAX_LOGIN_ATTEMPTS } from './loginError'
+import { TurnstileWidget } from './TurnstileWidget'
+
+// ตรงกับ TURNSTILE_ACTION ใน backend/src/auth/service.rs (token ของ widget อื่นใช้ login ไม่ได้)
+const TURNSTILE_ACTION = 'login'
+
+// GET /auth/login-config — turnstileSiteKey null = backend ปิด Turnstile ไม่ต้องแสดง widget
+interface LoginConfig {
+  turnstileSiteKey: string | null
+}
+
+type LoginConfigState =
+  | { status: 'loading' }
+  | { status: 'error' }
+  | { status: 'ready'; turnstileSiteKey: string | null }
 
 const loginSchema = z.object({
   username: z.string().min(1, 'กรอกชื่อผู้ใช้'),
@@ -39,6 +54,10 @@ export function LoginPage() {
   // ล็อกกี่วินาที (จาก Retry-After ของ 429) — ระหว่างล็อกปิดฟอร์มและนับถอยหลัง null = ไม่ล็อก
   const [lockSeconds, setLockSeconds] = useState<number | null>(null)
   const [secondsLeft, setSecondsLeft] = useState(0)
+  const [loginConfig, setLoginConfig] = useState<LoginConfigState>({ status: 'loading' })
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+  // เพิ่มทุกครั้งที่ส่ง token ไปแล้ว login ไม่สำเร็จ — token ใช้ได้ครั้งเดียว ใช้เป็น key ให้ widget mount ใหม่ออก token ใหม่
+  const [turnstileRound, setTurnstileRound] = useState(0)
   // มาจากหน้าลงทะเบียน (RegisterPage) — เติมชื่อผู้ใช้ไว้ให้ / มาจาก RequireAuth — หน้าเดิมที่จะกลับไป
   const navState = location.state as { from?: string; username?: string; registered?: boolean } | null
 
@@ -64,7 +83,26 @@ export function LoginPage() {
     return () => window.clearInterval(timer)
   }, [lockSeconds])
 
+  useEffect(() => {
+    let cancelled = false
+    api
+      .get<LoginConfig>('/auth/login-config')
+      .then((config) => {
+        if (!cancelled) setLoginConfig({ status: 'ready', turnstileSiteKey: config.turnstileSiteKey })
+      })
+      .catch(() => {
+        if (!cancelled) setLoginConfig({ status: 'error' })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const locked = lockSeconds !== null
+  const turnstileSiteKey = loginConfig.status === 'ready' ? loginConfig.turnstileSiteKey : null
+  // ยังไม่รู้ config / โหลด config ไม่ได้ / เปิด Turnstile แต่ยังไม่ได้ token → ยังกดเข้าสู่ระบบไม่ได้
+  const waitingForCheck =
+    loginConfig.status !== 'ready' || (turnstileSiteKey !== null && !turnstileToken)
 
   // ระหว่างเช็ค /auth/me ตอนโหลดแอปครั้งแรก ยังไม่โชว์ฟอร์ม กันการกระพริบเห็นฟอร์ม login แป๊บเดียว
   // ก่อนเด้งไป dashboard ถ้าจริง ๆ แล้ว login ค้างอยู่แล้ว (เช่น refresh หน้านี้ทั้งที่ login อยู่)
@@ -81,10 +119,14 @@ export function LoginPage() {
     setFormError(null)
     setIsSubmitting(true)
     try {
-      await login(values.username, values.password)
+      await login(values.username, values.password, turnstileToken ?? undefined)
       navigate(navState?.from ?? '/dashboard', { replace: true })
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง')
+      if (turnstileSiteKey) {
+        setTurnstileToken(null)
+        setTurnstileRound((round) => round + 1)
+      }
       if (err instanceof LoginError) {
         if (err.lockedForSeconds !== null) {
           setSecondsLeft(err.lockedForSeconds)
@@ -164,6 +206,19 @@ export function LoginPage() {
                   </Field>
                 )}
               />
+              {turnstileSiteKey && (
+                <TurnstileWidget
+                  key={turnstileRound}
+                  siteKey={turnstileSiteKey}
+                  action={TURNSTILE_ACTION}
+                  onToken={setTurnstileToken}
+                />
+              )}
+              {loginConfig.status === 'error' && (
+                <Field data-invalid>
+                  <FieldError>โหลดหน้าเข้าสู่ระบบไม่สำเร็จ ลองรีเฟรชหน้า</FieldError>
+                </Field>
+              )}
               {(locked || formError) && (
                 <Field data-invalid>
                   <FieldError>
@@ -186,7 +241,11 @@ export function LoginPage() {
               >
                 เหลือโอกาส {remaining}/{MAX_LOGIN_ATTEMPTS} ครั้ง
               </p>
-              <Button type="submit" disabled={isSubmitting || locked} className="w-full">
+              <Button
+                type="submit"
+                disabled={isSubmitting || locked || waitingForCheck}
+                className="w-full"
+              >
                 {locked
                   ? `รอ ${secondsLeft} วินาที`
                   : isSubmitting

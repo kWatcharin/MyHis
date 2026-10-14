@@ -9,7 +9,7 @@ use axum_extra::extract::CookieJar;
 use chrono::Utc;
 use validator::Validate;
 
-use crate::auth::dto::{ChangePasswordRequest, LoginRequest, UserResponse};
+use crate::auth::dto::{ChangePasswordRequest, LoginConfigResponse, LoginRequest, UserResponse};
 use crate::auth::{service, session, CurrentUser};
 use crate::error::AppError;
 use crate::state::AppState;
@@ -29,9 +29,11 @@ pub async fn login(
         &state.pool,
         &state.dummy_password_hash,
         &state.config,
+        state.turnstile.as_deref(),
         service::LoginParams {
             username: &payload.username,
             password: &payload.password,
+            turnstile_token: payload.turnstile_token.as_deref(),
             client: client_info(&headers),
             now: Utc::now(),
         },
@@ -42,6 +44,18 @@ pub async fn login(
     let response = UserResponse::from_domain(&result.user, &result.permissions);
 
     Ok((jar, Json(response)))
+}
+
+/// หน้า login ถามก่อนแสดงฟอร์มว่าต้องแสดง widget Turnstile ไหม — site key อยู่ใน backend ที่เดียว (.env)
+/// เปลี่ยน key ได้โดยไม่ต้อง build หน้าเว็บใหม่
+#[tracing::instrument(skip(state))]
+pub async fn login_config(State(state): State<AppState>) -> Json<LoginConfigResponse> {
+    Json(LoginConfigResponse {
+        turnstile_site_key: state
+            .turnstile
+            .as_ref()
+            .map(|turnstile| turnstile.site_key().to_string()),
+    })
 }
 
 // headers ต้องอยู่ใน skip เสมอ — มี Cookie (session token) ห้ามเข้า span/log

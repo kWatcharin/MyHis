@@ -11,6 +11,7 @@ use crate::state::AppState;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/auth/login", post(handlers::login))
+        .route("/auth/login-config", get(handlers::login_config))
         .route("/auth/logout", post(handlers::logout))
         .route("/auth/logout-all", post(handlers::logout_all))
         .route("/auth/me", get(handlers::me))

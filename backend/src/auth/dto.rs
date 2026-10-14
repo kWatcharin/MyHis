@@ -12,12 +12,16 @@ use validator::Validate;
 use crate::domain::{Permission, User};
 
 #[derive(Deserialize, Validate)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct LoginRequest {
     #[validate(length(min = 1, message = "username is required"))]
     pub username: String,
     #[validate(length(min = 1, message = "password is required"))]
     pub password: String,
+    /// token จาก widget Cloudflare Turnstile — ไม่มีได้เมื่อปิดฟีเจอร์ ใช้ได้ครั้งเดียว ห้าม log
+    /// (Cloudflare กำหนดยาวสุด 2048 ตัวอักษร)
+    #[validate(length(max = 2048, message = "turnstile token is too long"))]
+    pub turnstile_token: Option<String>,
 }
 
 impl std::fmt::Debug for LoginRequest {
@@ -25,8 +29,20 @@ impl std::fmt::Debug for LoginRequest {
         f.debug_struct("LoginRequest")
             .field("username", &self.username)
             .field("password", &"[redacted]")
+            .field(
+                "turnstile_token",
+                &self.turnstile_token.as_ref().map(|_| "[redacted]"),
+            )
             .finish()
     }
+}
+
+/// สิ่งที่หน้า login ต้องรู้ก่อนแสดงฟอร์ม (`GET /auth/login-config` สาธารณะ)
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoginConfigResponse {
+    /// site key ของ widget Turnstile (ค่าสาธารณะ) — null = ปิด ไม่ต้องแสดง widget
+    pub turnstile_site_key: Option<String>,
 }
 
 #[derive(Deserialize, Validate)]

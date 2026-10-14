@@ -64,6 +64,8 @@ backend รัน migration ตอนเริ่มทำงานโดยอ�
 
 - `Content-Security-Policy` — script ได้เฉพาะไฟล์ของเว็บเอง (ห้าม inline script — ตัวตั้งธีมแยกเป็น
   `public/theme-init.js`), style อนุญาต inline (React/chart), `frame-ancestors 'none'`
+  - ยกเว้น `https://challenges.cloudflare.com` ใน `script-src` และ `frame-src` สำหรับ Cloudflare Turnstile หน้า login
+    (docs/auth-design.md ข้อ 9.1) — Cloudflare เห็น IP/ข้อมูลเบราว์เซอร์ของคนที่เปิดหน้า login เท่านั้น หน้านั้นไม่มีข้อมูลผู้ป่วย
 - `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Permissions-Policy`
 - ซ่อน header `Server`, response ของ `/api/*` มี `Cache-Control: no-store` (มีข้อมูลคนไข้)
 - เพิ่ม script/style/รูปจากโดเมนอื่นเมื่อไร ต้องแก้ CSP ด้วย ไม่งั้นเบราว์เซอร์บล็อก (ดูได้ใน console)
@@ -80,6 +82,11 @@ backend รัน migration ตอนเริ่มทำงานโดยอ�
   ซ้อน (ประวัติการเข้าออกใช้ค่าขวาสุดของ `X-Forwarded-For`), rate limit ที่ `/api/auth/login` (ต้องใช้ plugin
   rate-limit ของ Caddy หรือ fail2ban)
 - เปลี่ยนรหัส admin ที่สร้างจาก `INITIAL_ADMIN_PASSWORD` ผ่านหน้าเว็บ แล้วเปลี่ยนค่าใน `.env` ไม่ให้ตรงกับรหัสที่ใช้อยู่
+- **Cloudflare Turnstile key จริง** — ตอนนี้ใช้ test key (ไม่ได้ป้องกันจริง) เมื่อมีโดเมนแล้ว: Cloudflare dashboard →
+  Turnstile → Add widget (hostname = โดเมนจริง ไม่ใส่ localhost, โหมด Managed) แล้วใส่ `TURNSTILE_SITE_KEY` /
+  `TURNSTILE_SECRET_KEY` (+ `TURNSTILE_HOSTNAME` = โดเมน) ใน `.env` แล้ว restart backend — backend ต้องออกเน็ตไป
+  `challenges.cloudflare.com:443` ได้ (siteverify) ถ้า firewall ขาออกถูกจำกัด — เปลี่ยนเป็น key จริงแล้วเปิด /login
+  ดูว่า widget ผ่าน ถ้าขึ้น error เรื่องโดเมน ให้ผ่อน `Referrer-Policy` จาก `no-referrer` (test key ใช้ได้ทุกโดเมนจึงยังพิสูจน์ไม่ได้)
 
 ## 7. Log และการเฝ้าระวัง
 

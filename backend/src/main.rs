@@ -7,6 +7,7 @@ use std::sync::Arc;
 use my_his_backend::auth;
 use my_his_backend::config::Config;
 use my_his_backend::state::AppState;
+use my_his_backend::turnstile::Turnstile;
 use my_his_backend::{app, db, password};
 
 #[tokio::main]
@@ -37,11 +38,27 @@ async fn main() {
         .await
         .expect("failed to bootstrap first admin user");
 
+    let turnstile = match &config.turnstile {
+        Some(turnstile_config) => {
+            let turnstile =
+                Turnstile::new(turnstile_config).expect("failed to build Turnstile HTTP client");
+            if turnstile.uses_test_key() {
+                tracing::warn!("Turnstile uses Cloudflare test keys: login is not protected");
+            }
+            Some(Arc::new(turnstile))
+        }
+        None => {
+            tracing::warn!("Turnstile disabled: TURNSTILE_SITE_KEY/TURNSTILE_SECRET_KEY not set");
+            None
+        }
+    };
+
     let bind_addr = config.bind_addr;
     let state = AppState {
         pool,
         config: Arc::new(config),
         dummy_password_hash,
+        turnstile,
     };
 
     let listener = tokio::net::TcpListener::bind(bind_addr)

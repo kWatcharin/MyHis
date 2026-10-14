@@ -29,7 +29,8 @@ interface AuthContextValue {
   user: UserResponse | null
   menu: MenuItem[]
   hasPermission: (permission: string) => boolean
-  login: (username: string, password: string) => Promise<void>
+  // turnstileToken: token ของ widget Cloudflare Turnstile (ไม่ส่งเมื่อ backend ปิดฟีเจอร์)
+  login: (username: string, password: string, turnstileToken?: string) => Promise<void>
   logout: () => Promise<void>
   // โหลดข้อมูลผู้ใช้ (สิทธิ์) และเมนูใหม่จาก backend โดยไม่กลับไปสถานะ loading — เรียกหลังแก้ role/เพจ
   // เพื่อให้เมนูซ้ายและสิทธิ์ที่ใช้งานอยู่สะท้อนการเปลี่ยนแปลงทันที ไม่ต้อง login ใหม่
@@ -76,9 +77,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const login = useCallback(async (username: string, password: string) => {
+  const login = useCallback(async (username: string, password: string, turnstileToken?: string) => {
     try {
-      const me = await api.post<UserResponse>('/auth/login', { username, password })
+      const me = await api.post<UserResponse>('/auth/login', { username, password, turnstileToken })
       const menuItems = await api.get<MenuItem[]>('/menu')
       setUser(me)
       setMenu(menuItems)

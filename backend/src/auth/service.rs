@@ -12,9 +12,13 @@ use crate::auth::session;
 use crate::config::Config;
 use crate::domain::{Permission, User, UserId};
 use crate::password;
+use crate::turnstile::{Turnstile, TurnstileError};
 
 /// login ผิดติดกันได้กี่ครั้งก่อนล็อก (หน้า login แสดง "เหลือ X/5 ครั้ง")
 pub const MAX_FAILED_ATTEMPTS: i32 = 5;
+
+/// action ที่หน้า login ตั้งให้ widget Turnstile — token ของ widget อื่น (ถ้ามีในอนาคต) ใช้ login ไม่ได้
+pub const TURNSTILE_ACTION: &str = "login";
 
 fn lockout_duration() -> chrono::Duration {
     chrono::Duration::seconds(60)
@@ -29,6 +33,12 @@ pub enum AuthError {
     LoginRejected { remaining_attempts: i32 },
     #[error("account temporarily locked")]
     AccountLocked { until: DateTime<Utc> },
+    /// ไม่มี token Turnstile หรือ Cloudflare บอกว่าไม่ผ่าน — ยังไม่ได้ดูชื่อผู้ใช้ ไม่นับเป็นครั้งที่ผิด
+    #[error("captcha failed")]
+    CaptchaFailed,
+    /// ติดต่อ Cloudflare ไม่ได้ — ปฏิเสธ login (fail-closed) ไม่นับเป็นครั้งที่ผิด
+    #[error("captcha unavailable")]
+    CaptchaUnavailable,
     /// เปลี่ยนรหัสผ่านเป็นค่าเดิม — เช่นใส่รหัสชั่วคราวที่แอดมินเห็นแล้วซ้ำ ซึ่งทำให้การเปลี่ยนรหัสไม่มีความหมาย
     #[error("new password must be different from current password")]
     PasswordUnchanged,
@@ -67,8 +77,33 @@ impl ClientInfo<'_> {
 pub struct LoginParams<'a> {
     pub username: &'a str,
     pub password: &'a str,
+    /// token จาก widget Turnstile (ห้าม log) — ใช้เมื่อเปิด Turnstile เท่านั้น
+    pub turnstile_token: Option<&'a str>,
     pub client: ClientInfo<'a>,
     pub now: DateTime<Utc>,
+}
+
+/// ไม่บันทึก audit_log (บอทยิงรัวจะถมประวัติ) — log แค่ error-codes ของ Cloudflare ห้าม log token
+async fn verify_turnstile(
+    turnstile: &Turnstile,
+    token: Option<&str>,
+    ip: Option<IpAddr>,
+) -> Result<(), AuthError> {
+    let Some(token) = token.filter(|token| !token.is_empty()) else {
+        tracing::warn!("login without turnstile token");
+        return Err(AuthError::CaptchaFailed);
+    };
+    match turnstile.verify(token, ip, TURNSTILE_ACTION).await {
+        Ok(()) => Ok(()),
+        Err(TurnstileError::Rejected(codes)) => {
+            tracing::warn!(?codes, "turnstile rejected login");
+            Err(AuthError::CaptchaFailed)
+        }
+        Err(err @ TurnstileError::Unavailable(_)) => {
+            tracing::warn!(error = %err, "turnstile check failed");
+            Err(AuthError::CaptchaUnavailable)
+        }
+    }
 }
 
 /// ตัวนับ login ผิดของ username หนึ่ง — ชื่อที่มีในระบบนับใน `users`, ชื่อที่ไม่มีนับใน `login_throttle` ด้วย
@@ -120,8 +155,14 @@ pub async fn login(
     pool: &PgPool,
     dummy_password_hash: &str,
     config: &Config,
+    turnstile: Option<&Turnstile>,
     params: LoginParams<'_>,
 ) -> Result<LoginSuccess, AuthError> {
+    // ขั้นแรกสุด ก่อนค้นผู้ใช้/เช็กล็อก: ไม่ผ่านแล้วตอบเหมือนกันทุกชื่อ ไม่แตะตัวนับ และไม่เปลือง argon2 กับบอท
+    if let Some(turnstile) = turnstile {
+        verify_turnstile(turnstile, params.turnstile_token, params.client.ip).await?;
+    }
+
     let normalized_username = params.username.trim().to_lowercase();
     let existing = repository::find_user_by_username(pool, &normalized_username).await?;
     // ชื่อที่ไม่มีในระบบใช้แค่ hash (ตัวนับ + ประวัติ) — ชื่อที่พิมพ์มาอาจเป็นรหัสผ่านที่พิมพ์ผิดช่อง

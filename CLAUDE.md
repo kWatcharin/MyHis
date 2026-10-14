@@ -46,6 +46,7 @@ my-his/
       ├─ config.rs             อ่าน environment variable
       ├─ crypto.rs             เข้ารหัสคอลัมน์ข้อมูลผู้ป่วย (AES-256-GCM) + blind index สำหรับค้นหา
       ├─ token.rs              สุ่ม token + SHA-256 (session cookie, ลิงก์ลงทะเบียน) ใช้ร่วมกันหลายโมดูล
+      ├─ turnstile.rs          ตรวจ token Cloudflare Turnstile กับ siteverify ตอน login (HTTP ขาออกที่เดียว, reqwest)
       ├─ state.rs              AppState (pool, config)
       ├─ error.rs              AppError และการแปลงเป็น HTTP response
       ├─ db.rs                 สร้าง connection pool, รัน migration ตอนเริ่ม

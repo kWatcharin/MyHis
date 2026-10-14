@@ -14,10 +14,11 @@ use axum::http::{header, Method, Request, StatusCode};
 use axum::Router;
 use http_body_util::BodyExt;
 use my_his_backend::auth::CurrentUser;
-use my_his_backend::config::Config;
+use my_his_backend::config::{Config, TurnstileConfig};
 use my_his_backend::crypto::Crypto;
 use my_his_backend::domain::{Permission, Resource, User, UserId};
 use my_his_backend::state::AppState;
+use my_his_backend::turnstile::Turnstile;
 use my_his_backend::{app, password};
 use serde_json::{json, Value};
 use sqlx::PgPool;
@@ -67,8 +68,31 @@ pub async fn run_migration_files(pool: &PgPool, include: impl Fn(i64) -> bool) {
     }
 }
 
-/// router จริงของแอปบน DB ของเทส — Config ใช้ค่าทดสอบ (ไม่อ่าน environment variable)
+/// router จริงของแอปบน DB ของเทส — Config ใช้ค่าทดสอบ (ไม่อ่าน environment variable) ปิด Turnstile
 pub async fn test_app(pool: PgPool) -> Router {
+    build_test_app(pool, None).await
+}
+
+/// site key / secret / hostname ของ `test_app_with_turnstile` (ค่าปลอม ไม่ใช่ key ของ Cloudflare)
+pub const TEST_TURNSTILE_SITE_KEY: &str = "test-site-key";
+pub const TEST_TURNSTILE_SECRET: &str = "test-turnstile-secret";
+pub const TEST_TURNSTILE_HOSTNAME: &str = "my-his.test";
+
+/// เหมือน `test_app` แต่เปิด Turnstile โดยตรวจ token กับ siteverify ที่ `verify_url` (server ปลอมในเทส)
+pub async fn test_app_with_turnstile(pool: PgPool, verify_url: &str) -> Router {
+    let turnstile = Turnstile::with_verify_url(
+        &TurnstileConfig {
+            site_key: TEST_TURNSTILE_SITE_KEY.to_string(),
+            secret_key: TEST_TURNSTILE_SECRET.to_string(),
+            hostname: Some(TEST_TURNSTILE_HOSTNAME.to_string()),
+        },
+        verify_url,
+    )
+    .unwrap();
+    build_test_app(pool, Some(Arc::new(turnstile))).await
+}
+
+async fn build_test_app(pool: PgPool, turnstile: Option<Arc<Turnstile>>) -> Router {
     let config = Config {
         database_url: String::new(),
         bind_addr: "127.0.0.1:0".parse().unwrap(),
@@ -77,6 +101,8 @@ pub async fn test_app(pool: PgPool) -> Router {
         initial_admin_username: "unused".to_string(),
         initial_admin_password: "unused".to_string(),
         crypto: Crypto::from_hex_keys(TEST_DATA_KEY, TEST_INDEX_KEY).unwrap(),
+        // Config.turnstile ใช้แค่ตอนเริ่มระบบ (main.rs สร้าง Turnstile) — router อ่านจาก AppState
+        turnstile: None,
     };
     let dummy_password_hash = tokio::task::spawn_blocking(password::dummy_hash)
         .await
@@ -86,6 +112,7 @@ pub async fn test_app(pool: PgPool) -> Router {
         pool,
         config: Arc::new(config),
         dummy_password_hash: Arc::from(dummy_password_hash),
+        turnstile,
     })
 }
 

@@ -43,6 +43,11 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # validate field ของ DTO ขาเข้าที่ขอบระบบ (username, ความยาวรหัสผ่าน ฯลฯ) ก่อนแปลงเป็นชนิดโดเมน
 validator = { version = "0.21", features = ["derive"] }
 
+# --- ตรวจ Cloudflare Turnstile ตอน login (backend/src/turnstile.rs) — HTTP client ตัวเดียวที่เรียกออกนอก ---
+# 0.12 ไม่ใช่ 0.13: feature rustls-tls ของ 0.12 ใช้ ring ตัวเดียวกับ sqlx (0.13 ใช้ aws-lc-rs ซึ่งต้อง build C หนัก
+# และมี provider สองตัวบน rustls) root cert จาก webpki-roots ในตัว ไม่พึ่ง cert ของเครื่อง
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+
 [dev-dependencies]
 # ยิง request เข้า router จริงในเทสระดับ API (backend/tests/) ด้วย oneshot ตาม CLAUDE.md
 tower = { version = "0.5", features = ["util"] }

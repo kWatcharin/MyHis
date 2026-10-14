@@ -21,4 +21,5 @@ pub mod prename;
 pub mod registration;
 pub mod state;
 pub mod token;
+pub mod turnstile;
 pub mod users;

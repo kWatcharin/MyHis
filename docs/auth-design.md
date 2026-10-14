@@ -268,7 +268,8 @@ index บน `user_id` — ลิงก์ "ใช้ได้" = `used_at` แ�
 
 | Method | Path | สิทธิ์ | อธิบาย |
 |---|---|---|---|
-| POST | `/auth/login` | สาธารณะ | รับ username/password ถ้าผ่านจะตั้ง cookie และคืนข้อมูลผู้ใช้ — ไม่ผ่าน: `401 { error: "invalid credentials", remainingAttempts }` (เหลืออีกกี่ครั้งก่อนล็อก 4..1) ครั้งที่ 5 และระหว่างล็อก: `429 account temporarily locked` + `Retry-After` (ข้อ 9) |
+| GET | `/auth/login-config` | สาธารณะ | หน้า login ถามก่อนแสดงฟอร์ม: `{ turnstileSiteKey }` (site key ของ Cloudflare Turnstile, `null` = ปิด ไม่ต้องแสดง widget) — ข้อ 9.1 |
+| POST | `/auth/login` | สาธารณะ | รับ username/password (+ `turnstileToken` เมื่อเปิด Turnstile) ถ้าผ่านจะตั้ง cookie และคืนข้อมูลผู้ใช้ — ไม่ผ่าน: `401 { error: "invalid credentials", remainingAttempts }` (เหลืออีกกี่ครั้งก่อนล็อก 4..1) ครั้งที่ 5 และระหว่างล็อก: `429 account temporarily locked` + `Retry-After` (ข้อ 9) — Turnstile ไม่ผ่าน/ไม่มี token: `400 captcha failed`, ติดต่อ Cloudflare ไม่ได้: `503 captcha unavailable` (ข้อ 9.1) |
 | POST | `/auth/logout` | ต้อง login | ลบ session ปัจจุบันและล้าง cookie — บันทึก `logout` (IP/User-Agent) ถ้ามี session |
 | POST | `/auth/logout-all` | ต้อง login | ลบทุก session ของผู้ใช้คนนี้ |
 | GET | `/audit/activities?from=&to=` | `audit.view` | ประวัติการใช้งาน (ทุก action ยกเว้นเข้า/ออก) กฎช่วงวัน/จำนวนแถวเดียวกับ `auth-events` ต่อแถว: `occurredAt`, `action`, `user`, `targetType`, `targetLabel` (แถวผู้ป่วย = null เสมอ), `exportDocument`, `exportFormat` (เฉพาะการส่งออก), `details` (`{before?, after?, changed?}` หรือ null — ผู้ป่วยมีแค่ `changed`) |
@@ -335,10 +336,13 @@ index บน `user_id` — ลิงก์ "ใช้ได้" = `used_at` แ�
 - `403` login แล้วแต่ไม่มีสิทธิ์
 - `409` ชื่อผู้ใช้ซ้ำ
 - `429` ถูกล็อกชั่วคราวจากการลองผิดหลายครั้ง พร้อม header `Retry-After`
+- `503` บริการภายนอกที่ต้องใช้ไม่ตอบ — ตอนนี้มีแค่ Cloudflare Turnstile ตอน login (`captcha unavailable`)
 
 ## 6. ขั้นตอนการ login
 
 1. handler ตรวจรูปแบบ input เบื้องต้น แล้วส่งต่อให้ service
+   - ถ้าเปิด Turnstile: service ตรวจ token กับ Cloudflare **ก่อนดูชื่อผู้ใช้** — ไม่ผ่านตอบ `400`/`503` ทันที
+     ไม่นับเป็นครั้งที่ผิด ไม่บันทึก audit (ข้อ 9.1)
 2. service ปรับ username เป็นตัวพิมพ์เล็กและตัดช่องว่าง
 3. ตรวจล็อก (`users.locked_until` หรือ `login_throttle` ของชื่อที่ไม่มี) ถ้ายังไม่พ้นเวลา ตอบ `429` ทันที
 4. ดึงผู้ใช้จากฐานข้อมูล **ถ้าไม่พบ ให้ยังคำนวณ hash หลอกอยู่ดี** เพื่อให้เวลาตอบกลับใกล้เคียงกัน
@@ -420,6 +424,24 @@ Extractor อ่าน cookie แล้ว hash ค่าที่ได้ ไ�
 - ถ้าวันหนึ่งมีผู้ใช้มากขึ้นหรือเปิดสาธารณะ ให้เปลี่ยนเป็นล็อกที่นานขึ้นเรื่อย ๆ
 
 การจำกัดจำนวน request ต่อ IP เป็นหน้าที่ของ Caddy ไม่ใช่ของ backend
+
+### 9.1 Cloudflare Turnstile (กันบอทหน้า login)
+
+เพิ่ม 2026-10-14 เสริมตัวนับข้อ 9: บอทต้องผ่าน challenge ของ Cloudflare ก่อนถึงจะได้ลองรหัส
+- **เปิด/ปิด:** `TURNSTILE_SITE_KEY` + `TURNSTILE_SECRET_KEY` ใน `.env` — ตั้งครบคู่ = เปิด, ไม่ตั้งทั้งคู่ = ปิด
+  (backend เตือนตอนเริ่ม), ตั้งตัวเดียว = backend ไม่ยอมเริ่ม `TURNSTILE_HOSTNAME` (ไม่บังคับ) บังคับให้ token มาจากโดเมนนี้
+  - ปิดฉุกเฉิน (เช่น Cloudflare ล่มนาน): ลบสอง key ออกจาก `.env` แล้ว restart backend
+  - dev บน localhost ใช้ test key ของ Cloudflare: site `1x00000000000000000000AA` / secret `1x0000000000000000000000000000000AA`
+    (ผ่านทุก token ไม่ได้ป้องกันจริง — backend เตือนตอนเริ่ม) key จริงสร้างใน Cloudflare dashboard ตอนมีโดเมน ไม่ใส่ localhost
+- **หน้าเว็บ:** ถาม `GET /auth/login-config` → แสดง widget (action `login`, โหมด Managed) ปุ่มเข้าสู่ระบบกดได้เมื่อได้ token
+  แล้วส่ง `turnstileToken` ไปกับ login — token ใช้ได้ครั้งเดียว อายุ 300 วินาที หน้าเว็บขอ token ใหม่หลัง login ไม่สำเร็จทุกครั้ง
+- **backend (`turnstile.rs`):** POST ไป siteverify (secret, token, IP ผู้ใช้จาก X-Forwarded-For) timeout 4 วินาที ไม่ retry
+  - ต้อง `success` และ `action` = `login` (+ hostname ถ้าตั้ง) — ผลจาก test key ไม่มี action จึงข้ามสองช่องนี้
+  - ไม่ผ่าน → `400 captcha failed`, ติดต่อไม่ได้/timeout/ตอบ 5xx → `503 captcha unavailable` (**fail-closed** ตามที่เจ้าของเลือก)
+  - ตรวจก่อนค้นผู้ใช้: ชื่อมี/ไม่มีได้คำตอบเดียวกัน ไม่แตะ `failed_attempts`/`login_throttle` ไม่เขียน audit_log (บอทจะถม)
+    log แค่ error-codes ของ Cloudflare — **ห้าม log token และ secret**
+- เทส `backend/tests/login_turnstile.rs` ใช้ siteverify ปลอมในเครื่อง ไม่ยิง Cloudflare จริง
+- ยังไม่ใส่ที่หน้าลงทะเบียน `/register` (สาธารณะเหมือนกัน) — ใช้ `TurnstileWidget` เดียวกันได้ถ้าต้องการ
 
 ## 10. การจัดการสิทธิ์
 

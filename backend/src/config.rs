@@ -28,6 +28,26 @@ pub struct Config {
     pub initial_admin_username: String,
     pub initial_admin_password: String,
     pub crypto: Crypto,
+    /// Cloudflare Turnstile ที่หน้า login — None = ปิด (ไม่ได้ตั้ง key ทั้งคู่)
+    pub turnstile: Option<TurnstileConfig>,
+}
+
+/// key ของ widget Turnstile (Cloudflare dashboard) — site key เป็นค่าสาธารณะ (อยู่ในหน้าเว็บ) secret ห้ามหลุด
+pub struct TurnstileConfig {
+    pub site_key: String,
+    pub secret_key: String,
+    /// `TURNSTILE_HOSTNAME` (ไม่บังคับ) — ถ้าตั้ง ผลตรวจจาก key จริงต้องมาจากโดเมนนี้เท่านั้น
+    pub hostname: Option<String>,
+}
+
+impl std::fmt::Debug for TurnstileConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TurnstileConfig")
+            .field("site_key", &self.site_key)
+            .field("secret_key", &"[redacted]")
+            .field("hostname", &self.hostname)
+            .finish()
+    }
 }
 
 /// เขียน Debug เอง (AppState ถือ Config และ derive Debug) — DATABASE_URL มีรหัส DB, รหัส admin เริ่มต้นเป็นข้อความธรรมดา
@@ -42,6 +62,7 @@ impl std::fmt::Debug for Config {
             .field("initial_admin_username", &self.initial_admin_username)
             .field("initial_admin_password", &"[redacted]")
             .field("crypto", &self.crypto)
+            .field("turnstile", &self.turnstile)
             .finish()
     }
 }
@@ -88,6 +109,12 @@ impl Config {
         )
         .map_err(|_| ConfigError::InvalidSecret("DATA_ENCRYPTION_KEY/BLIND_INDEX_KEY"))?;
 
+        let turnstile = turnstile_config(
+            optional("TURNSTILE_SITE_KEY"),
+            optional("TURNSTILE_SECRET_KEY"),
+            optional("TURNSTILE_HOSTNAME"),
+        )?;
+
         Ok(Config {
             database_url,
             bind_addr,
@@ -96,12 +123,39 @@ impl Config {
             initial_admin_username,
             initial_admin_password,
             crypto,
+            turnstile,
         })
     }
 }
 
 fn require(name: &'static str) -> Result<String, ConfigError> {
     std::env::var(name).map_err(|_| ConfigError::Missing(name))
+}
+
+/// ตัวแปรที่ไม่บังคับ — ค่าว่าง (`NAME=` ใน .env) ถือว่าไม่ได้ตั้ง
+fn optional(name: &'static str) -> Option<String> {
+    std::env::var(name)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+/// ตั้ง key ครบคู่ = เปิด, ไม่ตั้งทั้งคู่ = ปิด, ตั้งตัวเดียว = ล้มตอนเริ่ม (กันคิดว่าเปิดแล้วแต่จริง ๆ ปิดอยู่)
+fn turnstile_config(
+    site_key: Option<String>,
+    secret_key: Option<String>,
+    hostname: Option<String>,
+) -> Result<Option<TurnstileConfig>, ConfigError> {
+    match (site_key, secret_key) {
+        (Some(site_key), Some(secret_key)) => Ok(Some(TurnstileConfig {
+            site_key,
+            secret_key,
+            hostname,
+        })),
+        (None, None) => Ok(None),
+        (Some(_), None) => Err(ConfigError::Missing("TURNSTILE_SECRET_KEY")),
+        (None, Some(_)) => Err(ConfigError::Missing("TURNSTILE_SITE_KEY")),
+    }
 }
 
 #[cfg(test)]
@@ -118,10 +172,35 @@ mod tests {
             initial_admin_username: "admin".to_string(),
             initial_admin_password: "admin-secret-456".to_string(),
             crypto: Crypto::from_hex_keys(&"a".repeat(64), &"b".repeat(64)).unwrap(),
+            turnstile: Some(TurnstileConfig {
+                site_key: "public-site-key".to_string(),
+                secret_key: "turnstile-secret-789".to_string(),
+                hostname: None,
+            }),
         };
         let printed = format!("{config:?}");
         assert!(!printed.contains("db-secret-123"), "{printed}");
         assert!(!printed.contains("admin-secret-456"), "{printed}");
+        assert!(!printed.contains("turnstile-secret-789"), "{printed}");
         assert!(printed.contains("[redacted]"));
+    }
+
+    #[test]
+    fn turnstile_needs_both_keys_or_neither() {
+        let key = |value: &str| Some(value.to_string());
+        let enabled = turnstile_config(key("site"), key("secret"), key("my-his.example"))
+            .unwrap()
+            .unwrap();
+        assert_eq!(enabled.site_key, "site");
+        assert_eq!(enabled.hostname.as_deref(), Some("my-his.example"));
+        assert!(turnstile_config(None, None, None).unwrap().is_none());
+        assert!(matches!(
+            turnstile_config(key("site"), None, None),
+            Err(ConfigError::Missing("TURNSTILE_SECRET_KEY"))
+        ));
+        assert!(matches!(
+            turnstile_config(None, key("secret"), None),
+            Err(ConfigError::Missing("TURNSTILE_SITE_KEY"))
+        ));
     }
 }
