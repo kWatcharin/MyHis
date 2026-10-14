@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select first_name, last_name from patient where id = $1 and deleted_at is null",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "first_name",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "last_name",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "f0bd2183ce51f5a00e5af3b91c20d497375cd360c8953a32a21a171c272ee873"
+}

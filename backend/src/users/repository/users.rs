@@ -1,10 +1,11 @@
 use chrono::{DateTime, Utc};
+use serde_json::Value;
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 use super::registration_links::{insert_link, revoke_pending_links, NewRegistrationLink};
 use super::RepositoryError;
-use crate::domain::{Permission, PrenameId, RoleId, UserId};
+use crate::domain::{changes, Permission, PrenameId, RoleId, UserId};
 
 #[derive(Debug, Clone)]
 pub struct RoleRef {
@@ -224,7 +225,15 @@ pub async fn insert_user_with_role(
     .await?;
 
     insert_link(&mut tx, user.id, actor, link).await?;
-    insert_audit(&mut tx, actor, "user_created", user.public_id).await?;
+    let after = created_snapshot(&mut tx, user.id).await?;
+    insert_audit(
+        &mut tx,
+        actor,
+        "user_created",
+        user.public_id,
+        Some(changes::created(after)),
+    )
+    .await?;
 
     tx.commit().await?;
     Ok((user.id, user.public_id))
@@ -242,6 +251,7 @@ pub async fn update_user(
     is_active: Option<bool>,
 ) -> Result<(), RepositoryError> {
     let mut tx = pool.begin().await?;
+    let before = profile_snapshot(&mut tx, id).await?;
 
     sqlx::query!(
         r#"update users
@@ -257,13 +267,15 @@ pub async fn update_user(
     .await?;
 
     if display_name.is_some() {
-        insert_audit(&mut tx, actor, "user_updated", public_id).await?;
+        let after = profile_snapshot(&mut tx, id).await?;
+        let details = changes::updated(&before, &after);
+        insert_audit(&mut tx, actor, "user_updated", public_id, Some(details)).await?;
     }
     match is_active {
-        Some(true) => insert_audit(&mut tx, actor, "user_activated", public_id).await?,
+        Some(true) => insert_audit(&mut tx, actor, "user_activated", public_id, None).await?,
         Some(false) => {
             delete_sessions(&mut tx, id).await?;
-            insert_audit(&mut tx, actor, "user_deactivated", public_id).await?;
+            insert_audit(&mut tx, actor, "user_deactivated", public_id, None).await?;
         }
         None => {}
     }
@@ -283,6 +295,7 @@ pub async fn replace_user(
     role_ids: &[RoleId],
 ) -> Result<(), RepositoryError> {
     let mut tx = pool.begin().await?;
+    let before = profile_snapshot(&mut tx, id).await?;
 
     sqlx::query!(
         r#"update users
@@ -308,10 +321,22 @@ pub async fn replace_user(
     let roles_changed =
         current.len() != role_ids.len() || !role_ids.iter().all(|role| current.contains(role));
     if roles_changed {
+        let roles_before = roles_snapshot(&mut tx, id).await?;
         write_roles(&mut tx, id, role_ids).await?;
-        insert_audit(&mut tx, actor, "user_roles_replaced", public_id).await?;
+        let roles_after = roles_snapshot(&mut tx, id).await?;
+        let details = changes::updated(&roles_before, &roles_after);
+        insert_audit(
+            &mut tx,
+            actor,
+            "user_roles_replaced",
+            public_id,
+            Some(details),
+        )
+        .await?;
     }
-    insert_audit(&mut tx, actor, "user_updated", public_id).await?;
+    let after = profile_snapshot(&mut tx, id).await?;
+    let details = changes::updated(&before, &after);
+    insert_audit(&mut tx, actor, "user_updated", public_id, Some(details)).await?;
 
     tx.commit().await?;
     Ok(())
@@ -343,7 +368,7 @@ pub async fn reset_password(
     delete_sessions(&mut tx, id).await?;
     revoke_pending_links(&mut tx, id).await?;
     insert_link(&mut tx, id, actor, link).await?;
-    insert_audit(&mut tx, actor, "user_password_reset", public_id).await?;
+    insert_audit(&mut tx, actor, "user_password_reset", public_id, None).await?;
 
     tx.commit().await?;
     Ok(())
@@ -359,8 +384,18 @@ pub async fn replace_user_roles(
     role_ids: &[RoleId],
 ) -> Result<(), RepositoryError> {
     let mut tx = pool.begin().await?;
+    let before = roles_snapshot(&mut tx, id).await?;
     write_roles(&mut tx, id, role_ids).await?;
-    insert_audit(&mut tx, actor, "user_roles_replaced", public_id).await?;
+    let after = roles_snapshot(&mut tx, id).await?;
+    let details = changes::updated(&before, &after);
+    insert_audit(
+        &mut tx,
+        actor,
+        "user_roles_replaced",
+        public_id,
+        Some(details),
+    )
+    .await?;
     tx.commit().await?;
     Ok(())
 }
@@ -395,21 +430,80 @@ async fn delete_sessions(
     Ok(())
 }
 
-/// audit ของงานจัดการผู้ใช้ — target_id เป็น uuid ของผู้ใช้ที่ถูกกระทำ ไม่มี metadata (ห้ามมีรหัสผ่าน/ความลับ)
+/// audit ของงานจัดการผู้ใช้ — target_id เป็น uuid ของผู้ใช้ที่ถูกกระทำ `details` = ค่าที่เพิ่ม / ค่าเดิม→ใหม่
+/// (`domain::changes` จาก snapshot ข้างล่าง — ไม่มีรหัสผ่าน/ความลับ ชื่อ-สกุลเจ้าหน้าที่ไม่ใช่ข้อมูลผู้ป่วย)
 async fn insert_audit(
     tx: &mut Transaction<'_, Postgres>,
     actor: UserId,
     action: &str,
     target_public_id: Uuid,
+    details: Option<Value>,
 ) -> Result<(), RepositoryError> {
     sqlx::query!(
-        "insert into audit_log (actor_user_id, action, target_type, target_id)
-         values ($1, $2, 'user', $3)",
+        "insert into audit_log (actor_user_id, action, target_type, target_id, metadata)
+         values ($1, $2, 'user', $3, $4)",
         actor.0,
         action,
-        target_public_id.to_string()
+        target_public_id.to_string(),
+        details
     )
     .execute(&mut **tx)
     .await?;
     Ok(())
+}
+
+/// ข้อมูลตัวของผู้ใช้สำหรับรายละเอียดในประวัติการใช้งาน (คำนำหน้าเป็นชื่อ ไม่ใช่ id) — ล็อกแถวไว้จนจบทรานแซกชัน
+async fn profile_snapshot(
+    tx: &mut Transaction<'_, Postgres>,
+    id: UserId,
+) -> Result<Value, RepositoryError> {
+    let row = sqlx::query_scalar!(
+        r#"select jsonb_build_object(
+                  'display_name', u.display_name, 'prename', p.name, 'first_name', u.first_name,
+                  'last_name', u.last_name, 'position', u.position
+              ) as "snapshot!"
+           from users u left join prename p on p.id = u.prename_id
+           where u.id = $1 for update of u"#,
+        id.0
+    )
+    .fetch_optional(&mut **tx)
+    .await?;
+    Ok(row.unwrap_or(Value::Null))
+}
+
+/// role ที่ผู้ใช้ถือ (ชื่อ เรียงแล้ว) สำหรับรายละเอียดของ `user_roles_replaced`
+async fn roles_snapshot(
+    tx: &mut Transaction<'_, Postgres>,
+    id: UserId,
+) -> Result<Value, RepositoryError> {
+    let row = sqlx::query_scalar!(
+        r#"select jsonb_build_object('roles', coalesce(jsonb_agg(r.name order by r.name), '[]'::jsonb))
+              as "snapshot!"
+           from user_roles ur join roles r on r.id = ur.role_id
+           where ur.user_id = $1"#,
+        id.0
+    )
+    .fetch_one(&mut **tx)
+    .await?;
+    Ok(row)
+}
+
+/// ค่าของบัญชีที่เพิ่งสร้าง (username, ชื่อที่แสดง, role)
+async fn created_snapshot(
+    tx: &mut Transaction<'_, Postgres>,
+    id: UserId,
+) -> Result<Value, RepositoryError> {
+    let row = sqlx::query_scalar!(
+        r#"select jsonb_build_object(
+                  'username', u.username, 'display_name', u.display_name,
+                  'roles', coalesce((select jsonb_agg(r.name order by r.name)
+                                     from user_roles ur join roles r on r.id = ur.role_id
+                                     where ur.user_id = u.id), '[]'::jsonb)
+              ) as "snapshot!"
+           from users u where u.id = $1"#,
+        id.0
+    )
+    .fetch_one(&mut **tx)
+    .await?;
+    Ok(row)
 }

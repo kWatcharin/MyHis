@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select jsonb_build_object(\n                  'take_med_year_range', take_med_year_range, 'take_med_month_range', take_med_month_range,\n                  'vl_result', vl_result, 'drug_recipe', drug_recipe, 'sort_order', sort_order\n              ) as \"snapshot!\"\n           from lab_visit where id = $1 for update",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "snapshot!",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "9d13e85d927251f0ea8b743389d8c7fc83d5bbcd0d4b993d878e807cfbce9348"
+}

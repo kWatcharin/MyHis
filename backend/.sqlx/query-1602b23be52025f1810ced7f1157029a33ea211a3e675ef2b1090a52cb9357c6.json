@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select jsonb_build_object('roles', coalesce(jsonb_agg(r.name order by r.name), '[]'::jsonb))\n              as \"snapshot!\"\n           from user_roles ur join roles r on r.id = ur.role_id\n           where ur.user_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "snapshot!",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "1602b23be52025f1810ced7f1157029a33ea211a3e675ef2b1090a52cb9357c6"
+}

@@ -223,7 +223,7 @@ index บน `user_id` — ลิงก์ "ใช้ได้" = `used_at` แ�
 | actor_user_id | integer | FK ไป `users.id` (on delete set null), null ได้ กรณี login ล้มเหลวที่ไม่รู้ว่าใคร |
 | action | text | เข้า/ออก: `login_succeeded`, `login_failed`, `logout`, `logout_all` — การใช้งาน: `<ชนิด>_created/_updated/_deleted` ของทุกหน้า (`patient`, `lab_visit_group`, `lab_visit`, `user`, `role`, `page`, `budget_year`, `disease`, `prename`, `nationality`, `patient_group`, `lab`), `lab_visit_group_exported`, `user_activated/deactivated/roles_replaced/password_reset`, `user_registered`, `user_password_set`, `password_changed` |
 | target_type / target_id | text / text | สิ่งที่ถูกกระทำ — `target_id` เก็บเป็น **uuid** ไม่ใช่ id int ภายใน เพื่ออ้างอิงข้ามเวลาได้ — แถวผู้ป่วยมีแค่ uuid; เหตุการณ์ login เก็บ username ของบัญชีที่มีอยู่ หรือ **SHA-256 ของชื่อที่พิมพ์มา** ถ้าไม่มีในระบบ (อาจเป็นรหัสผ่านที่พิมพ์ผิดช่อง — แถวก่อน 2026-10-12 เป็นชื่อดิบ) API ไม่ส่งคอลัมน์นี้ออก |
-| metadata | jsonb | ข้อมูลเพิ่มเติม ห้ามใส่ความลับ/ข้อมูลผู้ป่วย — มีแค่: `{"userAgent"}` ของเหตุการณ์เข้า/ออกระบบ (ตัดไม่เกิน 512 ตัวอักษร), `{"label"}` ชื่อ role/เพจ ณ ตอนนั้น (สองตารางนี้ลบจริง), `{"document", "format"}` ของการส่งออก (`cd4`/`roster`, `excel`/`pdf`) |
+| metadata | jsonb | ข้อมูลเพิ่มเติม ห้ามใส่ความลับ/ข้อมูลผู้ป่วย — มีแค่: `{"userAgent"}` ของเหตุการณ์เข้า/ออกระบบ (ตัดไม่เกิน 512 ตัวอักษร), `{"label"}` ชื่อ role/เพจ ณ ตอนนั้น (สองตารางนี้ลบจริง), `{"document", "format"}` ของการส่งออก (`cd4`/`roster`, `excel`/`pdf`), รายละเอียดการเปลี่ยนแปลง `{"after"}` / `{"before", "after"}` / `{"changed"}` (ดูหัวข้อประวัติการใช้งาน) |
 | ip | inet | IP ของผู้ใช้ — มีเฉพาะเหตุการณ์เข้า/ออกระบบ (ดูด้านล่าง) |
 | created_at | timestamptz | index `(action, created_at)` (ประวัติการเข้าออก) และ `(created_at)` (ประวัติการใช้งาน) |
 
@@ -250,7 +250,17 @@ index บน `user_id` — ลิงก์ "ใช้ได้" = `used_at` แ�
 - **ชื่อรายการ** (`targetLabel`): ตารางที่ soft delete อ่านชื่อจาก join ด้วย uuid ตอนแสดงผล (ได้ชื่อปัจจุบัน ใช้กับแถวเก่าได้)
   — ผู้ใช้ = `ชื่อที่แสดง (username)`, master = ชื่อ/ปี, นัดหมายและคนไข้ในนัดหมาย = `ปีงบ <ปี> · <กลุ่มคนไข้>`;
   role/เพจ ใช้ `metadata.label` — **แถวผู้ป่วยไม่มีชื่อรายการเสมอ** (ไม่ join ตาราง patient) หน้าเว็บแสดง "ผู้ป่วย 1 ราย"
-- response ไม่มี `target_id` และ metadata ดิบ มีแค่ `targetType`, `targetLabel`, `exportDocument`, `exportFormat`
+- response ไม่มี `target_id` และ metadata ดิบ มีแค่ `targetType`, `targetLabel`, `exportDocument`, `exportFormat`, `details`
+- **รายละเอียดการเปลี่ยนแปลง** (`details` — ปุ่ม "ดู" ในตาราง เปิด modal, เก็บตั้งแต่ 2026-10-14 แถวเก่าไม่มี):
+  - แต่ละ repository ทำ snapshot ของแถว (ค่าสำหรับแสดงผล — FK เป็นชื่อ ไม่มี id int ไม่มีความลับ) ในทรานแซกชันเดียวกับ
+    การเขียน แล้วใช้ `domain::changes`: เพิ่ม → `{"after": {...}}`, แก้ไข → `{"before", "after"}` **เฉพาะช่องที่เปลี่ยน**
+    (ไม่มีอะไรเปลี่ยน = ว่างทั้งคู่), ลบ/รหัสผ่าน/เปิด-ปิดบัญชี → ไม่มี (modal แสดงเวลา + ผู้ทำ หรือข้อความแทน)
+  - ช่องต่อชนิด: master = ช่องของตาราง (ชื่อ, ชื่อย่อ, ปี, วันที่, ลำดับ, สถานะ), role = name/description/permissions,
+    เพจ = label/icon/route/main_page/sort_order/permissions, ผู้ใช้ = username/display_name/prename/first_name/
+    last_name/position + roles (`user_roles_replaced`), หัวนัดหมาย = budget_year/patient_group/วันนัด/sort_order
+  - **ข้อมูลผู้ป่วย (`patient_updated`, `lab_visit_updated`) เก็บแค่ `{"changed": [ชื่อช่อง]}` ไม่มีค่า** — HN/NAP NO
+    เทียบด้วย blind index, ชื่อ-สกุลถอดรหัสแถวเดียวเทียบใน service (ciphertext สุ่ม nonce) API อ่านได้แค่ `changed`
+    ของสองชนิดนี้ (กันซ้ำอีกชั้น) เทส `backend/tests/activity_details.rs` ตรวจว่าค่าไม่อยู่ทั้งใน response และ audit_log
 
 ## 5. API
 
@@ -261,7 +271,7 @@ index บน `user_id` — ลิงก์ "ใช้ได้" = `used_at` แ�
 | POST | `/auth/login` | สาธารณะ | รับ username/password ถ้าผ่านจะตั้ง cookie และคืนข้อมูลผู้ใช้ — ไม่ผ่าน: `401 { error: "invalid credentials", remainingAttempts }` (เหลืออีกกี่ครั้งก่อนล็อก 4..1) ครั้งที่ 5 และระหว่างล็อก: `429 account temporarily locked` + `Retry-After` (ข้อ 9) |
 | POST | `/auth/logout` | ต้อง login | ลบ session ปัจจุบันและล้าง cookie — บันทึก `logout` (IP/User-Agent) ถ้ามี session |
 | POST | `/auth/logout-all` | ต้อง login | ลบทุก session ของผู้ใช้คนนี้ |
-| GET | `/audit/activities?from=&to=` | `audit.view` | ประวัติการใช้งาน (ทุก action ยกเว้นเข้า/ออก) กฎช่วงวัน/จำนวนแถวเดียวกับ `auth-events` ต่อแถว: `occurredAt`, `action`, `user`, `targetType`, `targetLabel` (แถวผู้ป่วย = null เสมอ), `exportDocument`, `exportFormat` (เฉพาะการส่งออก) |
+| GET | `/audit/activities?from=&to=` | `audit.view` | ประวัติการใช้งาน (ทุก action ยกเว้นเข้า/ออก) กฎช่วงวัน/จำนวนแถวเดียวกับ `auth-events` ต่อแถว: `occurredAt`, `action`, `user`, `targetType`, `targetLabel` (แถวผู้ป่วย = null เสมอ), `exportDocument`, `exportFormat` (เฉพาะการส่งออก), `details` (`{before?, after?, changed?}` หรือ null — ผู้ป่วยมีแค่ `changed`) |
 | GET | `/audit/auth-events?from=&to=` | `audit.view` | ประวัติการเข้าออกของผู้ใช้ทุกคน (`YYYY-MM-DD` วันตามเวลาไทย รวมทั้งสองวัน ไม่เกิน 366 วัน — เกิน/กลับด้าน = `400`) เรียงใหม่→เก่า ไม่เกิน 5,000 แถว (`truncated`) ต่อแถว: `occurredAt`, `event`, `user` (null = ไม่พบชื่อผู้ใช้), `ip`, `userAgent` |
 | GET | `/auth/me` | ต้อง login | คืนข้อมูลผู้ใช้ปัจจุบันพร้อมรายการ permission |
 | POST | `/auth/password` | ต้อง login | เปลี่ยนรหัสผ่านตัวเอง ต้องกรอกรหัสเดิมด้วย (ผิด → `401`) — รหัสใหม่ ≥ 12 ตัวและต้องไม่ซ้ำรหัสเดิม (`400`) หน้าเว็บเปิดจากเมนูชื่อผู้ใช้ท้ายเมนูซ้าย (ไม่บังคับเปลี่ยน) |

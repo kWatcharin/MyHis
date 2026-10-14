@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select jsonb_build_object(\n                  'hn', encode(p.hn_idx, 'hex'), 'nap_no', encode(p.nap_no_idx, 'hex'),\n                  'prename', p.prename_id, 'birth_date', p.birth_date, 'age', p.age,\n                  'weight', p.weight, 'height', p.height, 'sex', p.sex, 'is_thai', p.is_thai,\n                  'nationality', p.nationality_id, 'sort_order', p.sort_order, 'is_active', p.is_active,\n                  'diseases', coalesce((select jsonb_agg(mc.disease_id order by mc.disease_id)\n                                        from medical_condition mc\n                                        where mc.patient_id = p.id and mc.deleted_at is null), '[]'::jsonb)\n              ) as \"snapshot!\"\n           from patient p where p.id = $1 for update of p",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "snapshot!",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "c999c4e222ebdc08aceff9bc28a42b10724e5de91de1fb87fc26c93c419a288c"
+}

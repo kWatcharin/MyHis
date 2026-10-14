@@ -1,8 +1,9 @@
-use sqlx::PgPool;
+use serde_json::Value;
+use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
-use super::{insert_labeled_audit, RepositoryError};
-use crate::domain::{PageId, Permission, UserId};
+use super::{insert_labeled_audit, LabeledAudit, RepositoryError};
+use crate::domain::{changes, PageId, Permission, UserId};
 
 #[derive(Debug, Clone)]
 pub struct PageWithPermissions {
@@ -97,15 +98,6 @@ pub async fn insert_page(
     )
     .fetch_one(&mut *tx)
     .await?;
-    insert_labeled_audit(
-        &mut tx,
-        actor,
-        "page_created",
-        "page",
-        page.uuid,
-        fields.label,
-    )
-    .await?;
 
     for permission in fields.permissions {
         sqlx::query!(
@@ -116,6 +108,20 @@ pub async fn insert_page(
         .execute(&mut *tx)
         .await?;
     }
+
+    let after = snapshot(&mut tx, page.id).await?;
+    insert_labeled_audit(
+        &mut tx,
+        actor,
+        LabeledAudit {
+            action: "page_created",
+            target_type: "page",
+            target_public_id: page.uuid,
+            label: fields.label,
+            details: Some(changes::created(after)),
+        },
+    )
+    .await?;
 
     tx.commit().await?;
     Ok(page.id)
@@ -141,6 +147,7 @@ pub async fn update_page(
     fields: UpdatePageFields<'_>,
 ) -> Result<(), RepositoryError> {
     let mut tx = pool.begin().await?;
+    let before = snapshot(&mut tx, id).await?;
 
     if let Some(icon) = fields.icon {
         sqlx::query!(
@@ -177,17 +184,6 @@ pub async fn update_page(
     )
     .fetch_optional(&mut *tx)
     .await?;
-    if let Some(page) = &updated {
-        insert_labeled_audit(
-            &mut tx,
-            actor,
-            "page_updated",
-            "page",
-            page.uuid,
-            &page.label,
-        )
-        .await?;
-    }
 
     if let Some(permissions) = fields.permissions {
         sqlx::query!("delete from page_permissions where page_id = $1", id.0)
@@ -202,6 +198,22 @@ pub async fn update_page(
             .execute(&mut *tx)
             .await?;
         }
+    }
+
+    if let Some(page) = &updated {
+        let after = snapshot(&mut tx, id).await?;
+        insert_labeled_audit(
+            &mut tx,
+            actor,
+            LabeledAudit {
+                action: "page_updated",
+                target_type: "page",
+                target_public_id: page.uuid,
+                label: &page.label,
+                details: Some(changes::updated(&before, &after)),
+            },
+        )
+        .await?;
     }
 
     tx.commit().await?;
@@ -221,13 +233,40 @@ pub async fn delete_page(pool: &PgPool, actor: UserId, id: PageId) -> Result<(),
         insert_labeled_audit(
             &mut tx,
             actor,
-            "page_deleted",
-            "page",
-            page.uuid,
-            &page.label,
+            LabeledAudit {
+                action: "page_deleted",
+                target_type: "page",
+                target_public_id: page.uuid,
+                label: &page.label,
+                details: None,
+            },
         )
         .await?;
     }
     tx.commit().await?;
     Ok(())
+}
+
+/// ค่าของเพจสำหรับรายละเอียดในประวัติการใช้งาน (เพจหลักเป็นชื่อ ไม่ใช่ id, สิทธิ์เรียงแล้ว) — ล็อกแถวไว้จนจบทรานแซกชัน
+async fn snapshot(
+    tx: &mut Transaction<'_, Postgres>,
+    id: PageId,
+) -> Result<Value, RepositoryError> {
+    let row = sqlx::query_scalar!(
+        r#"select jsonb_build_object(
+                  'label', p.label,
+                  'icon', p.icon,
+                  'route', p.route,
+                  'main_page', m.label,
+                  'sort_order', p.sort_order,
+                  'permissions', coalesce((select jsonb_agg(pp.permission order by pp.permission)
+                                           from page_permissions pp where pp.page_id = p.id), '[]'::jsonb)
+              ) as "snapshot!"
+           from pages p left join pages m on m.id = p.ref_id
+           where p.id = $1 for update of p"#,
+        id.0
+    )
+    .fetch_optional(&mut **tx)
+    .await?;
+    Ok(row.unwrap_or(Value::Null))
 }

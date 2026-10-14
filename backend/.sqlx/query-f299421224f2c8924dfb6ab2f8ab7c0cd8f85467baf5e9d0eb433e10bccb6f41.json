@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select jsonb_build_object(\n                  'budget_year', b.year, 'patient_group', pg.name,\n                  'cd4_first_date', g.cd4_1st_date, 'cd4_second_date', g.cd4_2nd_date,\n                  'vl_date', g.vl_date, 'sort_order', g.sort_order\n              ) as \"snapshot!\"\n           from lab_visit_group g\n           join budget_year b on b.id = g.budget_year_id\n           join patient_group pg on pg.id = g.patient_group_id\n           where g.uuid = $1 for update of g",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "snapshot!",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "f299421224f2c8924dfb6ab2f8ab7c0cd8f85467baf5e9d0eb433e10bccb6f41"
+}

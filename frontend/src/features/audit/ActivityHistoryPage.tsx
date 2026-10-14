@@ -1,4 +1,4 @@
-import { Search } from 'lucide-react'
+import { Eye, Search } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 
@@ -24,6 +24,7 @@ import { useAuth } from '@/features/auth/AuthContext'
 import { formatThaiDateTime } from '@/lib/date'
 import { textIncludes } from '@/lib/search'
 
+import { ActivityDetailDialog } from './ActivityDetailDialog'
 import type { ActivityKind } from './activities'
 import { activityPage, describeAction, describeTarget, KIND_LABELS, pageLabel, pageOptions } from './activities'
 import type { ActivitiesResult, Activity } from './auditApi'
@@ -75,6 +76,8 @@ export function ActivityHistoryPage() {
   const [result, setResult] = useState<ActivitiesResult | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [formError, setFormError] = useState<string | null>(null)
+  // แถวที่เปิดดูรายละเอียด (modal) — null = ปิด
+  const [viewing, setViewing] = useState<Activity | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -233,6 +236,7 @@ export function ActivityHistoryPage() {
                   <TableHead>หน้า</TableHead>
                   <TableHead>การกระทำ</TableHead>
                   <TableHead>รายการ</TableHead>
+                  <TableHead>รายละเอียด</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -260,6 +264,12 @@ export function ActivityHistoryPage() {
                         <Badge variant={KIND_BADGE[action.kind]}>{action.label}</Badge>
                       </TableCell>
                       <TableCell className="max-w-xs whitespace-normal">{describeTarget(activity)}</TableCell>
+                      <TableCell>
+                        <Button variant="outline" size="sm" onClick={() => setViewing(activity)}>
+                          <Eye />
+                          ดู
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   )
                 })}
@@ -269,6 +279,8 @@ export function ActivityHistoryPage() {
           {status === 'ready' && visible.length > 0 && <TablePagination {...pagination.props} />}
         </CardContent>
       </Card>
+
+      <ActivityDetailDialog activity={viewing} onClose={() => setViewing(null)} />
     </div>
   )
 }

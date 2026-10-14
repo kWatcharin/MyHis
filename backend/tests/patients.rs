@@ -882,13 +882,28 @@ async fn audit_log_records_actions_without_any_patient_data(pool: PgPool) {
             assert!(!text.contains(secret), "{secret} leaked into audit_log");
         }
     }
-    let metadata_rows: i64 = sqlx::query_scalar(
-        "select count(*) from audit_log where target_type = 'patient' and metadata is not null",
+    // metadata มีได้แค่ชื่อช่องที่เปลี่ยนของการแก้ไข (ประวัติการใช้งาน → "ดู") ไม่มีค่าใด ๆ
+    let metadata: Vec<(String, Option<serde_json::Value>)> = sqlx::query_as(
+        "select action, metadata from audit_log where target_type = 'patient' order by id",
     )
-    .fetch_one(&pool)
+    .fetch_all(&pool)
     .await
     .unwrap();
-    assert_eq!(metadata_rows, 0);
+    for (action, value) in &metadata {
+        match action.as_str() {
+            "patient_updated" => {
+                let value = value.as_ref().expect("update records changed field names");
+                let keys: Vec<&String> = value.as_object().unwrap().keys().collect();
+                assert_eq!(keys, ["changed"], "{value}");
+                assert!(value["changed"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .all(|f| f.is_string()));
+            }
+            _ => assert_eq!(*value, None, "{action}"),
+        }
+    }
 }
 
 #[sqlx::test]

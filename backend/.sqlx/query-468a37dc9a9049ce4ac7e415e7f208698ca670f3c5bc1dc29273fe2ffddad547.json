@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select jsonb_build_object(\n                  'label', p.label,\n                  'icon', p.icon,\n                  'route', p.route,\n                  'main_page', m.label,\n                  'sort_order', p.sort_order,\n                  'permissions', coalesce((select jsonb_agg(pp.permission order by pp.permission)\n                                           from page_permissions pp where pp.page_id = p.id), '[]'::jsonb)\n              ) as \"snapshot!\"\n           from pages p left join pages m on m.id = p.ref_id\n           where p.id = $1 for update of p",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "snapshot!",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "468a37dc9a9049ce4ac7e415e7f208698ca670f3c5bc1dc29273fe2ffddad547"
+}

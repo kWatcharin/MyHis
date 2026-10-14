@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select jsonb_build_object('name', name, 'abbreviation', abbreviation, 'sort_order', sort_order, 'is_active', is_active) as \"snapshot!\"\n           from lab where id = $1 for update",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "snapshot!",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "2ecb021e0b2bacd996e387495ac03871a8c759231e98cac8d901b6de8447a294"
+}

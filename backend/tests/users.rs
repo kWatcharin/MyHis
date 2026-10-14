@@ -229,7 +229,15 @@ async fn create_user_issues_registration_link_instead_of_password(pool: PgPool) 
     .await
     .unwrap();
     assert_eq!(actor, Some(admin.user.id.0));
-    assert!(metadata.is_none());
+    // รายละเอียดของประวัติการใช้งาน: ค่าที่เพิ่มเท่านั้น — ไม่มี token/รหัสผ่าน
+    assert_eq!(
+        metadata,
+        Some(serde_json::json!({
+            "after": { "username": created.username, "display_name": created.display_name, "roles": ["nurse"] }
+        }))
+    );
+    let text = metadata.unwrap().to_string();
+    assert!(!text.contains(&created.link.token));
 }
 
 #[sqlx::test]

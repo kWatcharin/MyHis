@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select jsonb_build_object('national_name', national_name, 'nation', nation, 'sort_order', sort_order, 'is_active', is_active) as \"snapshot!\"\n           from nationality where id = $1 for update",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "snapshot!",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "189a1bd5061d12efc78338769c307b63b8fabe177cdd1a8fb963b56cea2f54a2"
+}

@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select jsonb_build_object(\n                  'name', r.name,\n                  'description', r.description,\n                  'permissions', coalesce((select jsonb_agg(rp.permission order by rp.permission)\n                                           from role_permissions rp where rp.role_id = r.id), '[]'::jsonb)\n              ) as \"snapshot!\"\n           from roles r where r.id = $1 for update",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "snapshot!",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "e17366e571c124889a5edc7d8fbfa543ed7c4e8607b940233f568d150ab7dbc8"
+}

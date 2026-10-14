@@ -10,11 +10,12 @@
 //! ห้ามมีข้อมูลระบุตัวคนไข้ในนั้น มีแค่ action + uuid ของผู้ป่วย
 
 use chrono::NaiveDate;
+use serde_json::Value;
 use sqlx::{PgPool, Postgres, Transaction};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::domain::{PatientId, UserId};
+use crate::domain::{changes, PatientId, UserId};
 
 #[derive(Debug, Error)]
 pub enum RepositoryError {
@@ -273,13 +274,15 @@ async fn insert_audit(
     actor: UserId,
     action: &str,
     patient_public_id: Uuid,
+    details: Option<Value>,
 ) -> Result<(), RepositoryError> {
     sqlx::query!(
-        "insert into audit_log (actor_user_id, action, target_type, target_id)
-         values ($1, $2, 'patient', $3)",
+        "insert into audit_log (actor_user_id, action, target_type, target_id, metadata)
+         values ($1, $2, 'patient', $3, $4)",
         actor.0,
         action,
-        patient_public_id.to_string()
+        patient_public_id.to_string(),
+        details
     )
     .execute(&mut **tx)
     .await?;
@@ -391,20 +394,23 @@ pub async fn insert_patient(
     .await?;
 
     sync_conditions(&mut tx, actor, row.id, &w.disease_ids).await?;
-    insert_audit(&mut tx, actor, "patient_created", row.uuid).await?;
+    insert_audit(&mut tx, actor, "patient_created", row.uuid, None).await?;
     tx.commit().await?;
     Ok(row.uuid)
 }
 
 /// แทนที่ข้อมูลผู้ป่วยทั้งชุด + โรคประจำตัว + audit ในทรานแซกชันเดียว
+/// `changed_names` = ชื่อช่องชื่อ-สกุลที่ service เทียบแล้วว่าเปลี่ยน (ciphertext สุ่ม nonce ทุกครั้ง เทียบใน DB ไม่ได้)
 pub async fn replace_patient(
     pool: &PgPool,
     actor: UserId,
     id: PatientId,
     public_id: Uuid,
     w: &PatientWrite,
+    changed_names: &[&str],
 ) -> Result<(), RepositoryError> {
     let mut tx = pool.begin().await?;
+    let before = snapshot(&mut tx, id).await?;
 
     sqlx::query!(
         r#"update patient
@@ -439,7 +445,10 @@ pub async fn replace_patient(
     .await?;
 
     sync_conditions(&mut tx, actor, id, &w.disease_ids).await?;
-    insert_audit(&mut tx, actor, "patient_updated", public_id).await?;
+    // ข้อมูลผู้ป่วย — เก็บแค่ชื่อช่องที่เปลี่ยน ไม่เก็บค่า (CLAUDE.md)
+    let after = snapshot(&mut tx, id).await?;
+    let details = changes::changed_fields(&before, &after, changed_names);
+    insert_audit(&mut tx, actor, "patient_updated", public_id, Some(details)).await?;
     tx.commit().await?;
     Ok(())
 }
@@ -473,7 +482,45 @@ pub async fn soft_delete_patient(
     .execute(&mut *tx)
     .await?;
 
-    insert_audit(&mut tx, actor, "patient_deleted", public_id).await?;
+    insert_audit(&mut tx, actor, "patient_deleted", public_id, None).await?;
     tx.commit().await?;
     Ok(())
+}
+
+/// ชื่อ-สกุล (ciphertext) ของผู้ป่วยหนึ่งคน — ให้ service ถอดรหัสเทียบกับค่าใหม่ หาว่าช่องไหนเปลี่ยน (แถวเดียว)
+pub async fn find_patient_names(
+    pool: &PgPool,
+    id: PatientId,
+) -> Result<Option<(Vec<u8>, Vec<u8>)>, RepositoryError> {
+    let row = sqlx::query!(
+        "select first_name, last_name from patient where id = $1 and deleted_at is null",
+        id.0
+    )
+    .fetch_optional(pool)
+    .await?;
+    Ok(row.map(|r| (r.first_name, r.last_name)))
+}
+
+/// ค่าของผู้ป่วยไว้เทียบหาชื่อช่องที่เปลี่ยนเท่านั้น — อยู่ในหน่วยความจำระหว่างทรานแซกชัน **ไม่ถูกบันทึก**
+/// (HN/NAP NO เทียบด้วย blind index, ชื่อ-สกุลเทียบที่ service) ล็อกแถวไว้จนจบทรานแซกชัน
+async fn snapshot(
+    tx: &mut Transaction<'_, Postgres>,
+    id: PatientId,
+) -> Result<Value, RepositoryError> {
+    let row = sqlx::query_scalar!(
+        r#"select jsonb_build_object(
+                  'hn', encode(p.hn_idx, 'hex'), 'nap_no', encode(p.nap_no_idx, 'hex'),
+                  'prename', p.prename_id, 'birth_date', p.birth_date, 'age', p.age,
+                  'weight', p.weight, 'height', p.height, 'sex', p.sex, 'is_thai', p.is_thai,
+                  'nationality', p.nationality_id, 'sort_order', p.sort_order, 'is_active', p.is_active,
+                  'diseases', coalesce((select jsonb_agg(mc.disease_id order by mc.disease_id)
+                                        from medical_condition mc
+                                        where mc.patient_id = p.id and mc.deleted_at is null), '[]'::jsonb)
+              ) as "snapshot!"
+           from patient p where p.id = $1 for update of p"#,
+        id.0
+    )
+    .fetch_optional(&mut **tx)
+    .await?;
+    Ok(row.unwrap_or(Value::Null))
 }

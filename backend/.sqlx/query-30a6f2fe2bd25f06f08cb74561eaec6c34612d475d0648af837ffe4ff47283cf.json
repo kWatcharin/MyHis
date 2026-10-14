@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select jsonb_build_object('year', year, 'start_date', start_date, 'end_date', end_date, 'sort_order', sort_order, 'is_active', is_active) as \"snapshot!\"\n           from budget_year where id = $1 for update",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "snapshot!",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "30a6f2fe2bd25f06f08cb74561eaec6c34612d475d0648af837ffe4ff47283cf"
+}

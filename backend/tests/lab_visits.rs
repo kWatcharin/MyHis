@@ -800,7 +800,7 @@ async fn deleting_group_soft_deletes_its_visits(pool: PgPool) {
 }
 
 #[sqlx::test]
-async fn every_write_is_audited_without_metadata(pool: PgPool) {
+async fn every_write_is_audited_without_patient_values(pool: PgPool) {
     let f = setup(&pool).await;
     let group = create(&pool, &f, group_input(&f)).await.unwrap();
     service::update_group(&pool, &f.actor, group, group_input(&f))
@@ -866,7 +866,16 @@ async fn every_write_is_audited_without_metadata(pool: PgPool) {
         assert_eq!(row.0, action);
         assert_eq!(row.1.as_deref(), Some(target_type));
         assert_eq!(row.2.as_deref(), Some(target_id));
-        // ไม่มี metadata (ไม่มีผล VL/ข้อมูลคนไข้หลุดเข้า audit)
-        assert_eq!(row.3, None, "{action}");
+        // รายละเอียดการเปลี่ยนแปลง: หัวนัดหมายมีค่า (ปีงบ/กลุ่ม/วันนัด — ไม่ใช่ข้อมูลคนไข้), คนไข้ในนัดหมายมีแค่ชื่อช่อง
+        // ที่เปลี่ยน — ผล VL (ข้อมูลสุขภาพ) ต้องไม่หลุดเข้า audit ไม่ว่าแถวไหน
+        let expected_metadata = match action {
+            "lab_visit_updated" => Some(r#"{"changed": ["vl_result"]}"#),
+            "lab_visit_created" | "lab_visit_deleted" | "lab_visit_group_deleted" => None,
+            _ => row.3.as_deref(),
+        };
+        assert_eq!(row.3.as_deref(), expected_metadata, "{action}");
+        assert!(!row.3.as_deref().unwrap_or("").contains("<20"), "{action}");
     }
+    let created = rows[0].3.as_deref().unwrap();
+    assert!(created.contains(r#""budget_year": "2569""#), "{created}");
 }

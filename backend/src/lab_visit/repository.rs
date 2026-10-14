@@ -10,11 +10,12 @@
 //! ไม่เรียกกันเอง) ไม่มี metadata มีแค่ action + uuid ของแถว
 
 use chrono::NaiveDate;
+use serde_json::Value;
 use sqlx::{PgPool, Postgres, Transaction};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::domain::{LabVisitGroupId, LabVisitId, PatientId, UserId};
+use crate::domain::{changes, LabVisitGroupId, LabVisitId, PatientId, UserId};
 
 #[derive(Debug, Error)]
 pub enum RepositoryError {
@@ -335,14 +336,16 @@ async fn insert_audit(
     action: &str,
     target_type: &str,
     target_public_id: Uuid,
+    details: Option<Value>,
 ) -> Result<(), RepositoryError> {
     sqlx::query!(
-        "insert into audit_log (actor_user_id, action, target_type, target_id)
-         values ($1, $2, $3, $4)",
+        "insert into audit_log (actor_user_id, action, target_type, target_id, metadata)
+         values ($1, $2, $3, $4, $5)",
         actor.0,
         action,
         target_type,
-        target_public_id.to_string()
+        target_public_id.to_string(),
+        details
     )
     .execute(&mut **tx)
     .await?;
@@ -376,12 +379,14 @@ pub async fn insert_group(
     )
     .fetch_one(&mut *tx)
     .await?;
+    let after = group_snapshot(&mut tx, row.uuid).await?;
     insert_audit(
         &mut tx,
         actor,
         "lab_visit_group_created",
         "lab_visit_group",
         row.uuid,
+        Some(changes::created(after)),
     )
     .await?;
     tx.commit().await?;
@@ -397,6 +402,7 @@ pub async fn update_group(
     w: &GroupWrite,
 ) -> Result<(), RepositoryError> {
     let mut tx = pool.begin().await?;
+    let before = group_snapshot(&mut tx, public_id).await?;
     sqlx::query!(
         r#"update lab_visit_group
            set budget_year_id = $3, patient_group_id = $4,
@@ -415,12 +421,14 @@ pub async fn update_group(
     )
     .execute(&mut *tx)
     .await?;
+    let after = group_snapshot(&mut tx, public_id).await?;
     insert_audit(
         &mut tx,
         actor,
         "lab_visit_group_updated",
         "lab_visit_group",
         public_id,
+        Some(changes::updated(&before, &after)),
     )
     .await?;
     tx.commit().await?;
@@ -460,6 +468,7 @@ pub async fn soft_delete_group(
         "lab_visit_group_deleted",
         "lab_visit_group",
         public_id,
+        None,
     )
     .await?;
     tx.commit().await?;
@@ -499,7 +508,15 @@ pub async fn insert_visits(
         )
         .fetch_one(&mut *tx)
         .await?;
-        insert_audit(&mut tx, actor, "lab_visit_created", "lab_visit", row.uuid).await?;
+        insert_audit(
+            &mut tx,
+            actor,
+            "lab_visit_created",
+            "lab_visit",
+            row.uuid,
+            None,
+        )
+        .await?;
     }
     tx.commit().await?;
     Ok(())
@@ -514,6 +531,7 @@ pub async fn update_visit(
     w: &VisitWrite,
 ) -> Result<(), RepositoryError> {
     let mut tx = pool.begin().await?;
+    let before = visit_snapshot(&mut tx, id).await?;
     sqlx::query!(
         r#"update lab_visit
            set take_med_year_range = $3, take_med_month_range = $4,
@@ -531,7 +549,18 @@ pub async fn update_visit(
     )
     .execute(&mut *tx)
     .await?;
-    insert_audit(&mut tx, actor, "lab_visit_updated", "lab_visit", public_id).await?;
+    // ข้อมูลสุขภาพของคนไข้ — เก็บแค่ชื่อช่องที่เปลี่ยน ไม่เก็บค่า (CLAUDE.md)
+    let after = visit_snapshot(&mut tx, id).await?;
+    let details = changes::changed_fields(&before, &after, &[]);
+    insert_audit(
+        &mut tx,
+        actor,
+        "lab_visit_updated",
+        "lab_visit",
+        public_id,
+        Some(details),
+    )
+    .await?;
     tx.commit().await?;
     Ok(())
 }
@@ -552,7 +581,55 @@ pub async fn soft_delete_visit(
     )
     .execute(&mut *tx)
     .await?;
-    insert_audit(&mut tx, actor, "lab_visit_deleted", "lab_visit", public_id).await?;
+    insert_audit(
+        &mut tx,
+        actor,
+        "lab_visit_deleted",
+        "lab_visit",
+        public_id,
+        None,
+    )
+    .await?;
     tx.commit().await?;
     Ok(())
+}
+
+/// หัวนัดหมายสำหรับรายละเอียดในประวัติการใช้งาน (ปีงบ/กลุ่มเป็นชื่อ ไม่ใช่ id) — ล็อกแถวไว้จนจบทรานแซกชัน
+async fn group_snapshot(
+    tx: &mut Transaction<'_, Postgres>,
+    public_id: Uuid,
+) -> Result<Value, RepositoryError> {
+    let row = sqlx::query_scalar!(
+        r#"select jsonb_build_object(
+                  'budget_year', b.year, 'patient_group', pg.name,
+                  'cd4_first_date', g.cd4_1st_date, 'cd4_second_date', g.cd4_2nd_date,
+                  'vl_date', g.vl_date, 'sort_order', g.sort_order
+              ) as "snapshot!"
+           from lab_visit_group g
+           join budget_year b on b.id = g.budget_year_id
+           join patient_group pg on pg.id = g.patient_group_id
+           where g.uuid = $1 for update of g"#,
+        public_id
+    )
+    .fetch_optional(&mut **tx)
+    .await?;
+    Ok(row.unwrap_or(Value::Null))
+}
+
+/// ค่าของคนไข้ในนัดหมาย — ใช้เทียบหาชื่อช่องที่เปลี่ยนเท่านั้น (อยู่ในหน่วยความจำระหว่างทรานแซกชัน ไม่ถูกบันทึก)
+async fn visit_snapshot(
+    tx: &mut Transaction<'_, Postgres>,
+    id: LabVisitId,
+) -> Result<Value, RepositoryError> {
+    let row = sqlx::query_scalar!(
+        r#"select jsonb_build_object(
+                  'take_med_year_range', take_med_year_range, 'take_med_month_range', take_med_month_range,
+                  'vl_result', vl_result, 'drug_recipe', drug_recipe, 'sort_order', sort_order
+              ) as "snapshot!"
+           from lab_visit where id = $1 for update"#,
+        id.0
+    )
+    .fetch_optional(&mut **tx)
+    .await?;
+    Ok(row.unwrap_or(Value::Null))
 }

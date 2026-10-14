@@ -348,7 +348,25 @@ pub async fn replace(
         .await?
         .ok_or(PatientError::NotFound)?;
     let write = prepare(pool, crypto, &input, today, Some(id)).await?;
-    repository::replace_patient(pool, actor.user.id, id, public_id, &write)
+
+    // ชื่อ-สกุลเข้ารหัสแบบสุ่ม nonce เทียบใน DB ไม่ได้ — ถอดรหัสค่าเดิมของแถวนี้แถวเดียวมาเทียบในหน่วยความจำ
+    // ได้แค่ชื่อช่องที่เปลี่ยนไปบันทึกประวัติ (ไม่มีค่าใด ๆ ออกนอกฟังก์ชันนี้)
+    let (current_first, current_last) = repository::find_patient_names(pool, id)
+        .await?
+        .ok_or(PatientError::NotFound)?;
+    let mut changed_names: Vec<&str> = Vec::new();
+    if crypto.decrypt(AAD_FIRST_NAME, &current_first)?
+        != clean_text(input.first_name, "first name", MAX_NAME_CHARS)?
+    {
+        changed_names.push("first_name");
+    }
+    if crypto.decrypt(AAD_LAST_NAME, &current_last)?
+        != clean_text(input.last_name, "last name", MAX_NAME_CHARS)?
+    {
+        changed_names.push("last_name");
+    }
+
+    repository::replace_patient(pool, actor.user.id, id, public_id, &write, &changed_names)
         .await
         .map_err(map_unique_violation)?;
     Ok(())

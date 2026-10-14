@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into audit_log (actor_user_id, action, target_type, target_id, metadata)\n         values ($1, $2, $3, $4, jsonb_build_object('label', $5::text) || coalesce($6::jsonb, '{}'::jsonb))",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "276bcdacd9fa717c13623a5e88d2caeb73e4ac7be31ddcacf6a6f6dc36b5ee81"
+}

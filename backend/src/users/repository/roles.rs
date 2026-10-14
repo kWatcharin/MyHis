@@ -1,8 +1,9 @@
-use sqlx::PgPool;
+use serde_json::Value;
+use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
-use super::{insert_labeled_audit, RepositoryError};
-use crate::domain::{Permission, RoleId, UserId};
+use super::{insert_labeled_audit, LabeledAudit, RepositoryError};
+use crate::domain::{changes, Permission, RoleId, UserId};
 
 #[derive(Debug)]
 pub struct RoleWithPermissions {
@@ -90,7 +91,6 @@ pub async fn insert_role(
     )
     .fetch_one(&mut *tx)
     .await?;
-    insert_labeled_audit(&mut tx, actor, "role_created", "role", role.uuid, name).await?;
 
     for permission in permissions {
         sqlx::query!(
@@ -101,6 +101,20 @@ pub async fn insert_role(
         .execute(&mut *tx)
         .await?;
     }
+
+    let after = snapshot(&mut tx, role.id).await?;
+    insert_labeled_audit(
+        &mut tx,
+        actor,
+        LabeledAudit {
+            action: "role_created",
+            target_type: "role",
+            target_public_id: role.uuid,
+            label: name,
+            details: Some(changes::created(after)),
+        },
+    )
+    .await?;
 
     tx.commit().await?;
     Ok(role.id)
@@ -117,6 +131,7 @@ pub async fn update_role(
     permissions: Option<&[Permission]>,
 ) -> Result<(), RepositoryError> {
     let mut tx = pool.begin().await?;
+    let before = snapshot(&mut tx, id).await?;
 
     let updated = sqlx::query!(
         r#"update roles
@@ -131,17 +146,6 @@ pub async fn update_role(
     )
     .fetch_optional(&mut *tx)
     .await?;
-    if let Some(role) = &updated {
-        insert_labeled_audit(
-            &mut tx,
-            actor,
-            "role_updated",
-            "role",
-            role.uuid,
-            &role.name,
-        )
-        .await?;
-    }
 
     if let Some(permissions) = permissions {
         sqlx::query!("delete from role_permissions where role_id = $1", id.0)
@@ -156,6 +160,22 @@ pub async fn update_role(
             .execute(&mut *tx)
             .await?;
         }
+    }
+
+    if let Some(role) = &updated {
+        let after = snapshot(&mut tx, id).await?;
+        insert_labeled_audit(
+            &mut tx,
+            actor,
+            LabeledAudit {
+                action: "role_updated",
+                target_type: "role",
+                target_public_id: role.uuid,
+                label: &role.name,
+                details: Some(changes::updated(&before, &after)),
+            },
+        )
+        .await?;
     }
 
     tx.commit().await?;
@@ -182,13 +202,36 @@ pub async fn delete_role(pool: &PgPool, actor: UserId, id: RoleId) -> Result<(),
         insert_labeled_audit(
             &mut tx,
             actor,
-            "role_deleted",
-            "role",
-            role.uuid,
-            &role.name,
+            LabeledAudit {
+                action: "role_deleted",
+                target_type: "role",
+                target_public_id: role.uuid,
+                label: &role.name,
+                details: None,
+            },
         )
         .await?;
     }
     tx.commit().await?;
     Ok(())
+}
+
+/// ค่าของ role สำหรับรายละเอียดในประวัติการใช้งาน (ชื่อ, คำอธิบาย, สิทธิ์เรียงแล้ว) — ล็อกแถวไว้จนจบทรานแซกชัน
+async fn snapshot(
+    tx: &mut Transaction<'_, Postgres>,
+    id: RoleId,
+) -> Result<Value, RepositoryError> {
+    let row = sqlx::query_scalar!(
+        r#"select jsonb_build_object(
+                  'name', r.name,
+                  'description', r.description,
+                  'permissions', coalesce((select jsonb_agg(rp.permission order by rp.permission)
+                                           from role_permissions rp where rp.role_id = r.id), '[]'::jsonb)
+              ) as "snapshot!"
+           from roles r where r.id = $1 for update"#,
+        id.0
+    )
+    .fetch_optional(&mut **tx)
+    .await?;
+    Ok(row.unwrap_or(Value::Null))
 }

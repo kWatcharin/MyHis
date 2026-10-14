@@ -9,6 +9,7 @@
 //! (เทส `activities_exclude_auth_events_and_filter_by_bangkok_day` คุมไว้)
 
 use chrono::{DateTime, Utc};
+use serde_json::Value;
 use sqlx::PgPool;
 use thiserror::Error;
 use uuid::Uuid;
@@ -68,6 +69,8 @@ pub struct ActivityRow {
     /// เฉพาะ `lab_visit_group_exported`: cd4 | roster และ excel | pdf
     pub export_document: Option<String>,
     pub export_format: Option<String>,
+    /// รายละเอียดการเปลี่ยนแปลง `{before?, after?, changed?}` (null = ไม่มี เช่นลบ/แถวเก่า) — ผู้ป่วยมีแค่ `changed`
+    pub details: Option<Value>,
     pub user_public_id: Option<Uuid>,
     pub username: Option<String>,
     pub display_name: Option<String>,
@@ -115,6 +118,14 @@ pub async fn list_activities(
                       as "export_document?",
                   case when ev.action = 'lab_visit_group_exported' then ev.metadata ->> 'format' end
                       as "export_format?",
+                  -- ผู้ป่วย/คนไข้ในนัดหมาย: อ่านได้แค่ชื่อช่องที่เปลี่ยน (กันซ้ำอีกชั้นแม้มีค่าหลุดลงไป)
+                  case
+                      when ev.target_type in ('patient', 'lab_visit') then
+                          case when ev.metadata ? 'changed'
+                               then jsonb_build_object('changed', ev.metadata -> 'changed') end
+                      else (select jsonb_object_agg(d.key, d.value) from jsonb_each(ev.metadata) d
+                            where d.key in ('before', 'after', 'changed'))
+                  end as "details?",
                   u.uuid as "user_public_id?", u.username as "username?", u.display_name as "display_name?"
            from ev
            left join users u on u.id = ev.actor_user_id

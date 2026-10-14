@@ -55,6 +55,9 @@ pub struct ActivityResponse {
     pub export_document: Option<String>,
     /// เฉพาะการส่งออก: excel | pdf
     pub export_format: Option<String>,
+    /// รายละเอียดการเปลี่ยนแปลง: `after` (เพิ่ม), `before`+`after` เฉพาะช่องที่เปลี่ยน (แก้ไข),
+    /// `changed` ชื่อช่องอย่างเดียว (ข้อมูลผู้ป่วย) — null = ไม่มี (ลบ, รหัสผ่าน, แถวก่อนเริ่มเก็บ)
+    pub details: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize)]

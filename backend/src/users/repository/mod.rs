@@ -21,6 +21,7 @@ pub(crate) use registration_links::NewRegistrationLink;
 pub(crate) use roles::*;
 pub(crate) use users::*;
 
+use serde_json::Value;
 use sqlx::{Postgres, Transaction};
 use thiserror::Error;
 use uuid::Uuid;
@@ -45,22 +46,29 @@ impl RepositoryError {
 
 /// audit ของ role/เพจ (หน้า "ประวัติการใช้งาน") — สองตารางนี้ลบจริง จึงเก็บชื่อ ณ ตอนนั้นไว้ใน
 /// `metadata = {"label": ...}` ให้ประวัติยังแสดงชื่อได้หลังแถวหายไป (ชื่อ role/เพจ ไม่ใช่ความลับหรือข้อมูลผู้ป่วย)
+/// `details` (ค่าที่เพิ่ม / ค่าเดิม→ใหม่ จาก `domain::changes`) รวมเข้า metadata เดียวกัน
+pub(super) struct LabeledAudit<'a> {
+    pub action: &'a str,
+    pub target_type: &'a str,
+    pub target_public_id: Uuid,
+    pub label: &'a str,
+    pub details: Option<Value>,
+}
+
 async fn insert_labeled_audit(
     tx: &mut Transaction<'_, Postgres>,
     actor: UserId,
-    action: &str,
-    target_type: &str,
-    target_public_id: Uuid,
-    label: &str,
+    entry: LabeledAudit<'_>,
 ) -> Result<(), RepositoryError> {
     sqlx::query!(
         "insert into audit_log (actor_user_id, action, target_type, target_id, metadata)
-         values ($1, $2, $3, $4, jsonb_build_object('label', $5::text))",
+         values ($1, $2, $3, $4, jsonb_build_object('label', $5::text) || coalesce($6::jsonb, '{}'::jsonb))",
         actor.0,
-        action,
-        target_type,
-        target_public_id.to_string(),
-        label
+        entry.action,
+        entry.target_type,
+        entry.target_public_id.to_string(),
+        entry.label,
+        entry.details
     )
     .execute(&mut **tx)
     .await?;

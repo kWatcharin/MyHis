@@ -3,6 +3,7 @@
 //! เขียน audit ในทรานแซกชันเดียวกัน ไม่มี metadata
 
 use chrono::{DateTime, Utc};
+use serde_json::{json, Value};
 use sqlx::PgPool;
 use thiserror::Error;
 use uuid::Uuid;
@@ -148,17 +149,30 @@ pub async fn complete_registration(
         .execute(&mut *tx)
         .await?;
 
-    let action = if profile.is_some() {
-        "user_registered"
-    } else {
-        "user_password_set"
+    // ลงทะเบียน: รายละเอียด = ข้อมูลตัวที่ผู้ใช้กรอก (คำนำหน้าเป็นชื่อ) / ตั้งรหัสใหม่: ไม่มีรายละเอียด (ไม่มีอะไรนอกจากรหัส)
+    let (action, details) = match profile {
+        Some(_) => {
+            let after: Value = sqlx::query_scalar!(
+                r#"select jsonb_build_object(
+                          'prename', p.name, 'first_name', u.first_name, 'last_name', u.last_name,
+                          'position', u.position
+                      ) as "snapshot!"
+                   from users u left join prename p on p.id = u.prename_id where u.id = $1"#,
+                link.user_id.0
+            )
+            .fetch_one(&mut *tx)
+            .await?;
+            ("user_registered", Some(json!({ "after": after })))
+        }
+        None => ("user_password_set", None),
     };
     sqlx::query!(
-        "insert into audit_log (actor_user_id, action, target_type, target_id)
-         values ($1, $2, 'user', $3)",
+        "insert into audit_log (actor_user_id, action, target_type, target_id, metadata)
+         values ($1, $2, 'user', $3, $4)",
         link.user_id.0,
         action,
-        user.public_id.to_string()
+        user.public_id.to_string(),
+        details
     )
     .execute(&mut *tx)
     .await?;

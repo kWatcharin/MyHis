@@ -6,7 +6,9 @@ use sqlx::{PgPool, Postgres, Transaction};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::domain::{DiseaseId, UserId};
+use serde_json::Value;
+
+use crate::domain::{changes, DiseaseId, UserId};
 
 #[derive(Debug, Error)]
 pub enum RepositoryError {
@@ -85,7 +87,15 @@ pub async fn insert_disease(
     )
     .fetch_one(&mut *tx)
     .await?;
-    insert_audit(&mut tx, actor, "disease_created", row.id).await?;
+    let after = snapshot(&mut tx, row.id).await?;
+    insert_audit(
+        &mut tx,
+        actor,
+        "disease_created",
+        row.id,
+        Some(changes::created(after)),
+    )
+    .await?;
     tx.commit().await?;
     Ok(row.id)
 }
@@ -106,6 +116,7 @@ pub async fn update_disease(
     fields: UpdateDiseaseFields<'_>,
 ) -> Result<(), RepositoryError> {
     let mut tx = pool.begin().await?;
+    let before = snapshot(&mut tx, id).await?;
     let updated = sqlx::query!(
         r#"update disease
            set name = coalesce($3, name),
@@ -125,7 +136,9 @@ pub async fn update_disease(
     .execute(&mut *tx)
     .await?;
     if updated.rows_affected() > 0 {
-        insert_audit(&mut tx, actor, "disease_updated", id).await?;
+        let after = snapshot(&mut tx, id).await?;
+        let details = changes::updated(&before, &after);
+        insert_audit(&mut tx, actor, "disease_updated", id, Some(details)).await?;
     }
     tx.commit().await?;
     Ok(())
@@ -163,28 +176,47 @@ pub async fn soft_delete_disease(
     .execute(&mut *tx)
     .await?;
     if deleted.rows_affected() > 0 {
-        insert_audit(&mut tx, actor, "disease_deleted", id).await?;
+        insert_audit(&mut tx, actor, "disease_deleted", id, None).await?;
     }
     tx.commit().await?;
     Ok(())
 }
 
-/// audit ของหน้าตั้งค่าโรค (หน้า "ประวัติการใช้งาน") — target_id = uuid ของแถว ไม่มี metadata
+/// audit ของหน้าตั้งค่าโรค (หน้า "ประวัติการใช้งาน") — target_id = uuid ของแถว
 /// ชื่อรายการอ่านจาก join ตอนแสดงผล (soft delete แถวจึงยังอยู่เสมอ) เขียนในทรานแซกชันเดียวกับการแก้ข้อมูล
+/// `details` = ค่าที่เพิ่ม / ค่าเดิม→ใหม่ (`domain::changes`) ลบไม่มี
 async fn insert_audit(
     tx: &mut Transaction<'_, Postgres>,
     actor: UserId,
     action: &str,
     id: DiseaseId,
+    details: Option<Value>,
 ) -> Result<(), RepositoryError> {
     sqlx::query!(
-        "insert into audit_log (actor_user_id, action, target_type, target_id)
-         select $1, $2, 'disease', uuid::text from disease where id = $3",
+        "insert into audit_log (actor_user_id, action, target_type, target_id, metadata)
+         select $1, $2, 'disease', uuid::text, $4 from disease where id = $3",
         actor.0,
         action,
-        id.0
+        id.0,
+        details
     )
     .execute(&mut **tx)
     .await?;
     Ok(())
+}
+
+/// ค่าของแถวสำหรับรายละเอียดในประวัติการใช้งาน (ไม่มี id/ผู้แก้/เวลา) — ล็อกแถวไว้จนจบทรานแซกชัน
+/// ไม่พบแถว = null
+async fn snapshot(
+    tx: &mut Transaction<'_, Postgres>,
+    id: DiseaseId,
+) -> Result<Value, RepositoryError> {
+    let row = sqlx::query_scalar!(
+        r#"select jsonb_build_object('name', name, 'abbreviation', abbreviation, 'sort_order', sort_order, 'is_active', is_active) as "snapshot!"
+           from disease where id = $1 for update"#,
+        id.0
+    )
+    .fetch_optional(&mut **tx)
+    .await?;
+    Ok(row.unwrap_or(Value::Null))
 }

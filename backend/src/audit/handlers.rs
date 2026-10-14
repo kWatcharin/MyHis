@@ -62,6 +62,7 @@ fn to_activity_response(row: ActivityRow) -> ActivityResponse {
         target_label: row.target_label,
         export_document: row.export_document,
         export_format: row.export_format,
+        details: row.details,
     }
 }
 

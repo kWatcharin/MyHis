@@ -8,6 +8,8 @@
 
 use uuid::Uuid;
 
+pub mod changes;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, sqlx::Type)]
 #[sqlx(transparent)]
 pub struct UserId(pub i32);
