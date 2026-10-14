@@ -27,4 +27,8 @@ RUN bun run build
 FROM caddy:2-alpine
 COPY --from=builder /app/dist /usr/share/caddy
 COPY Caddyfile /etc/caddy/Caddyfile
-EXPOSE 80
+# ไม่รันเป็น root — Caddy ต้องเขียน /config /data (XDG ของ image) ได้ จึงยกให้ nobody ส่วนไฟล์เว็บอ่านได้ทุกคนอยู่แล้ว
+# ฟังพอร์ต 8080 (ดู Caddyfile) เพราะ user ธรรมดา bind พอร์ตต่ำกว่า 1024 ไม่ได้
+RUN mkdir -p /config /data && chown -R nobody:nobody /config /data
+USER nobody
+EXPOSE 8080

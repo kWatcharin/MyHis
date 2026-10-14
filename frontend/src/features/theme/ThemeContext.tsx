@@ -6,7 +6,7 @@ export type Theme = 'light' | 'dark' | 'ocean'
 const STORAGE_KEY = 'my-his-theme'
 
 // ต้องตรงกับ class ที่นิยามไว้ใน src/index.css (.theme-light, .dark, .theme-ocean) และ script bootstrap ใน
-// index.html (กันกระพริบตอนโหลดหน้าแรก — แก้ตรงนี้ต้องไปแก้ที่นั่นด้วย)
+// public/theme-init.js (กันกระพริบตอนโหลดหน้าแรก — แก้ตรงนี้ต้องไปแก้ที่นั่นด้วย)
 const THEME_CLASS: Record<Theme, string> = {
   light: 'theme-light',
   dark: 'dark',

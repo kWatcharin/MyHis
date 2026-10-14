@@ -6,20 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark light" />
     <title>my-his</title>
-    <script>
-      // ตั้ง class ธีมก่อน React mount กันการกระพริบเห็นธีมผิดตอนโหลดหน้าแรก — color-scheme จริง
-      // (scrollbar, ช่อง date ฯลฯ) กำหนดใน src/index.css ตาม class ธีม meta ด้านบนเป็นแค่ค่าเริ่มต้น
-      // ต้อง sync กับ THEME_CLASS ใน src/features/theme/ThemeContext.tsx
-      (function () {
-        try {
-          var stored = localStorage.getItem('my-his-theme');
-          var classes = { light: 'theme-light', ocean: 'theme-ocean' };
-          document.documentElement.classList.add(classes[stored] || 'dark');
-        } catch (e) {
-          document.documentElement.classList.add('dark');
-        }
-      })();
-    </script>
+    <!-- ตั้งธีมก่อน React mount (โหลดแบบ blocking ใน head กันกระพริบ) — ไฟล์แยกเพราะ CSP บล็อก inline script -->
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>

@@ -4,8 +4,29 @@
 # /api/* reverse proxy ไปที่ container backend ตรง ๆ ผ่าน network ภายในของ Compose (DNS ชื่อ
 # service "backend") — ทำให้เบราว์เซอร์เห็นแค่ origin เดียว (localhost:3000) ไม่ต้องตั้ง CORS
 # ฝั่ง backend เลย ต้องอยู่ "ก่อน" try_files ไม่งั้น /api/* จะโดน fallback ไป index.html แทน
-:80 {
+#
+# ฟังที่ :8080 (ไม่ใช่ 80) เพราะ container รันด้วย user ธรรมดา (nobody ดู Dockerfile) ที่ bind พอร์ตต่ำกว่า 1024 ไม่ได้
+{
+	# ไม่ใช้ admin API ของ Caddy (config คงที่จากไฟล์นี้) — ไม่เปิดพอร์ต 2019 ใน container
+	admin off
+}
+
+:8080 {
+	# security header ทุก response (docs/infrastructure.md) — HSTS ยังไม่ใส่จนกว่าจะมี HTTPS จริง (Caddy หน้าบ้าน)
+	# CSP: script ได้เฉพาะไฟล์ของเว็บเอง (theme-init.js แยกจาก index.html แล้ว), style ต้อง 'unsafe-inline' เพราะ React
+	# ใช้ inline style (พื้นหลังหน้า login ฯลฯ) และ chart ของ shadcn, blob: สำหรับไฟล์ Excel ที่สร้างในเบราว์เซอร์
+	header {
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+
 	handle /api/* {
+		# response ของ API มีข้อมูลคนไข้ — ห้ามเบราว์เซอร์/ตัวกลาง cache
+		header Cache-Control "no-store"
 		reverse_proxy backend:8080
 	}
 
