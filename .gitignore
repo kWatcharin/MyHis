@@ -20,3 +20,6 @@ Thumbs.db
 
 # Serena MCP server's local project index/config — เครื่องมือ ไม่ใช่โค้ดโปรเจกต์ เหมือน .claude/
 .serena/
+
+# รูปตัวอย่างเอกสารนัดหมายแล็ปที่มี **ข้อมูลคนไข้จริง** (HN/ชื่อ) — ใช้อ้างอิงแบบฟอร์มบนเครื่องนี้เท่านั้น ห้ามขึ้น git
+docs/lab-visit-example-*.jpg
