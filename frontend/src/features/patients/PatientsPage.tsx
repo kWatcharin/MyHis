@@ -29,7 +29,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useAdminList } from '@/features/admin/useAdminList'
-import { useRolePreview } from '@/features/role-preview/RolePreviewContext'
+import { usePagePermissions } from '@/features/role-preview/usePagePermissions'
 import { ApiError } from '@/lib/api'
 import { notify } from '@/lib/notify'
 import { allTokensIncluded, hasCriteria, textIncludes } from '@/lib/search'
@@ -83,13 +83,12 @@ function matchesCriteria(patient: Patient, criteria: SearchValues): boolean {
 }
 
 // หน้าลงทะเบียนผู้ป่วย: รายการผู้ป่วย (ข้อมูลระบุตัวถูกถอดรหัสโดย backend) + เพิ่ม/แก้ไข/ลบ + โรคประจำตัวเป็นป้ายต่อโรค
-// ดูได้ด้วย patient.read; ปุ่มเพิ่ม/แก้ไข/ลบแสดงเฉพาะผู้มี patient.write (สิทธิ์ที่ใช้งานอยู่ตามโหมดสลับ role)
+// ดูได้ด้วย patient.view; ปุ่มเพิ่ม/แก้ไข/ลบแสดงตาม patient.create/update/delete (สิทธิ์ที่ใช้งานอยู่ตามโหมดสลับ role)
 // backend ตรวจสิทธิ์ซ้ำทุกครั้ง การซ่อนปุ่มเป็นแค่ความสะดวก ฟอร์มค้นหา (ชื่อ, HN, เลขประจำตัวคนไข้) กรองฝั่ง
 // client เพราะข้อมูลเข้ารหัสไว้ค้นใน SQL ไม่ได้ (และไม่ส่ง HN/ชื่อผ่าน URL) ไม่เก็บข้อมูลผู้ป่วยลง
 // localStorage หรือ console
 export function PatientsPage() {
-  const { hasEffectivePermission } = useRolePreview()
-  const canWrite = hasEffectivePermission('patient.write')
+  const { canCreate, canUpdate, canDelete } = usePagePermissions('patient')
 
   const { items, status, refetch } = useAdminList(patientsApi.list)
   const [options, setOptions] = useState<PatientOptions | null>(null)
@@ -163,7 +162,7 @@ export function PatientsPage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title="ลงทะเบียนผู้ป่วย"
+        fallbackTitle="ลงทะเบียนผู้ป่วย"
         description="ทะเบียนผู้ป่วยและโรคประจำตัว — ข้อมูลระบุตัวถูกเข้ารหัสก่อนเก็บลงฐานข้อมูล"
       />
 
@@ -184,7 +183,7 @@ export function PatientsPage() {
         shown={visibleItems.length}
         filtered={hasCriteria(criteria)}
       >
-        {canWrite && <AddButton onClick={() => openForm({ mode: 'create' })}>ลงทะเบียนผู้ป่วย</AddButton>}
+        {canCreate && <AddButton onClick={() => openForm({ mode: 'create' })}>ลงทะเบียนผู้ป่วย</AddButton>}
       </ListToolbar>
 
       <Card>
@@ -195,7 +194,7 @@ export function PatientsPage() {
           )}
           {status === 'ready' && items.length === 0 && (
             <p className="p-4 text-sm text-muted-foreground">
-              ยังไม่มีผู้ป่วย{canWrite ? ' กด "+ ลงทะเบียนผู้ป่วย" เพื่อเริ่มต้น' : ''}
+              ยังไม่มีผู้ป่วย{canCreate ? ' กด "+ ลงทะเบียนผู้ป่วย" เพื่อเริ่มต้น' : ''}
             </p>
           )}
           {status === 'ready' && items.length > 0 && visibleItems.length === 0 && (
@@ -221,7 +220,7 @@ export function PatientsPage() {
                   <TableHead>เพศ / อายุ</TableHead>
                   <TableHead>โรคประจำตัว</TableHead>
                   <TableHead>สถานะ</TableHead>
-                  {canWrite && <TableHead className="text-right">จัดการ</TableHead>}
+                  {(canUpdate || canDelete) && <TableHead className="text-right">จัดการ</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -257,10 +256,10 @@ export function PatientsPage() {
                         {patient.isActive ? 'ใช้งานอยู่' : 'ปิดใช้งาน'}
                       </Badge>
                     </TableCell>
-                    {canWrite && (
+                    {(canUpdate || canDelete) && (
                       <TableCell className="text-right">
-                        <EditButton onClick={() => openForm({ mode: 'edit', item: patient })} />
-                        <DeleteButton onClick={() => setPendingDelete(patient)} />
+                        {canUpdate && <EditButton onClick={() => openForm({ mode: 'edit', item: patient })} />}
+                        {canDelete && <DeleteButton onClick={() => setPendingDelete(patient)} />}
                       </TableCell>
                     )}
                   </TableRow>
@@ -269,7 +268,7 @@ export function PatientsPage() {
             </Table>
           )}
           {status === 'ready' && visibleItems.length > 0 && <TablePagination {...pagination.props} />}
-          {optionsFailed && canWrite && (
+          {optionsFailed && (canCreate || canUpdate) && (
             <p className="px-4 pb-2 text-sm text-destructive">
               โหลดตัวเลือกของฟอร์ม (คำนำหน้า สัญชาติ โรค) ไม่สำเร็จ ลองรีเฟรชหน้า
             </p>

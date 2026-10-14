@@ -307,6 +307,28 @@ pub async fn find_visit_id(
     Ok(row.map(|r| r.id))
 }
 
+/// audit การส่งออกเอกสาร — metadata มีแค่ชนิดเอกสาร/รูปแบบไฟล์ ไม่มีข้อมูลคนไข้
+pub async fn insert_export_audit(
+    pool: &PgPool,
+    actor: UserId,
+    group_public_id: Uuid,
+    document: &str,
+    format: &str,
+) -> Result<(), RepositoryError> {
+    sqlx::query!(
+        "insert into audit_log (actor_user_id, action, target_type, target_id, metadata)
+         values ($1, 'lab_visit_group_exported', 'lab_visit_group', $2,
+                 jsonb_build_object('document', $3::text, 'format', $4::text))",
+        actor.0,
+        group_public_id.to_string(),
+        document,
+        format
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 async fn insert_audit(
     tx: &mut Transaction<'_, Postgres>,
     actor: UserId,

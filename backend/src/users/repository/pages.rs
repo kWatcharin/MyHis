@@ -1,8 +1,8 @@
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::RepositoryError;
-use crate::domain::{PageId, Permission};
+use super::{insert_labeled_audit, RepositoryError};
+use crate::domain::{PageId, Permission, UserId};
 
 #[derive(Debug, Clone)]
 pub struct PageWithPermissions {
@@ -10,22 +10,29 @@ pub struct PageWithPermissions {
     pub public_id: Uuid,
     pub label: String,
     pub icon: Option<String>,
-    pub route: String,
+    /// None = เพจหลักที่เป็นหัวข้อกลุ่มเมนู (ไม่มีหน้าของตัวเอง)
+    pub route: Option<String>,
     pub sort_order: i32,
     pub permissions: Vec<Permission>,
-    pub group_label: Option<String>,
+    /// เพจหลักที่เพจนี้อยู่ใต้ (None = เป็นเพจหลักเอง) — id ภายในใช้ตรวจโครงเมนู, uuid ส่งออก API
+    pub ref_id: Option<PageId>,
+    pub ref_public_id: Option<Uuid>,
 }
 
-/// รายชื่อ page ทั้งหมดพร้อม permission เรียงตาม sort_order — ใช้ทั้งสำหรับ `GET /pages` (admin)
-/// และคำนวณ `GET /menu` (กรองตามสิทธิ์ผู้ใช้ต่อใน service) ตารางเล็ก ดึงมาแล้วกรองใน Rust ง่ายกว่า
-/// เขียน SQL ที่มี array ตัดกันซับซ้อน (docs/auth-design.md ข้อ 11)
+/// รายชื่อ page ทั้งหมดพร้อม permission เรียงตามโครงเมนู: เพจหลักตาม sort_order แต่ละอันตามด้วยเพจย่อย
+/// ของมัน (ตาม sort_order) — ใช้ทั้งสำหรับ `GET /pages` (admin) และคำนวณ `GET /menu` (กรองตามสิทธิ์ผู้ใช้
+/// ต่อใน service) ตารางเล็ก ดึงมาแล้วกรองใน Rust ง่ายกว่าเขียน SQL ที่มี array ตัดกันซับซ้อน
+/// (docs/auth-design.md ข้อ 11)
 pub async fn list_pages(pool: &PgPool) -> Result<Vec<PageWithPermissions>, RepositoryError> {
     let rows = sqlx::query!(
-        r#"select p.id as "id: PageId", p.uuid as public_id, p.label, p.icon, p.route, p.sort_order, p.group_label,
+        r#"select p.id as "id: PageId", p.uuid as public_id, p.label, p.icon, p.route, p.sort_order,
+                  p.ref_id as "ref_id: PageId", m.uuid as "ref_public_id?",
                   pp.permission as "permission?"
            from pages p
+           left join pages m on m.id = p.ref_id
            left join page_permissions pp on pp.page_id = p.id
-           order by p.sort_order, p.id, pp.permission"#
+           order by coalesce(m.sort_order, p.sort_order), coalesce(m.id, p.id),
+                    p.ref_id nulls first, p.sort_order, p.id, pp.permission"#
     )
     .fetch_all(pool)
     .await?;
@@ -51,49 +58,56 @@ pub async fn list_pages(pool: &PgPool) -> Result<Vec<PageWithPermissions>, Repos
                 icon: row.icon,
                 route: row.route,
                 sort_order: row.sort_order,
-                group_label: row.group_label,
                 permissions: permission.into_iter().collect(),
+                ref_id: row.ref_id,
+                ref_public_id: row.ref_public_id,
             }),
         }
     }
     Ok(pages)
 }
 
-pub async fn find_page_by_public_id(
-    pool: &PgPool,
-    public_id: Uuid,
-) -> Result<Option<PageWithPermissions>, RepositoryError> {
-    Ok(list_pages(pool)
-        .await?
-        .into_iter()
-        .find(|p| p.public_id == public_id))
+/// ค่าของเพจใหม่ — รวมเป็น struct เพราะแยกเป็น argument จะเกิน clippy's too_many_arguments (7)
+pub struct NewPageFields<'a> {
+    pub label: &'a str,
+    pub icon: Option<&'a str>,
+    pub route: Option<&'a str>,
+    pub sort_order: i32,
+    pub permissions: &'a [Permission],
+    pub ref_id: Option<PageId>,
 }
 
+/// สร้างเพจ + permission + audit ในทรานแซกชันเดียว
 pub async fn insert_page(
     pool: &PgPool,
-    label: &str,
-    icon: Option<&str>,
-    route: &str,
-    sort_order: i32,
-    permissions: &[Permission],
-    group_label: Option<&str>,
+    actor: UserId,
+    fields: NewPageFields<'_>,
 ) -> Result<PageId, RepositoryError> {
     let mut tx = pool.begin().await?;
 
     let page = sqlx::query!(
-        r#"insert into pages (label, icon, route, sort_order, group_label)
+        r#"insert into pages (label, icon, route, sort_order, ref_id)
            values ($1, $2, $3, $4, $5)
-           returning id as "id: PageId""#,
-        label,
-        icon,
-        route,
-        sort_order,
-        group_label
+           returning id as "id: PageId", uuid"#,
+        fields.label,
+        fields.icon,
+        fields.route,
+        fields.sort_order,
+        fields.ref_id.map(|id| id.0)
     )
     .fetch_one(&mut *tx)
     .await?;
+    insert_labeled_audit(
+        &mut tx,
+        actor,
+        "page_created",
+        "page",
+        page.uuid,
+        fields.label,
+    )
+    .await?;
 
-    for permission in permissions {
+    for permission in fields.permissions {
         sqlx::query!(
             "insert into page_permissions (page_id, permission) values ($1, $2)",
             page.id.0,
@@ -115,12 +129,14 @@ pub struct UpdatePageFields<'a> {
     pub route: Option<&'a str>,
     pub sort_order: Option<i32>,
     pub permissions: Option<&'a [Permission]>,
-    /// เหมือน icon — nullable column ที่ต้องแยก "ไม่แตะ"/"ตั้งเป็น null"/"ตั้งค่าใหม่" ออกจากกัน
-    pub group_label: Option<Option<&'a str>>,
+    /// เหมือน icon — `Some(None)` = ย้ายขึ้นเป็นเพจหลัก
+    pub ref_id: Option<Option<PageId>>,
 }
 
+/// แก้เพจ + audit (label = ชื่อหลังแก้) ในทรานแซกชันเดียว
 pub async fn update_page(
     pool: &PgPool,
+    actor: UserId,
     id: PageId,
     fields: UpdatePageFields<'_>,
 ) -> Result<(), RepositoryError> {
@@ -136,30 +152,42 @@ pub async fn update_page(
         .await?;
     }
 
-    if let Some(group_label) = fields.group_label {
+    if let Some(ref_id) = fields.ref_id {
         sqlx::query!(
-            "update pages set group_label = $2, updated_at = now() where id = $1",
+            "update pages set ref_id = $2, updated_at = now() where id = $1",
             id.0,
-            group_label
+            ref_id.map(|id| id.0)
         )
         .execute(&mut *tx)
         .await?;
     }
 
-    sqlx::query!(
+    let updated = sqlx::query!(
         r#"update pages
            set label = coalesce($2, label),
                route = coalesce($3, route),
                sort_order = coalesce($4, sort_order),
                updated_at = now()
-           where id = $1"#,
+           where id = $1
+           returning uuid, label"#,
         id.0,
         fields.label,
         fields.route,
         fields.sort_order
     )
-    .execute(&mut *tx)
+    .fetch_optional(&mut *tx)
     .await?;
+    if let Some(page) = &updated {
+        insert_labeled_audit(
+            &mut tx,
+            actor,
+            "page_updated",
+            "page",
+            page.uuid,
+            &page.label,
+        )
+        .await?;
+    }
 
     if let Some(permissions) = fields.permissions {
         sqlx::query!("delete from page_permissions where page_id = $1", id.0)
@@ -180,9 +208,26 @@ pub async fn update_page(
     Ok(())
 }
 
-pub async fn delete_page(pool: &PgPool, id: PageId) -> Result<(), RepositoryError> {
-    sqlx::query!("delete from pages where id = $1", id.0)
-        .execute(pool)
+/// ลบจริง (เพจไม่มี soft delete) — audit เก็บชื่อไว้ใน label ให้ประวัติยังแสดงชื่อได้หลังลบ
+pub async fn delete_page(pool: &PgPool, actor: UserId, id: PageId) -> Result<(), RepositoryError> {
+    let mut tx = pool.begin().await?;
+    let deleted = sqlx::query!(
+        "delete from pages where id = $1 returning uuid, label",
+        id.0
+    )
+    .fetch_optional(&mut *tx)
+    .await?;
+    if let Some(page) = &deleted {
+        insert_labeled_audit(
+            &mut tx,
+            actor,
+            "page_deleted",
+            "page",
+            page.uuid,
+            &page.label,
+        )
         .await?;
+    }
+    tx.commit().await?;
     Ok(())
 }

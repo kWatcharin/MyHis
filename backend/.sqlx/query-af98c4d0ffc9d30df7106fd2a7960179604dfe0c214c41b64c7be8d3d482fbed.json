@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update login_throttle set locked_until = $2 where username_hash = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "af98c4d0ffc9d30df7106fd2a7960179604dfe0c214c41b64c7be8d3d482fbed"
+}

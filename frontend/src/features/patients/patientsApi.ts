@@ -60,7 +60,7 @@ export interface PatientOptions {
 
 export const patientsApi = {
   list: () => api.get<Patient[]>('/patients'),
-  // ตัวเลือกของฟอร์ม (คำนำหน้า, สัญชาติ, โรค) — ต้องมี patient.read (ไม่ต้องมี user.manage เหมือน /diseases)
+  // ตัวเลือกของฟอร์ม (คำนำหน้า, สัญชาติ, โรค) — ต้องมี patient.view (ไม่ต้องมีสิทธิ์ดูหน้า master เหล่านั้น)
   options: () => api.get<PatientOptions>('/patients/options'),
   // POST คืนแค่ 201 ไม่มี body — refetch list เองหลังสร้าง; PUT แทนที่ทั้งชุด (ฟิลด์ nullable ส่ง null = ล้างค่า)
   create: (input: PatientInput) => api.post<void>('/patients', input),

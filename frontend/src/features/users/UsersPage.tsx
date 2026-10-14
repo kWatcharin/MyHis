@@ -33,6 +33,7 @@ import { rolesApi } from '@/features/admin/rolesApi'
 import { useAdminList } from '@/features/admin/useAdminList'
 import { useAuth } from '@/features/auth/AuthContext'
 import { useRolePreview } from '@/features/role-preview/RolePreviewContext'
+import { usePagePermissions } from '@/features/role-preview/usePagePermissions'
 import { formatThaiDateTime } from '@/lib/date'
 import { notify } from '@/lib/notify'
 import { hasCriteria, textIncludes } from '@/lib/search'
@@ -90,11 +91,13 @@ function RegistrationBadge({ user }: { user: User }) {
   return null
 }
 
-// หน้า "ผู้ใช้งาน" (กลุ่มเมนูลงทะเบียน, ต้องมี user.manage): สร้างบัญชี (ได้ลิงก์ลงทะเบียน — ผู้ใช้กรอกข้อมูลตัวและ
-// ตั้งรหัสผ่านเอง), แก้ข้อมูล/role, ปิด-เปิดใช้งาน, รีเซ็ตรหัสผ่าน/ออกลิงก์ใหม่ — แอดมินไม่เห็นรหัสผ่านของใคร
-// ไม่มีการลบผู้ใช้จริง (ใช้ "ปิดใช้งาน" แทน — soft delete ด้วยคอลัมน์สถานะ) backend กันแอดมินล็อกตัวเองออก
-// (ปิดบัญชี/รีเซ็ตรหัสของตัวเอง/ถอดสิทธิ์จัดการผู้ใช้ของตัวเอง) — หน้านี้ซ่อนปุ่มเหล่านั้นในแถวของตัวเองให้ด้วย
+// หน้า "ผู้ใช้งาน" (กลุ่มเมนูลงทะเบียน, ต้องมี user.view): สร้างบัญชี (user.create — ได้ลิงก์ลงทะเบียน ผู้ใช้กรอก
+// ข้อมูลตัวและตั้งรหัสผ่านเอง), แก้ข้อมูล/role, ปิด-เปิดใช้งาน, รีเซ็ตรหัสผ่าน/ออกลิงก์ใหม่ (ทั้งหมด user.update) —
+// แอดมินไม่เห็นรหัสผ่านของใคร ไม่มีการลบผู้ใช้จริง (ใช้ "ปิดใช้งาน" แทน — soft delete ด้วยคอลัมน์สถานะ) backend กัน
+// แอดมินล็อกตัวเองออก (ปิดบัญชี/รีเซ็ตรหัสของตัวเอง/ถอดสิทธิ์จัดการ role ของตัวเอง) — หน้านี้ซ่อนปุ่มเหล่านั้นใน
+// แถวของตัวเองให้ด้วย
 export function UsersPage() {
+  const { canCreate, canUpdate } = usePagePermissions('user')
   const { items: users, status, refetch } = useAdminList(usersApi.list)
   const { items: roles, status: rolesStatus } = useAdminList(rolesApi.list)
   const { items: prenames, status: prenamesStatus } = useAdminList(prenameConfig.api.list)
@@ -248,7 +251,7 @@ export function UsersPage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title="ผู้ใช้งาน"
+        fallbackTitle="ผู้ใช้งาน"
         description="สร้างบัญชีแล้วส่งลิงก์ลงทะเบียนให้ผู้ใช้ตั้งรหัสผ่านเอง กำหนด role ปิด/เปิดใช้งาน และรีเซ็ตรหัสผ่าน"
       />
 
@@ -271,9 +274,11 @@ export function UsersPage() {
         shown={visibleUsers.length}
         filtered={hasCriteria(criteria)}
       >
-        <AddButton disabled={!formsReady} onClick={() => setIsCreating(true)}>
-          เพิ่มผู้ใช้
-        </AddButton>
+        {canCreate && (
+          <AddButton disabled={!formsReady} onClick={() => setIsCreating(true)}>
+            เพิ่มผู้ใช้
+          </AddButton>
+        )}
       </ListToolbar>
 
       <Card>
@@ -296,7 +301,7 @@ export function UsersPage() {
                   <TableHead>Role</TableHead>
                   <TableHead>สถานะ</TableHead>
                   <TableHead>สร้างเมื่อ</TableHead>
-                  <TableHead className="text-right">จัดการ</TableHead>
+                  {canUpdate && <TableHead className="text-right">จัดการ</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -353,6 +358,7 @@ export function UsersPage() {
                       <TableCell className="text-muted-foreground">
                         {formatThaiDateTime(user.createdAt, { time: false })}
                       </TableCell>
+                      {canUpdate && (
                       <TableCell className="text-right">
                         <div className="flex flex-wrap justify-end gap-1">
                           {/* ต้องโหลดคำนำหน้าได้ก่อน ไม่งั้นฟอร์มจะล้างคำนำหน้าเดิมของผู้ใช้ตอนบันทึก */}
@@ -393,6 +399,7 @@ export function UsersPage() {
                           )}
                         </div>
                       </TableCell>
+                      )}
                     </TableRow>
                   )
                 })}

@@ -31,7 +31,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useAdminList } from '@/features/admin/useAdminList'
-import { useRolePreview } from '@/features/role-preview/RolePreviewContext'
+import { usePagePermissions } from '@/features/role-preview/usePagePermissions'
 import { formatThaiDate } from '@/lib/date'
 import { notify } from '@/lib/notify'
 import { hasCriteria, textIncludes } from '@/lib/search'
@@ -45,12 +45,11 @@ import { labVisitsApi } from './labVisitsApi'
 type FormState = { mode: 'create' } | { mode: 'edit'; item: LabVisitGroup } | null
 
 // หน้า "นัดหมายแล็ป" (เมนูกลุ่ม Lab): รายการนัดหมายต่อปีงบประมาณ + กลุ่มคนไข้ (head) — กดดูรายชื่อเพื่อไปหน้า
-// รายชื่อคนไข้ของนัดหมายนั้น ดูได้ด้วย patient.read; สร้าง/แก้ไข/ลบต้องมี patient.write (ซ่อนปุ่มเป็นแค่ความสะดวก
+// รายชื่อคนไข้ของนัดหมายนั้น ดูได้ด้วย lab_visit.view; สร้าง/แก้ไข/ลบต้องมี lab_visit.create/update/delete (ซ่อนปุ่มเป็นแค่ความสะดวก
 // backend ตรวจสิทธิ์ซ้ำทุกครั้ง) หน้านี้ไม่มีข้อมูลระบุตัวคนไข้ มีแค่จำนวนคน
 export function LabVisitGroupsPage() {
   const navigate = useNavigate()
-  const { hasEffectivePermission } = useRolePreview()
-  const canWrite = hasEffectivePermission('patient.write')
+  const { canCreate, canUpdate, canDelete } = usePagePermissions('lab_visit')
 
   const { items, status, refetch } = useAdminList(labVisitsApi.list)
   const [options, setOptions] = useState<LabVisitOptions | null>(null)
@@ -119,7 +118,7 @@ export function LabVisitGroupsPage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title="นัดหมายแล็ป"
+        fallbackTitle="นัดหมายแล็ป"
         description="นัดตรวจ CD4/VL ของกลุ่มคนไข้ต่อปีงบประมาณ — กด “ดูรายชื่อ” เพื่อเพิ่ม/แก้ไขคนไข้และส่งออกเอกสาร"
       />
 
@@ -142,7 +141,7 @@ export function LabVisitGroupsPage() {
         shown={visibleItems.length}
         filtered={hasCriteria(criteria)}
       >
-        {canWrite && <AddButton onClick={() => openForm({ mode: 'create' })}>สร้างนัดหมาย</AddButton>}
+        {canCreate && <AddButton onClick={() => openForm({ mode: 'create' })}>สร้างนัดหมาย</AddButton>}
       </ListToolbar>
 
       <Card>
@@ -153,7 +152,7 @@ export function LabVisitGroupsPage() {
           )}
           {status === 'ready' && items.length === 0 && (
             <p className="p-4 text-sm text-muted-foreground">
-              ยังไม่มีนัดหมาย{canWrite ? ' กด "+ สร้างนัดหมาย" เพื่อเริ่มต้น' : ''}
+              ยังไม่มีนัดหมาย{canCreate ? ' กด "+ สร้างนัดหมาย" เพื่อเริ่มต้น' : ''}
             </p>
           )}
           {status === 'ready' && items.length > 0 && visibleItems.length === 0 && (
@@ -206,12 +205,8 @@ export function LabVisitGroupsPage() {
                         <ListChecks />
                         ดูรายชื่อ
                       </Button>
-                      {canWrite && (
-                        <>
-                          <EditButton onClick={() => openForm({ mode: 'edit', item })} />
-                          <DeleteButton onClick={() => setPendingDelete(item)} />
-                        </>
-                      )}
+                      {canUpdate && <EditButton onClick={() => openForm({ mode: 'edit', item })} />}
+                      {canDelete && <DeleteButton onClick={() => setPendingDelete(item)} />}
                     </TableCell>
                   </TableRow>
                 ))}

@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into pages (label, icon, route, sort_order, ref_id)\n           values ($1, $2, $3, $4, $5)\n           returning id as \"id: PageId\", uuid",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: PageId",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "uuid",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "7d9bc6f83b41174c77612fae473791430419a5dd0ee012101e8708ef2e439324"
+}

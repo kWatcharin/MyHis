@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router'
 
 import { useAuth } from '@/features/auth/AuthContext'
 import type { MenuItem } from '@/features/auth/AuthContext'
+import { filterMenuPages } from '@/features/auth/menu'
 import type { Page } from '@/features/admin/pagesApi'
 import { pagesApi } from '@/features/admin/pagesApi'
 import type { Role } from '@/features/admin/rolesApi'
@@ -42,12 +43,13 @@ export function RolePreviewProvider({ children }: { children: ReactNode }) {
     setActiveRoleName(null)
   }
 
-  const canManageUsers = user?.permissions.includes('user.manage') ?? false
+  const canLoadCatalog =
+    (user?.permissions.includes('role.view') && user.permissions.includes('page.view')) ?? false
 
-  // GET /roles, /pages ต้องมี user.manage — ถ้าสิทธิ์จริงไม่มีก็เรียกไม่ได้อยู่แล้ว (403) ไม่ต้อง
+  // GET /roles, /pages ต้องมี role.view และ page.view — ถ้าสิทธิ์จริงไม่มีก็เรียกไม่ได้อยู่แล้ว (403) ไม่ต้อง
   // ยิง request ที่รู้ผลล่วงหน้าว่าจะพัง ปล่อย roles/pages ว่าง = ไม่มีตัวเลือกให้ preview เลย
   const refetchCatalog = useCallback(() => {
-    if (!canManageUsers) {
+    if (!canLoadCatalog) {
       setRoles([])
       setPages([])
       return
@@ -61,7 +63,7 @@ export function RolePreviewProvider({ children }: { children: ReactNode }) {
         setRoles([])
         setPages([])
       })
-  }, [canManageUsers])
+  }, [canLoadCatalog])
 
   useEffect(() => {
     refetchCatalog()
@@ -79,21 +81,15 @@ export function RolePreviewProvider({ children }: { children: ReactNode }) {
 
   const effectivePermissions = activeRole ? activeRole.permissions : realPermissions
 
+  // GET /pages เรียงตามโครงเมนูมาแล้ว (เหมือน GET /menu) — กรองด้วยกฎเดียวกับ backend อย่างเดียว ไม่เรียงใหม่
   const effectiveMenu: MenuItem[] = activeRole
-    ? pages
-        .filter(
-          (page) =>
-            page.permissions.length === 0 ||
-            page.permissions.some((permission) => effectivePermissions.includes(permission)),
-        )
-        .sort((a, b) => a.sortOrder - b.sortOrder)
-        .map((page) => ({
-          id: page.id,
-          label: page.label,
-          icon: page.icon,
-          route: page.route,
-          groupLabel: page.groupLabel,
-        }))
+    ? filterMenuPages(pages, effectivePermissions).map((page) => ({
+        id: page.id,
+        label: page.label,
+        icon: page.icon,
+        route: page.route,
+        refId: page.refId,
+      }))
     : menu
 
   const hasEffectivePermission = useCallback(

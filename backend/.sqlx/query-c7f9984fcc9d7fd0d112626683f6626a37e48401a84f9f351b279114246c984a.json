@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update pages\n           set label = coalesce($2, label),\n               route = coalesce($3, route),\n               sort_order = coalesce($4, sort_order),\n               updated_at = now()\n           where id = $1\n           returning uuid, label",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "label",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "c7f9984fcc9d7fd0d112626683f6626a37e48401a84f9f351b279114246c984a"
+}

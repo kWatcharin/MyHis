@@ -1,5 +1,7 @@
 import { api } from '@/lib/api'
 
+import type { LabDocumentKind } from './documents'
+
 // ตรงกับ DTO ของ backend เป๊ะ ๆ (backend/src/lab_visit/dto.rs) — id ทุกตัว = uuid, วันที่เป็น "YYYY-MM-DD"
 // API นี้ไม่มีข้อมูลระบุตัวคนไข้ (มีแค่ patientId) — ชื่อ/HN มาจาก GET /patients แล้ว join ฝั่งหน้าเว็บ
 
@@ -57,7 +59,7 @@ export interface LabVisitOptions {
 
 export const labVisitsApi = {
   list: () => api.get<LabVisitGroup[]>('/lab-visit-groups'),
-  // ตัวเลือกปีงบประมาณ/กลุ่มคนไข้ — ต้องมี patient.read (ไม่ต้องมี user.manage เหมือน /budget-years)
+  // ตัวเลือกปีงบประมาณ/กลุ่มคนไข้ — ต้องมี lab_visit.view (ไม่ต้องมีสิทธิ์ดูหน้า /budget-years, /patient-groups)
   options: () => api.get<LabVisitOptions>('/lab-visit-groups/options'),
   get: (id: string) => api.get<LabVisitGroupDetail>(`/lab-visit-groups/${id}`),
   // POST คืน uuid ของนัดหมายใหม่ (ไว้พาไปหน้ารายชื่อต่อ); PUT/DELETE คืน 204 ไม่มี body
@@ -69,4 +71,8 @@ export const labVisitsApi = {
     api.post<void>(`/lab-visit-groups/${groupId}/visits`, { patientIds }),
   updateVisit: (id: string, input: LabVisitInput) => api.put<void>(`/lab-visits/${id}`, input),
   removeVisit: (id: string) => api.delete<void>(`/lab-visits/${id}`),
+  // บันทึกการส่งออกเอกสาร (ประวัติการใช้งาน) — เรียกก่อนสร้าง Excel/แสดงหน้าพิมพ์ทุกครั้ง ต้องมี lab_visit.export
+  // ไม่สำเร็จ (403/404) = ไม่ส่งออก
+  recordExport: (groupId: string, document: LabDocumentKind, format: 'excel' | 'pdf') =>
+    api.post<void>(`/lab-visit-groups/${groupId}/exports`, { document, format }),
 }

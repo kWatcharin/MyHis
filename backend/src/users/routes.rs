@@ -1,5 +1,5 @@
 //! ผูก path กับ handler (ห้ามมีตรรกะธุรกิจ) — Router ตรวจแค่ว่า login แล้วหรือยัง (CurrentUser
-//! extractor ทำให้อัตโนมัติ) ส่วนตรวจ user.manage จริงอยู่ที่ service (docs/auth-design.md ข้อ 10)
+//! extractor ทำให้อัตโนมัติ) ส่วนตรวจสิทธิ์ `user.*` / `role.*` / `page.*` จริงอยู่ที่ service (docs/auth-design.md ข้อ 10)
 //! Endpoint ทั้งหมด: docs/auth-design.md ข้อ 5
 
 use axum::routing::{get, patch, post, put};

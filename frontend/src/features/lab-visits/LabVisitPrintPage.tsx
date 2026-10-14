@@ -4,6 +4,7 @@ import { useParams, useSearchParams } from 'react-router'
 
 import { Button } from '@/components/ui/button'
 import { patientsApi } from '@/features/patients/patientsApi'
+import { useRolePreview } from '@/features/role-preview/RolePreviewContext'
 import { todayIso } from '@/lib/date'
 
 import type { Cd4Row, LabDocumentData, LabDocumentKind, RosterRow } from './documents'
@@ -116,18 +117,24 @@ function RosterTable({ rows }: { rows: RosterRow[] }) {
 type PrintState = { status: 'loading' } | { status: 'error' } | { status: 'ready'; data: LabDocumentData }
 
 // หน้าเอกสารพร้อมพิมพ์ (ใช้ส่งออก PDF): /lab/appointments/:id/print?doc=cd4|roster — อยู่นอกโครงหน้าหลัก
-// (ไม่มี sidebar) แต่ยังต้อง login + patient.read เปิดในแท็บใหม่แล้วเปิดหน้าต่างพิมพ์ให้อัตโนมัติหนึ่งครั้ง
-// ผู้ใช้เลือก "บันทึกเป็น PDF" เอง — URL มีแค่ uuid ของนัดหมาย ข้อมูลคนไข้โหลดจาก API อยู่ในหน้าเท่านั้น
+// (ไม่มี sidebar) แต่ยังต้อง login + lab_visit.export (route ใน App.tsx) และ patient.view (ชื่อ/HN จากทะเบียน)
+// เปิดในแท็บใหม่แล้วเปิดหน้าต่างพิมพ์ให้อัตโนมัติหนึ่งครั้ง ผู้ใช้เลือก "บันทึกเป็น PDF" เอง — URL มีแค่ uuid ของ
+// นัดหมาย ข้อมูลคนไข้โหลดจาก API อยู่ในหน้าเท่านั้น
 export function LabVisitPrintPage() {
   const { id = '' } = useParams()
   const [searchParams] = useSearchParams()
   const kind: LabDocumentKind = searchParams.get('doc') === 'roster' ? 'roster' : 'cd4'
   const [state, setState] = useState<PrintState>({ status: 'loading' })
   const printedRef = useRef(false)
+  const { hasEffectivePermission } = useRolePreview()
+  const canViewPatients = hasEffectivePermission('patient.view')
 
+  // โหลดข้อมูล + บันทึกการส่งออก PDF (ประวัติการใช้งาน, backend ตรวจ lab_visit.export) พร้อมกัน — บันทึกไม่ได้ =
+  // ไม่แสดงเอกสาร เปิดหน้านี้ซ้ำ = ส่งออกอีกครั้ง
   useEffect(() => {
+    if (!canViewPatients) return
     let cancelled = false
-    Promise.all([labVisitsApi.get(id), patientsApi.list()])
+    Promise.all([labVisitsApi.get(id), patientsApi.list(), labVisitsApi.recordExport(id, kind, 'pdf')])
       .then(([group, patients]) => {
         if (!cancelled) {
           setState({ status: 'ready', data: buildLabDocumentData(group, patients, todayIso()) })
@@ -139,7 +146,7 @@ export function LabVisitPrintPage() {
     return () => {
       cancelled = true
     }
-  }, [id])
+  }, [id, kind, canViewPatients])
 
   const data = state.status === 'ready' ? state.data : null
 
@@ -180,9 +187,16 @@ export function LabVisitPrintPage() {
         </p>
       </div>
 
-      {state.status === 'loading' && <p className="p-6 text-sm text-neutral-600">กำลังเตรียมเอกสาร...</p>}
+      {!canViewPatients && (
+        <p className="p-6 text-sm text-neutral-600">
+          เอกสารมีชื่อ/HN จากทะเบียนผู้ป่วย — ต้องมีสิทธิ์ &quot;ดู&quot; ผู้ป่วยด้วยถึงจะพิมพ์ได้
+        </p>
+      )}
+      {canViewPatients && state.status === 'loading' && (
+        <p className="p-6 text-sm text-neutral-600">กำลังเตรียมเอกสาร...</p>
+      )}
       {state.status === 'error' && (
-        <p className="p-6 text-sm text-red-700">โหลดข้อมูลไม่สำเร็จ (นัดหมายอาจถูกลบไปแล้ว) ปิดแท็บแล้วลองใหม่</p>
+        <p className="p-6 text-sm text-red-700">โหลดข้อมูลหรือบันทึกการส่งออกไม่สำเร็จ (นัดหมายอาจถูกลบไปแล้ว หรือไม่มีสิทธิ์ส่งออก) ปิดแท็บแล้วลองใหม่</p>
       )}
       {data && (
         <main className="mx-auto w-full max-w-[210mm] px-4 py-6 print:max-w-none print:p-0">

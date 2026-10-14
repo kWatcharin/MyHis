@@ -1,32 +1,36 @@
 import { api } from '@/lib/api'
 
-// ตรงกับ PageResponse ของ backend เป๊ะ ๆ (backend/src/users/dto.rs)
+// ตรงกับ PageResponse ของ backend เป๊ะ ๆ (backend/src/users/dto.rs) — เรียงตามโครงเมนู (เพจหลักแต่ละอันตามด้วย
+// เพจย่อยของมัน) เมนู 2 ชั้น: refId = uuid ของเพจหลัก (null = เป็นเพจหลักเอง), route null = หัวข้อกลุ่ม
 export interface Page {
   id: string
   label: string
   icon: string | null
-  route: string
+  route: string | null
   sortOrder: number
   permissions: string[]
-  groupLabel: string | null
+  refId: string | null
 }
 
 export interface CreatePageInput {
   label: string
   icon?: string
-  route: string
+  // ไม่ส่ง = เพจหลักที่เป็นหัวข้อกลุ่ม (เพจย่อยต้องมี route)
+  route?: string
   sortOrder?: number
   permissions: string[]
-  groupLabel?: string
+  refId?: string | null
 }
 
 export interface UpdatePageInput {
   label?: string
   icon?: string
+  // ตั้ง route ใหม่ได้ แต่ล้างเป็น null ไม่ได้ (backend ไม่รองรับ)
   route?: string
   sortOrder?: number
   permissions?: string[]
-  groupLabel?: string
+  // ไม่ส่ง = ไม่แตะ, null = ย้ายขึ้นเป็นเพจหลัก
+  refId?: string | null
 }
 
 export const pagesApi = {

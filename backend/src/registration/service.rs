@@ -130,9 +130,8 @@ fn optional_text(raw: Option<&str>, field: &str) -> Result<Option<String>, Regis
 }
 
 async fn hash_password(plain: String) -> Result<String, RegistrationError> {
-    tokio::task::spawn_blocking(move || password::hash(&plain))
+    password::hash_async(plain)
         .await
-        .map_err(|_| password::PasswordError::Hash)?
         .map_err(RegistrationError::from)
 }
 

@@ -1,14 +1,15 @@
-//! กฎของ nationality: สิทธิ์ (ต้องมี user.manage), ข้อความ (trim, ไม่ว่างถ้าบังคับ, ไม่เกิน 100 ตัวอักษร),
+//! กฎของ nationality: สิทธิ์ (`nationality.*` ราย action), ข้อความ (trim, ไม่ว่างถ้าบังคับ, ไม่เกิน 100 ตัวอักษร),
 //! ชื่อซ้ำ, ห้ามลบข้อมูลที่ยังถูกใช้อยู่ ห้าม import ชนิดข้อมูลของ Axum (docs/auth-design.md ข้อ 10)
 //!
-//! **จุดตรวจสิทธิ์**: ทุกฟังก์ชันรับ `actor: &CurrentUser` เป็นพารามิเตอร์แรกและเช็ค `user.manage`
-//! ที่นี่ เหมือนโมดูล users/disease — id ขาเข้าเป็น uuid (`public_id`) แล้ว resolve เป็น id ภายในเอง
+//! **จุดตรวจสิทธิ์**: ทุกฟังก์ชันรับ `actor: &CurrentUser` เป็นพารามิเตอร์แรกและเช็คสิทธิ์
+//! ของ action นั้น (`nationality.view/create/update/delete`) ที่นี่ เหมือนโมดูล users/disease
+//! — id ขาเข้าเป็น uuid (`public_id`) แล้ว resolve เป็น id ภายในเอง
 
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::auth::CurrentUser;
-use crate::domain::Permission;
+use crate::domain::{Action, Resource};
 use crate::nationality::repository::{
     self, NationalityRow, RepositoryError, UpdateNationalityFields,
 };
@@ -31,8 +32,9 @@ pub enum NationalityError {
     Repository(#[from] RepositoryError),
 }
 
-fn require_user_manage(actor: &CurrentUser) -> Result<(), NationalityError> {
-    if actor.has_permission(Permission::UserManage) {
+/// ตรวจสิทธิ์ของ action นี้กับหน้านี้ (`nationality.view/create/update/delete`)
+fn require(actor: &CurrentUser, action: Action) -> Result<(), NationalityError> {
+    if actor.can(Resource::Nationality, action) {
         Ok(())
     } else {
         Err(NationalityError::Forbidden)
@@ -65,7 +67,7 @@ pub async fn list(
     pool: &PgPool,
     actor: &CurrentUser,
 ) -> Result<Vec<NationalityRow>, NationalityError> {
-    require_user_manage(actor)?;
+    require(actor, Action::View)?;
     Ok(repository::list_nationality_rows(pool).await?)
 }
 
@@ -81,7 +83,7 @@ pub async fn create(
     actor: &CurrentUser,
     input: CreateNationalityInput<'_>,
 ) -> Result<(), NationalityError> {
-    require_user_manage(actor)?;
+    require(actor, Action::Create)?;
     let national_name = clean_text(input.national_name, "national name")?;
     let nation = clean_text(input.nation, "nation")?;
 
@@ -111,7 +113,7 @@ pub async fn update(
     public_id: Uuid,
     input: UpdateNationalityInput<'_>,
 ) -> Result<(), NationalityError> {
-    require_user_manage(actor)?;
+    require(actor, Action::Update)?;
 
     let existing = repository::find_nationality_by_public_id(pool, public_id)
         .await?
@@ -144,7 +146,7 @@ pub async fn delete(
     actor: &CurrentUser,
     public_id: Uuid,
 ) -> Result<(), NationalityError> {
-    require_user_manage(actor)?;
+    require(actor, Action::Delete)?;
 
     let existing = repository::find_nationality_by_public_id(pool, public_id)
         .await?

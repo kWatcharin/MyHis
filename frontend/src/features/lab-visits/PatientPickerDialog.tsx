@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input'
 import type { Patient } from '@/features/patients/patientsApi'
 import { allTokensIncluded, textIncludes } from '@/lib/search'
 
-import { patientFullName } from './documents'
+import { patientDisplayId, patientDisplayName } from './documents'
 
 // รายชื่อจากนัดหมายครั้งก่อนของกลุ่มเดียวกัน (ปีงบก่อนหน้า) — ใช้เลือกคนชุดเดิมได้ในคลิกเดียว
 export interface PreviousRound {
@@ -32,6 +32,9 @@ interface PatientPickerDialogProps {
   // คนไข้ที่อยู่ในนัดหมายนี้แล้ว (ไม่ให้เลือกซ้ำ)
   excludedIds: ReadonlySet<string>
   previousRound: PreviousRound | null
+  // true = โหมดซ่อนข้อมูลระบุตัวของหน้ารายชื่อนัดหมาย (ปุ่มรูปตา) — ชื่อ, HN, NAP NO ในรายการนี้ซ่อนด้วย
+  // แต่ยังค้นด้วยค่าจริงได้
+  maskIdentity: boolean
   onSubmit: (patientIds: string[]) => Promise<void>
 }
 
@@ -51,6 +54,7 @@ export function PatientPickerDialog({
   patients,
   excludedIds,
   previousRound,
+  maskIdentity,
   onSubmit,
 }: PatientPickerDialogProps) {
   const [query, setQuery] = useState('')
@@ -192,11 +196,13 @@ export function PatientPickerDialog({
                     />
                     <span className="flex min-w-0 flex-1 flex-col gap-1">
                       <span className="text-sm font-medium">
-                        <span className="font-mono text-muted-foreground">{patient.hn}</span>{' '}
-                        {patientFullName(patient)}
+                        <span className="font-mono text-muted-foreground">
+                          {patientDisplayId(patient.hn, maskIdentity)}
+                        </span>{' '}
+                        {patientDisplayName(patient, maskIdentity)}
                       </span>
                       <span className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
-                        NAP NO {patient.napNo}
+                        NAP NO {patientDisplayId(patient.napNo, maskIdentity)}
                         {patient.age !== null && ` · ${patient.age} ปี`}
                         {patient.conditions.map((condition) => (
                           <Badge key={condition.id} variant="outline" title={condition.name}>

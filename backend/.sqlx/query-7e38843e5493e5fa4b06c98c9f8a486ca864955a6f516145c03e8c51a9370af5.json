@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into audit_log (actor_user_id, action, target_type, target_id)\n         select $1, $2, 'prename', uuid::text from prename where id = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7e38843e5493e5fa4b06c98c9f8a486ca864955a6f516145c03e8c51a9370af5"
+}

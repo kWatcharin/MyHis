@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into audit_log (actor_user_id, action, target_type, target_id, metadata, ip)\n           values ($1, $2, $3, $4, $5, ($6::text)::inet)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Text",
+        "Text",
+        "Jsonb",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "708ecdd5787b40a09c8b21f2e39b397a7e7a947b6d2af992b273752035a39447"
+}

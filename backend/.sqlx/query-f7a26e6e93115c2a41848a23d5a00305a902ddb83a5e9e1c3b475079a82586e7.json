@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from sessions where idle_expires_at < $1 or absolute_expires_at < $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f7a26e6e93115c2a41848a23d5a00305a902ddb83a5e9e1c3b475079a82586e7"
+}

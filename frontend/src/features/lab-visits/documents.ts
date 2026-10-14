@@ -24,6 +24,25 @@ export function patientFullName(patient: Patient): string {
   return `${patient.prenameName}${patient.firstName} ${patient.lastName}`
 }
 
+// โหมดซ่อนข้อมูลระบุตัว (ปุ่มรูปตาในหน้ารายชื่อนัดหมาย) ใช้กับหน้าจอเท่านั้น — เอกสารที่ส่งออก (Excel/PDF) ยังใช้ค่าเต็ม
+// แต่ละค่าเหลือตัวแรกตามด้วย *** ความยาวคงที่ (ไม่บอกความยาวของค่าจริง) ตัวแรกนับเป็น code point (Array.from) —
+// ชื่อขึ้นต้นด้วยพยัญชนะหรือสระหน้า (เ แ โ ใ ไ) เสมอ ไม่ใช่สระ/วรรณยุกต์ที่ซ้อนบนตัวอื่น
+function maskText(value: string): string {
+  const [first = ''] = Array.from(value.trim())
+  return `${first}***`
+}
+
+// ชื่อที่แสดงบนหน้าจอ เช่น "นายส*** ใ***" ตอน masked (ชื่อเต็มสำหรับเอกสารใช้ patientFullName)
+export function patientDisplayName(patient: Patient, masked: boolean): string {
+  if (!masked) return patientFullName(patient)
+  return `${patient.prenameName}${maskText(patient.firstName)} ${maskText(patient.lastName)}`
+}
+
+// HN / NAP NO ที่แสดงบนหน้าจอ เช่น "6512345" → "6***" ตอน masked
+export function patientDisplayId(value: string, masked: boolean): string {
+  return masked ? maskText(value) : value
+}
+
 export interface JoinedVisit {
   visit: LabVisit
   // undefined = ไม่พบในทะเบียน (เช่น ถูกลบไประหว่างที่หน้านี้เปิดค้างอยู่)

@@ -36,6 +36,8 @@ export interface MasterApi<T> {
 // config ของหน้าตั้งค่า master หนึ่งหน้า — MasterSettingsPage ทำทุกอย่างที่เหลือ
 // (ตาราง, ค้นหา, ฟอร์มเพิ่ม/แก้ไข, ยืนยันลบ, toast, refetch)
 export interface MasterConfig<T extends { id: string }> {
+  // ส่วนหน้าของคีย์สิทธิ์ของหน้านี้ เช่น "prename" → prename.view/create/update/delete (ตรงกับ backend)
+  resource: string
   title: string
   description: string
   // ชื่อสิ่งที่จัดการ ใช้ประกอบข้อความ เช่น "คำนำหน้า" → "เพิ่มคำนำหน้า", "ลบคำนำหน้าแล้ว"

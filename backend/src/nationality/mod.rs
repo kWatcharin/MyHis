@@ -1,5 +1,5 @@
 //! หน้าร้านของโมดูล nationality — ตั้งค่าสัญชาติ (ตาราง `nationality` ใน docs/my-his-data-dict.xlsx)
-//! หน้า master ในกลุ่มเมนู "การตั้งค่า" ใช้สิทธิ์ `user.manage` เหมือนหน้าโรค/ปีงบประมาณ
+//! หน้า master ในกลุ่มเมนู "การตั้งค่า" ใช้สิทธิ์ `nationality.view/create/update/delete` (ตั้งรายเพจที่หน้าการตั้งค่าสิทธิ์)
 //!
 //! `service` เปิดเป็น pub เพราะเทสระดับ service ใน backend/tests/ เรียกตรง ๆ (ไม่มี HTTP ในทางผ่าน)
 

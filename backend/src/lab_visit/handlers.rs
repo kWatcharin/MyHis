@@ -11,8 +11,8 @@ use uuid::Uuid;
 use crate::auth::CurrentUser;
 use crate::error::AppError;
 use crate::lab_visit::dto::{
-    AddVisitsRequest, BudgetYearOption, CreatedResponse, GroupDetailResponse, GroupRequest,
-    GroupResponse, OptionsResponse, PatientGroupOption, VisitRequest, VisitResponse,
+    AddVisitsRequest, BudgetYearOption, CreatedResponse, ExportRequest, GroupDetailResponse,
+    GroupRequest, GroupResponse, OptionsResponse, PatientGroupOption, VisitRequest, VisitResponse,
 };
 use crate::lab_visit::repository::{GroupRow, VisitRow};
 use crate::lab_visit::service::{self, GroupInput, VisitInput};
@@ -136,6 +136,25 @@ pub async fn delete(
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {
     service::delete_group(&state.pool, &current_user, id).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// บันทึกการส่งออกเอกสาร (หน้าเว็บเรียกก่อนสร้าง Excel/แสดงหน้าพิมพ์ PDF) — ตอบ 204
+#[tracing::instrument(skip_all)]
+pub async fn record_export(
+    State(state): State<AppState>,
+    current_user: CurrentUser,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<ExportRequest>,
+) -> Result<StatusCode, AppError> {
+    service::record_export(
+        &state.pool,
+        &current_user,
+        id,
+        &payload.document,
+        &payload.format,
+    )
+    .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 

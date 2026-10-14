@@ -1,16 +1,17 @@
-//! กฎของ disease: สิทธิ์ (ต้องมี user.manage), ชื่อ/คำย่อ (trim, ไม่ว่าง, ไม่เกิน 100 ตัวอักษร),
+//! กฎของ disease: สิทธิ์ (`disease.*` ราย action), ชื่อ/คำย่อ (trim, ไม่ว่าง, ไม่เกิน 100 ตัวอักษร),
 //! ชื่อโรคซ้ำ, ห้ามลบโรคที่ยังถูกบันทึกเป็นโรคประจำตัวอยู่ ห้าม import ชนิดข้อมูลของ Axum
 //! (docs/auth-design.md ข้อ 10)
 //!
-//! **จุดตรวจสิทธิ์**: ทุกฟังก์ชันรับ `actor: &CurrentUser` เป็นพารามิเตอร์แรกและเช็ค `user.manage`
-//! ที่นี่ เหมือนโมดูล users/budget_year — id ขาเข้าเป็น uuid (`public_id`) แล้ว resolve เป็น id ภายในเอง
+//! **จุดตรวจสิทธิ์**: ทุกฟังก์ชันรับ `actor: &CurrentUser` เป็นพารามิเตอร์แรกและเช็คสิทธิ์
+//! ของ action นั้น (`disease.view/create/update/delete`) ที่นี่ เหมือนโมดูล users/budget_year
+//! — id ขาเข้าเป็น uuid (`public_id`) แล้ว resolve เป็น id ภายในเอง
 
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::auth::CurrentUser;
 use crate::disease::repository::{self, DiseaseRow, RepositoryError, UpdateDiseaseFields};
-use crate::domain::Permission;
+use crate::domain::{Action, Resource};
 
 /// ตรงกับ varchar(100) ของคอลัมน์ name/abbreviation — นับเป็นตัวอักษร (ไม่ใช่ byte) เพราะชื่อไทย
 const MAX_TEXT_CHARS: usize = 100;
@@ -29,8 +30,9 @@ pub enum DiseaseError {
     Repository(#[from] RepositoryError),
 }
 
-fn require_user_manage(actor: &CurrentUser) -> Result<(), DiseaseError> {
-    if actor.has_permission(Permission::UserManage) {
+/// ตรวจสิทธิ์ของ action นี้กับหน้านี้ (`disease.view/create/update/delete`)
+fn require(actor: &CurrentUser, action: Action) -> Result<(), DiseaseError> {
+    if actor.can(Resource::Disease, action) {
         Ok(())
     } else {
         Err(DiseaseError::Forbidden)
@@ -60,7 +62,7 @@ fn clean_text(value: &str, field: &str) -> Result<String, DiseaseError> {
 }
 
 pub async fn list(pool: &PgPool, actor: &CurrentUser) -> Result<Vec<DiseaseRow>, DiseaseError> {
-    require_user_manage(actor)?;
+    require(actor, Action::View)?;
     Ok(repository::list_diseases(pool).await?)
 }
 
@@ -76,7 +78,7 @@ pub async fn create(
     actor: &CurrentUser,
     input: CreateDiseaseInput<'_>,
 ) -> Result<(), DiseaseError> {
-    require_user_manage(actor)?;
+    require(actor, Action::Create)?;
     let name = clean_text(input.name, "name")?;
     let abbreviation = clean_text(input.abbreviation, "abbreviation")?;
 
@@ -106,7 +108,7 @@ pub async fn update(
     public_id: Uuid,
     input: UpdateDiseaseInput<'_>,
 ) -> Result<(), DiseaseError> {
-    require_user_manage(actor)?;
+    require(actor, Action::Update)?;
 
     let existing = repository::find_disease_by_public_id(pool, public_id)
         .await?
@@ -139,7 +141,7 @@ pub async fn delete(
     actor: &CurrentUser,
     public_id: Uuid,
 ) -> Result<(), DiseaseError> {
-    require_user_manage(actor)?;
+    require(actor, Action::Delete)?;
 
     let existing = repository::find_disease_by_public_id(pool, public_id)
         .await?

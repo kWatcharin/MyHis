@@ -13,6 +13,10 @@ pub enum AppError {
     #[error("invalid credentials")]
     InvalidCredentials,
 
+    /// login ไม่ผ่าน — ข้อความเดียวกับ InvalidCredentials แต่ body มี `remainingAttempts` ให้หน้า login แสดง
+    #[error("invalid credentials")]
+    LoginRejected { remaining_attempts: i32 },
+
     #[error("account temporarily locked")]
     AccountLocked { until: DateTime<Utc> },
 
@@ -21,6 +25,10 @@ pub enum AppError {
 
     #[error("forbidden")]
     Forbidden,
+
+    /// 403 ที่บอกเหตุผล (เช่น ห้ามให้สิทธิ์เกินตัวเอง) — หน้าเว็บแปลข้อความนี้เป็นไทย
+    #[error("{0}")]
+    ForbiddenWithReason(String),
 
     #[error("not found")]
     NotFound,
@@ -57,6 +65,9 @@ impl From<crate::auth::AuthError> for AppError {
         use crate::auth::AuthError;
         match err {
             AuthError::InvalidCredentials => AppError::InvalidCredentials,
+            AuthError::LoginRejected { remaining_attempts } => {
+                AppError::LoginRejected { remaining_attempts }
+            }
             AuthError::AccountLocked { until } => AppError::AccountLocked { until },
             err @ AuthError::PasswordUnchanged => AppError::Validation(err.to_string()),
             AuthError::Repository(e) => e.into(),
@@ -75,6 +86,9 @@ impl From<crate::users::UsersError> for AppError {
         use crate::users::UsersError;
         match err {
             UsersError::Forbidden => AppError::Forbidden,
+            UsersError::BeyondOwnPermissions(reason) => {
+                AppError::ForbiddenWithReason(reason.to_string())
+            }
             UsersError::Conflict(msg) => AppError::Conflict(msg),
             UsersError::Validation(msg) => AppError::Validation(msg),
             UsersError::UserNotFound | UsersError::RoleNotFound | UsersError::PageNotFound => {
@@ -116,6 +130,26 @@ impl From<crate::budget_year::BudgetYearError> for AppError {
 impl From<crate::budget_year::RepositoryError> for AppError {
     fn from(err: crate::budget_year::RepositoryError) -> Self {
         use crate::budget_year::RepositoryError;
+        match err {
+            RepositoryError::Database(e) => AppError::Database(e),
+        }
+    }
+}
+
+impl From<crate::audit::AuditError> for AppError {
+    fn from(err: crate::audit::AuditError) -> Self {
+        use crate::audit::AuditError;
+        match err {
+            AuditError::Forbidden => AppError::Forbidden,
+            AuditError::Validation(msg) => AppError::Validation(msg),
+            AuditError::Repository(e) => e.into(),
+        }
+    }
+}
+
+impl From<crate::audit::RepositoryError> for AppError {
+    fn from(err: crate::audit::RepositoryError) -> Self {
+        use crate::audit::RepositoryError;
         match err {
             RepositoryError::Database(e) => AppError::Database(e),
         }
@@ -307,10 +341,12 @@ impl From<crate::registration::RepositoryError> for AppError {
 impl AppError {
     fn status_code(&self) -> StatusCode {
         match self {
-            AppError::InvalidCredentials => StatusCode::UNAUTHORIZED,
+            AppError::InvalidCredentials | AppError::LoginRejected { .. } => {
+                StatusCode::UNAUTHORIZED
+            }
             AppError::AccountLocked { .. } => StatusCode::TOO_MANY_REQUESTS,
             AppError::Unauthenticated => StatusCode::UNAUTHORIZED,
-            AppError::Forbidden => StatusCode::FORBIDDEN,
+            AppError::Forbidden | AppError::ForbiddenWithReason(_) => StatusCode::FORBIDDEN,
             AppError::NotFound => StatusCode::NOT_FOUND,
             AppError::Conflict(_) => StatusCode::CONFLICT,
             AppError::Validation(_) => StatusCode::BAD_REQUEST,
@@ -324,8 +360,12 @@ impl AppError {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct ErrorBody {
     error: String,
+    /// เฉพาะ login ไม่ผ่าน: เหลือโอกาสอีกกี่ครั้งก่อนล็อก
+    #[serde(skip_serializing_if = "Option::is_none")]
+    remaining_attempts: Option<i32>,
 }
 
 impl IntoResponse for AppError {
@@ -341,7 +381,18 @@ impl IntoResponse for AppError {
             self.to_string()
         };
 
-        let mut response = (status, Json(ErrorBody { error: message })).into_response();
+        let remaining_attempts = match &self {
+            AppError::LoginRejected { remaining_attempts } => Some(*remaining_attempts),
+            _ => None,
+        };
+        let mut response = (
+            status,
+            Json(ErrorBody {
+                error: message,
+                remaining_attempts,
+            }),
+        )
+            .into_response();
 
         if let AppError::AccountLocked { until } = &self {
             let seconds = (*until - Utc::now()).num_seconds().max(0);

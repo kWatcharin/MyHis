@@ -1,10 +1,10 @@
 //! หน้าร้านของโมดูล lab_visit — นัดหมายแล็ป: หัวนัดหมายต่อปีงบประมาณ + กลุ่มคนไข้ (`lab_visit_group`
 //! วันนัด CD4 ครั้งที่ 1/2 และวันนัด VL) และรายชื่อคนไข้ในนัดหมาย (`lab_visit` ระยะเวลากินยา ผล VL สูตรยา)
 //!
-//! ใช้สิทธิ์ผู้ป่วยเดิม (`patient.read` อ่าน / `patient.write` เขียน) และ **ไม่แตะข้อมูลระบุตัวคนไข้** —
-//! API คืนแค่ uuid ของคนไข้ หน้าเว็บ join กับ `GET /patients` (ถอดรหัสที่โมดูล patient ที่เดียว) ข้อมูล master
-//! ของฟอร์ม (ปีงบประมาณ, กลุ่มคนไข้) อ่านผ่าน query ของโมดูลนี้เอง (`GET /lab-visit-groups/options`)
-//! เพราะ `/budget-years`, `/patient-groups` ต้อง `user.manage`
+//! ใช้สิทธิ์ `lab_visit.view/create/update/delete` (+ `lab_visit.export` ที่หน้าเว็บคุมปุ่มส่งออกเอง) และ
+//! **ไม่แตะข้อมูลระบุตัวคนไข้** — API คืนแค่ uuid ของคนไข้ หน้าเว็บ join กับ `GET /patients` (ถอดรหัสที่โมดูล
+//! patient ที่เดียว ต้องมี `patient.view`) ข้อมูล master ของฟอร์ม (ปีงบประมาณ, กลุ่มคนไข้) อ่านผ่าน query ของ
+//! โมดูลนี้เอง (`GET /lab-visit-groups/options`) เพราะ `/budget-years`, `/patient-groups` ต้องมีสิทธิ์ดูหน้านั้น
 //!
 //! `service` เปิดเป็น pub เพราะเทสระดับ service ใน backend/tests/ เรียกตรง ๆ (ไม่มี HTTP ในทางผ่าน)
 

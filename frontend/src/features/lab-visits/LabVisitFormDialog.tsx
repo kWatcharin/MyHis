@@ -17,7 +17,7 @@ import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/c
 import { Input } from '@/components/ui/input'
 import type { Patient } from '@/features/patients/patientsApi'
 
-import { patientFullName } from './documents'
+import { patientDisplayId, patientDisplayName } from './documents'
 import type { LabVisit, LabVisitInput } from './labVisitsApi'
 
 // ขีดจำกัดตรงกับ backend (backend/src/lab_visit/service.rs) — backend ตรวจซ้ำอีกชั้นเสมอ
@@ -97,7 +97,7 @@ function TextField({ control, name, label, description, ...inputProps }: TextFie
 const SEX_LABEL: Record<number, string> = { 1: 'ชาย', 2: 'หญิง' }
 
 // ข้อมูลคนไข้ที่เกี่ยวข้อง (จากทะเบียนผู้ป่วย) แสดงแบบอ่านอย่างเดียว — แก้ได้ที่หน้าลงทะเบียนผู้ป่วย
-function PatientSummary({ patient }: { patient: Patient | undefined }) {
+function PatientSummary({ patient, maskIdentity }: { patient: Patient | undefined; maskIdentity: boolean }) {
   if (!patient) {
     return <p className="text-sm text-destructive">ไม่พบข้อมูลคนไข้ในทะเบียน (อาจถูกลบไปแล้ว)</p>
   }
@@ -108,10 +108,11 @@ function PatientSummary({ patient }: { patient: Patient | undefined }) {
   return (
     <div className="flex flex-col gap-1 rounded-lg border bg-muted/30 p-3 text-sm">
       <p className="font-medium">
-        <span className="font-mono text-muted-foreground">HN {patient.hn}</span> · {patientFullName(patient)}
+        <span className="font-mono text-muted-foreground">HN {patientDisplayId(patient.hn, maskIdentity)}</span> ·{' '}
+        {patientDisplayName(patient, maskIdentity)}
       </p>
       <p className="text-muted-foreground">
-        NAP NO {patient.napNo} · {SEX_LABEL[patient.sex]}
+        NAP NO {patientDisplayId(patient.napNo, maskIdentity)} · {SEX_LABEL[patient.sex]}
         {patient.age !== null && ` · ${patient.age} ปี`}
         {measures.length > 0 && ` · ${measures.join(' · ')}`}
       </p>
@@ -134,11 +135,20 @@ interface LabVisitFormDialogProps {
   onOpenChange: (open: boolean) => void
   visit: LabVisit | null
   patient: Patient | undefined
+  // true = โหมดซ่อนข้อมูลระบุตัวของหน้ารายชื่อนัดหมาย (ปุ่มรูปตา) — ซ่อนชื่อ, HN, NAP NO ใน dialog นี้ด้วย
+  maskIdentity: boolean
   onSubmit: (input: LabVisitInput) => Promise<void>
 }
 
 // แก้ข้อมูลของคนไข้หนึ่งคนในนัดหมาย: ระยะเวลากินยา (ปี/เดือน), ผล VL, สูตรยา, ลำดับ
-export function LabVisitFormDialog({ open, onOpenChange, visit, patient, onSubmit }: LabVisitFormDialogProps) {
+export function LabVisitFormDialog({
+  open,
+  onOpenChange,
+  visit,
+  patient,
+  maskIdentity,
+  onSubmit,
+}: LabVisitFormDialogProps) {
   const form = useForm<VisitFormValues>({
     resolver: zodResolver(visitFormSchema),
     defaultValues: {
@@ -173,7 +183,7 @@ export function LabVisitFormDialog({ open, onOpenChange, visit, patient, onSubmi
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <FieldGroup>
-            <PatientSummary patient={patient} />
+            <PatientSummary patient={patient} maskIdentity={maskIdentity} />
 
             <div className="grid grid-cols-2 gap-4">
               <TextField

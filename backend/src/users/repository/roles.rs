@@ -1,8 +1,8 @@
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::RepositoryError;
-use crate::domain::{Permission, RoleId};
+use super::{insert_labeled_audit, RepositoryError};
+use crate::domain::{Permission, RoleId, UserId};
 
 #[derive(Debug)]
 pub struct RoleWithPermissions {
@@ -62,9 +62,20 @@ pub async fn find_role_by_public_id(
         .find(|r| r.public_id == public_id))
 }
 
-/// สร้าง role + permission ในทรานแซกชันเดียว
+/// role ที่ผู้ใช้คนหนึ่งถืออยู่ (id ภายใน) — ใช้กับกฎกันแอดมินตัดสิทธิ์จัดการ role ของตัวเองตอนแก้สิทธิ์ของ role
+pub async fn role_ids_of_user(pool: &PgPool, user: UserId) -> Result<Vec<RoleId>, RepositoryError> {
+    Ok(sqlx::query_scalar!(
+        r#"select role_id as "role_id: RoleId" from user_roles where user_id = $1"#,
+        user.0
+    )
+    .fetch_all(pool)
+    .await?)
+}
+
+/// สร้าง role + permission + audit ในทรานแซกชันเดียว
 pub async fn insert_role(
     pool: &PgPool,
+    actor: UserId,
     name: &str,
     description: Option<&str>,
     permissions: &[Permission],
@@ -72,12 +83,14 @@ pub async fn insert_role(
     let mut tx = pool.begin().await?;
 
     let role = sqlx::query!(
-        r#"insert into roles (name, description) values ($1, $2) returning id as "id: RoleId""#,
+        r#"insert into roles (name, description) values ($1, $2)
+           returning id as "id: RoleId", uuid"#,
         name,
         description
     )
     .fetch_one(&mut *tx)
     .await?;
+    insert_labeled_audit(&mut tx, actor, "role_created", "role", role.uuid, name).await?;
 
     for permission in permissions {
         sqlx::query!(
@@ -93,9 +106,11 @@ pub async fn insert_role(
     Ok(role.id)
 }
 
-/// partial update — name/description ผ่าน COALESCE, permissions แทนที่ทั้งชุดถ้าส่งมา (Some)
+/// partial update — name/description ผ่าน COALESCE, permissions แทนที่ทั้งชุดถ้าส่งมา (Some) + audit
+/// (label = ชื่อหลังแก้) ในทรานแซกชันเดียว
 pub async fn update_role(
     pool: &PgPool,
+    actor: UserId,
     id: RoleId,
     name: Option<&str>,
     description: Option<&str>,
@@ -103,18 +118,30 @@ pub async fn update_role(
 ) -> Result<(), RepositoryError> {
     let mut tx = pool.begin().await?;
 
-    sqlx::query!(
+    let updated = sqlx::query!(
         r#"update roles
            set name = coalesce($2, name),
                description = coalesce($3, description),
                updated_at = now()
-           where id = $1"#,
+           where id = $1
+           returning uuid, name"#,
         id.0,
         name,
         description
     )
-    .execute(&mut *tx)
+    .fetch_optional(&mut *tx)
     .await?;
+    if let Some(role) = &updated {
+        insert_labeled_audit(
+            &mut tx,
+            actor,
+            "role_updated",
+            "role",
+            role.uuid,
+            &role.name,
+        )
+        .await?;
+    }
 
     if let Some(permissions) = permissions {
         sqlx::query!("delete from role_permissions where role_id = $1", id.0)
@@ -145,9 +172,23 @@ pub async fn role_in_use(pool: &PgPool, id: RoleId) -> Result<bool, RepositoryEr
     Ok(row.exists)
 }
 
-pub async fn delete_role(pool: &PgPool, id: RoleId) -> Result<(), RepositoryError> {
-    sqlx::query!("delete from roles where id = $1", id.0)
-        .execute(pool)
+/// ลบจริง (role ไม่มี soft delete) — audit เก็บชื่อไว้ใน label ให้ประวัติยังแสดงชื่อได้หลังลบ
+pub async fn delete_role(pool: &PgPool, actor: UserId, id: RoleId) -> Result<(), RepositoryError> {
+    let mut tx = pool.begin().await?;
+    let deleted = sqlx::query!("delete from roles where id = $1 returning uuid, name", id.0)
+        .fetch_optional(&mut *tx)
         .await?;
+    if let Some(role) = &deleted {
+        insert_labeled_audit(
+            &mut tx,
+            actor,
+            "role_deleted",
+            "role",
+            role.uuid,
+            &role.name,
+        )
+        .await?;
+    }
+    tx.commit().await?;
     Ok(())
 }

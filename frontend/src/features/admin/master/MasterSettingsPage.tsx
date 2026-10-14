@@ -27,6 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { usePagePermissions } from '@/features/role-preview/usePagePermissions'
 import { ApiError } from '@/lib/api'
 import { notify } from '@/lib/notify'
 import { hasCriteria, textIncludes } from '@/lib/search'
@@ -55,6 +56,7 @@ type FormState<T> = { mode: 'create' } | { mode: 'edit'; item: T } | null
 // หน้าตั้งค่า master แบบ CRUD เต็ม (โครงเดียวกับหน้าตั้งค่าโรค) — config กำหนดคอลัมน์/ฟิลด์/ข้อความ
 // ต่อ API จริง: create/update คืนแค่ status ไม่มี body จึง refetch() ทั้ง list หลังทุก mutation
 export function MasterSettingsPage<T extends { id: string }>({ config }: { config: MasterConfig<T> }) {
+  const { canCreate, canUpdate, canDelete } = usePagePermissions(config.resource)
   // config.api.list ต้องเป็นฟังก์ชันตัวเดิมทุก render (config เป็นค่าคงที่ระดับ module และ api เป็น object
   // ของ arrow function) — useAdminList ใช้เป็น dependency ของ effect ถ้าสร้างใหม่ทุกครั้งจะโหลดวนไม่จบ
   const { items, status, refetch } = useAdminList(config.api.list)
@@ -105,7 +107,7 @@ export function MasterSettingsPage<T extends { id: string }>({ config }: { confi
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title={config.title} description={config.description} />
+      <PageHeader fallbackTitle={config.title} description={config.description} />
 
       <SearchForm
         id="master-search"
@@ -123,7 +125,7 @@ export function MasterSettingsPage<T extends { id: string }>({ config }: { confi
         shown={visibleItems.length}
         filtered={hasCriteria(criteria)}
       >
-        <AddButton onClick={() => setFormState({ mode: 'create' })}>เพิ่ม{config.entityLabel}</AddButton>
+        {canCreate && <AddButton onClick={() => setFormState({ mode: 'create' })}>เพิ่ม{config.entityLabel}</AddButton>}
       </ListToolbar>
 
       <Card>
@@ -162,7 +164,7 @@ export function MasterSettingsPage<T extends { id: string }>({ config }: { confi
                       <TableHead key={column.header}>{column.header}</TableHead>
                     )
                   ))}
-                  <TableHead className="text-right">จัดการ</TableHead>
+                  {(canUpdate || canDelete) && <TableHead className="text-right">จัดการ</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -176,10 +178,12 @@ export function MasterSettingsPage<T extends { id: string }>({ config }: { confi
                         {column.cell(item)}
                       </TableCell>
                     ))}
-                    <TableCell className="text-right">
-                      <EditButton onClick={() => setFormState({ mode: 'edit', item })} />
-                      <DeleteButton onClick={() => setPendingDelete(item)} />
-                    </TableCell>
+                    {(canUpdate || canDelete) && (
+                      <TableCell className="text-right">
+                        {canUpdate && <EditButton onClick={() => setFormState({ mode: 'edit', item })} />}
+                        {canDelete && <DeleteButton onClick={() => setPendingDelete(item)} />}
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>

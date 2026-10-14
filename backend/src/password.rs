@@ -7,15 +7,26 @@
 //! (create-user/reset-password) ต้องใช้ เข้าเงื่อนไข "โมดูลฟีเจอร์ไม่เรียกกันเอง...ให้ย้ายตรรกะนั้น
 //! ลง domain/ แทน" (docs/rust-guidelines.md) — เป็น infra ร่วมแบบเดียวกับ config/db/error/state
 //! ไม่ใช่ตรรกะธุรกิจเฉพาะของ auth
+//!
+//! โค้ด async เรียก `hash_async` / `verify_async` — รอคิว (คำนวณพร้อมกันได้ไม่เกิน `MAX_CONCURRENT`) แล้วค่อย
+//! `spawn_blocking` ถูกยิง login รัว ๆ จะรอคิวจนชน timeout ของ request แทนที่จะเปิด blocking thread ได้ถึง 512 ตัว
+//! (ตัวละ 19 MiB) จนหน่วยความจำเครื่องหมด
+
+use std::sync::{Arc, LazyLock};
 
 use argon2::password_hash::rand_core::OsRng;
 use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
 use argon2::{Algorithm, Argon2, Params, Version};
 use thiserror::Error;
+use tokio::sync::Semaphore;
 
 const MEMORY_KIB: u32 = 19 * 1024; // 19 MiB
 const ITERATIONS: u32 = 2;
 const PARALLELISM: u32 = 1;
+/// คำนวณ argon2 พร้อมกันได้ไม่เกินนี้ทั้ง process (4 × 19 MiB) งานที่เกินรอคิว
+const MAX_CONCURRENT: usize = 4;
+
+static SLOTS: LazyLock<Arc<Semaphore>> = LazyLock::new(|| Arc::new(Semaphore::new(MAX_CONCURRENT)));
 
 #[derive(Debug, Error)]
 pub enum PasswordError {
@@ -54,9 +65,60 @@ pub fn verify(password: &str, hash: &str) -> Result<bool, PasswordError> {
         .is_ok())
 }
 
+/// รอคิวแล้วรันงาน argon2 ใน spawn_blocking — permit ย้ายเข้าไปในงานเลย จึงคืนช่องตอนคำนวณเสร็จจริง
+/// (request ที่ถูก timeout ตัดทิ้งระหว่างคำนวณไม่ทำให้มีงานเกินโควตา)
+async fn run_limited<T: Send + 'static>(
+    job: impl FnOnce() -> Result<T, PasswordError> + Send + 'static,
+) -> Result<T, PasswordError> {
+    let permit = Arc::clone(&SLOTS)
+        .acquire_owned()
+        .await
+        .map_err(|_| PasswordError::Hash)?;
+    tokio::task::spawn_blocking(move || {
+        let result = job();
+        drop(permit);
+        result
+    })
+    .await
+    .map_err(|_| PasswordError::Hash)?
+}
+
+/// `hash` แบบ async (รอคิว + spawn_blocking)
+pub async fn hash_async(password: String) -> Result<String, PasswordError> {
+    run_limited(move || hash(&password)).await
+}
+
+/// `verify` แบบ async (รอคิว + spawn_blocking)
+pub async fn verify_async(password: String, stored_hash: String) -> Result<bool, PasswordError> {
+    run_limited(move || verify(&password, &stored_hash)).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// งานเกินจำนวนช่องต้องรอคิวแล้วได้ผลถูกครบทุกงาน
+    #[tokio::test]
+    async fn concurrent_verifies_queue_and_all_succeed() {
+        let stored = hash_async("a-reasonably-long-password".to_string())
+            .await
+            .unwrap();
+        let jobs: Vec<_> = (0..MAX_CONCURRENT * 2 + 1)
+            .map(|i| {
+                let stored = stored.clone();
+                let attempt = if i % 2 == 0 {
+                    "a-reasonably-long-password"
+                } else {
+                    "wrong-password-attempt"
+                };
+                tokio::spawn(verify_async(attempt.to_string(), stored))
+            })
+            .collect();
+        for (i, job) in jobs.into_iter().enumerate() {
+            assert_eq!(job.await.unwrap().unwrap(), i % 2 == 0);
+        }
+        assert_eq!(SLOTS.available_permits(), MAX_CONCURRENT);
+    }
 
     #[test]
     fn hash_then_verify_succeeds() {

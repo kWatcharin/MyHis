@@ -1,8 +1,9 @@
-//! กฎของ budget_year: สิทธิ์ (ต้องมี user.manage), รูปแบบปี, ช่วงวันที่ถูกต้อง, ปีซ้ำ, ห้ามลบปีที่ยังมี
+//! กฎของ budget_year: สิทธิ์ (`budget_year.*` ราย action), รูปแบบปี, ช่วงวันที่ถูกต้อง, ปีซ้ำ, ห้ามลบปีที่ยังมี
 //! นัดหมาย lab ใช้อยู่ ห้าม import ชนิดข้อมูลของ Axum (docs/auth-design.md ข้อ 10)
 //!
-//! **จุดตรวจสิทธิ์**: ทุกฟังก์ชันรับ `actor: &CurrentUser` เป็นพารามิเตอร์แรกและเช็ค `user.manage`
-//! ที่นี่ เหมือนโมดูล users — id ขาเข้าเป็น uuid (`public_id`) แล้ว resolve เป็น id ภายในเอง
+//! **จุดตรวจสิทธิ์**: ทุกฟังก์ชันรับ `actor: &CurrentUser` เป็นพารามิเตอร์แรกและเช็คสิทธิ์
+//! ของ action นั้น (`budget_year.view/create/update/delete`) ที่นี่ เหมือนโมดูล users
+//! — id ขาเข้าเป็น uuid (`public_id`) แล้ว resolve เป็น id ภายในเอง
 
 use chrono::NaiveDate;
 use sqlx::PgPool;
@@ -12,7 +13,7 @@ use crate::auth::CurrentUser;
 use crate::budget_year::repository::{
     self, BudgetYearRow, RepositoryError, UpdateBudgetYearFields,
 };
-use crate::domain::Permission;
+use crate::domain::{Action, Resource};
 
 #[derive(Debug, thiserror::Error)]
 pub enum BudgetYearError {
@@ -28,8 +29,9 @@ pub enum BudgetYearError {
     Repository(#[from] RepositoryError),
 }
 
-fn require_user_manage(actor: &CurrentUser) -> Result<(), BudgetYearError> {
-    if actor.has_permission(Permission::UserManage) {
+/// ตรวจสิทธิ์ของ action นี้กับหน้านี้ (`budget_year.view/create/update/delete`)
+fn require(actor: &CurrentUser, action: Action) -> Result<(), BudgetYearError> {
+    if actor.can(Resource::BudgetYear, action) {
         Ok(())
     } else {
         Err(BudgetYearError::Forbidden)
@@ -68,7 +70,7 @@ pub async fn list(
     pool: &PgPool,
     actor: &CurrentUser,
 ) -> Result<Vec<BudgetYearRow>, BudgetYearError> {
-    require_user_manage(actor)?;
+    require(actor, Action::View)?;
     Ok(repository::list_budget_years(pool).await?)
 }
 
@@ -85,7 +87,7 @@ pub async fn create(
     actor: &CurrentUser,
     input: CreateBudgetYearInput<'_>,
 ) -> Result<(), BudgetYearError> {
-    require_user_manage(actor)?;
+    require(actor, Action::Create)?;
     validate_year(input.year)?;
     validate_range(input.start_date, input.end_date)?;
 
@@ -117,7 +119,7 @@ pub async fn update(
     public_id: Uuid,
     input: UpdateBudgetYearInput<'_>,
 ) -> Result<(), BudgetYearError> {
-    require_user_manage(actor)?;
+    require(actor, Action::Update)?;
 
     let existing = repository::find_budget_year_by_public_id(pool, public_id)
         .await?
@@ -154,7 +156,7 @@ pub async fn delete(
     actor: &CurrentUser,
     public_id: Uuid,
 ) -> Result<(), BudgetYearError> {
-    require_user_manage(actor)?;
+    require(actor, Action::Delete)?;
 
     let existing = repository::find_budget_year_by_public_id(pool, public_id)
         .await?

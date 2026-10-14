@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select r.id as \"id: RoleId\",\n                  coalesce(array_agg(rp.permission) filter (where rp.permission is not null), '{}')\n                      as \"permissions!\"\n           from roles r\n           left join role_permissions rp on rp.role_id = r.id\n           where r.uuid = any($1)\n           group by r.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: RoleId",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "permissions!",
+        "type_info": "TextArray"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "eb27130f8ba0bdc8a69d87eda727a376eebc39da8ee3b610784f1141fcd7030c"
+}

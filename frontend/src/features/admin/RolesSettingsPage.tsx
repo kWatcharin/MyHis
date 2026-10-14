@@ -26,6 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { usePagePermissions } from '@/features/role-preview/usePagePermissions'
 import { useAuth } from '@/features/auth/AuthContext'
 import { useRolePreview } from '@/features/role-preview/RolePreviewContext'
 import { ApiError } from '@/lib/api'
@@ -37,20 +38,50 @@ import type { RoleFormValues } from './RoleFormDialog'
 import { RoleFormDialog } from './RoleFormDialog'
 import type { Role } from './rolesApi'
 import { rolesApi } from './rolesApi'
+import type { PermissionGroup } from './permissions'
+import { ACTION_LABELS, groupPermissionResources, permissionKey } from './permissions'
 import { useAdminList } from './useAdminList'
 
-// ข้อความ error ที่รู้จักจาก backend (backend/src/users/service.rs) แปลเป็นไทย — อื่นนอกจากนี้
-// (เช่น forbidden ซึ่งไม่ควรเกิดเพราะหน้านี้ gate ด้วย user.manage อยู่แล้ว) ใช้ข้อความกลาง ๆ
+// ข้อความ error ที่รู้จักจาก backend (backend/src/users/service/roles.rs) แปลเป็นไทย — อื่นนอกจากนี้
+// (เช่น forbidden ซึ่งปุ่มถูกซ่อนตามสิทธิ์อยู่แล้ว) ใช้ข้อความกลาง ๆ
 function roleErrorMessage(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.message === 'role name already taken') return 'ชื่อ role นี้มีอยู่แล้ว'
     if (err.message === 'cannot rename a system role') return 'เปลี่ยนชื่อ role ของระบบไม่ได้'
     if (err.message === 'cannot delete a system role') return 'ลบ role ของระบบไม่ได้'
+    if (err.message === 'cannot remove your own role management permission') {
+      return 'เอาสิทธิ์ "ดู" หรือ "แก้ไข" การตั้งค่าสิทธิ์ออกไม่ได้ เพราะบัญชีของคุณจะไม่เหลือสิทธิ์นี้จาก role ไหนเลย (กันล็อกตัวเองออกจากหน้าจัดการ)'
+    }
+    // ห้ามให้สิทธิ์เกินตัวเอง (docs/auth-design.md ข้อ 10)
+    if (err.message === 'cannot grant permissions you do not have') {
+      return 'ติ๊กสิทธิ์ที่บัญชีของคุณไม่มีไม่ได้ (ห้ามให้สิทธิ์เกินสิทธิ์ของตัวเอง)'
+    }
+    if (err.message === 'cannot manage a role with permissions you do not have') {
+      return 'แก้หรือลบ role นี้ไม่ได้ เพราะ role นี้มีสิทธิ์ที่บัญชีของคุณไม่มี (เช่น admin)'
+    }
     if (err.message === 'role is still assigned to at least one user') {
       return 'ลบไม่ได้ เพราะยังมีผู้ใช้ผูกกับ role นี้อยู่ — ย้ายผู้ใช้ออกได้ที่หน้า "ผู้ใช้งาน"'
     }
   }
   return 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง'
+}
+
+// สรุปสิทธิ์ของ role เป็นรายเพจ เช่น "ผู้ป่วย: ดู เพิ่ม แก้ไข" (ครบทุก action = "ทั้งหมด") ชื่อเพจตามเมนู
+// เรียงตามลำดับในฟอร์ม role — แทน badge ทีละคีย์ที่ยาวถึง 47 อัน
+function summarizePermissions(permissions: string[], groups: PermissionGroup[]): string[] {
+  return groups.flatMap((group) =>
+    group.resources.flatMap(({ resource, label }) => {
+      const granted = resource.actions.filter((action) =>
+        permissions.includes(permissionKey(resource.key, action)),
+      )
+      if (granted.length === 0) return []
+      const actions =
+        granted.length === resource.actions.length
+          ? 'ทั้งหมด'
+          : granted.map((action) => ACTION_LABELS[action]).join(' ')
+      return [`${label}: ${actions}`]
+    }),
+  )
 }
 
 type FormState = { mode: 'create' } | { mode: 'edit'; role: Role } | null
@@ -59,23 +90,31 @@ type FormState = { mode: 'create' } | { mode: 'edit'; role: Role } | null
 // ไม่มี body เลย refetch() ทั้ง list ของหน้านี้เองและ catalog ของ RoleSwitcher หลังทุก mutation
 // ให้สอดคล้องกันโดยไม่ต้อง refresh หน้า
 export function RolesSettingsPage() {
+  const { canCreate, canUpdate, canDelete } = usePagePermissions('role')
   const { items: roles, status, refetch } = useAdminList(rolesApi.list)
   const { refetchCatalog } = useRolePreview()
   // หลังแก้ role/เพจ ต้องโหลดสิทธิ์ของผู้ใช้เองและเมนูซ้ายใหม่ด้วย (ไม่ใช่แค่ตารางในหน้านี้)
-  const { refresh: refreshAuth } = useAuth()
+  const { refresh: refreshAuth, menu } = useAuth()
 
   const [formState, setFormState] = useState<FormState>(null)
   const [pendingDelete, setPendingDelete] = useState<Role | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   // เงื่อนไขค้นหาที่ใช้กรองจริง (เปลี่ยนเมื่อกดปุ่ม "ค้นหา") — ช่องที่กรอกต้องตรงทุกช่อง
   const [criteria, setCriteria] = useState<SearchValues>({})
+  const permissionGroups = groupPermissionResources(menu)
+  const summaries = new Map(
+    roles.map((role) => [role.id, summarizePermissions(role.permissions, permissionGroups)]),
+  )
+  // ช่อง "สิทธิ์" ค้นได้ทั้งคีย์ (patient.view) และข้อความสรุปภาษาไทย (ผู้ป่วย: ดู)
   const visibleRoles = roles.filter(
     (role) =>
       textIncludes(role.name, criteria.name ?? '') &&
       textIncludes(role.description, criteria.description ?? '') &&
       (role.permissions.length === 0
         ? !(criteria.permission ?? '').trim()
-        : role.permissions.some((permission) => textIncludes(permission, criteria.permission ?? ''))),
+        : [...role.permissions, ...(summaries.get(role.id) ?? [])].some((text) =>
+            textIncludes(text, criteria.permission ?? ''),
+          )),
   )
 
   const pagination = usePagination(visibleRoles)
@@ -83,7 +122,9 @@ export function RolesSettingsPage() {
   const handleFormSubmit = async (values: RoleFormValues) => {
     try {
       if (formState?.mode === 'edit') {
-        await rolesApi.update(formState.role.id, values)
+        // ส่งชื่อเฉพาะตอนเปลี่ยนจริง — role ของระบบ (ช่องชื่อถูกล็อก) แก้แค่คำอธิบาย/สิทธิ์
+        const { name, ...rest } = values
+        await rolesApi.update(formState.role.id, name === formState.role.name ? rest : values)
       } else {
         await rolesApi.create(values)
       }
@@ -115,7 +156,7 @@ export function RolesSettingsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="การตั้งค่า role" description="สร้าง แก้ไข ลบ role และกำหนดสิทธิ์ในแต่ละ role" />
+      <PageHeader fallbackTitle="การตั้งค่า role" description="สร้าง แก้ไข ลบ role และกำหนดสิทธิ์ในแต่ละ role" />
 
       <SearchForm
         id="role-search"
@@ -123,7 +164,7 @@ export function RolesSettingsPage() {
         fields={[
           { name: 'name', label: 'ชื่อ role' },
           { name: 'description', label: 'คำอธิบาย' },
-          { name: 'permission', label: 'สิทธิ์', placeholder: 'เช่น patient หรือ user.manage' },
+          { name: 'permission', label: 'สิทธิ์', placeholder: 'เช่น ผู้ป่วย หรือ patient.view' },
         ]}
         onSearch={(values) => {
           setCriteria(values)
@@ -137,7 +178,7 @@ export function RolesSettingsPage() {
         shown={visibleRoles.length}
         filtered={hasCriteria(criteria)}
       >
-        <AddButton onClick={() => setFormState({ mode: 'create' })}>เพิ่ม role</AddButton>
+        {canCreate && <AddButton onClick={() => setFormState({ mode: 'create' })}>เพิ่ม role</AddButton>}
       </ListToolbar>
 
       <Card>
@@ -160,7 +201,7 @@ export function RolesSettingsPage() {
                   <TableHead>ชื่อ role</TableHead>
                   <TableHead>คำอธิบาย</TableHead>
                   <TableHead>สิทธิ์</TableHead>
-                  <TableHead className="text-right">จัดการ</TableHead>
+                  {(canUpdate || canDelete) && <TableHead className="text-right">จัดการ</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -179,17 +220,19 @@ export function RolesSettingsPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
-                        {role.permissions.map((permission) => (
-                          <Badge key={permission} variant="outline">
-                            {permission}
+                        {(summaries.get(role.id) ?? []).map((summary) => (
+                          <Badge key={summary} variant="outline">
+                            {summary}
                           </Badge>
                         ))}
                       </div>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <EditButton onClick={() => setFormState({ mode: 'edit', role })} />
-                      <DeleteButton disabled={role.isSystem} onClick={() => setPendingDelete(role)} />
-                    </TableCell>
+                    {(canUpdate || canDelete) && (
+                      <TableCell className="text-right">
+                        {canUpdate && <EditButton onClick={() => setFormState({ mode: 'edit', role })} />}
+                        {canDelete && <DeleteButton disabled={role.isSystem} onClick={() => setPendingDelete(role)} />}
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>

@@ -1,6 +1,6 @@
 //! เทสระดับ service ของหน้าตั้งค่า master 4 ตัว: prename, nationality, patient_group, lab
 //! (โรคกับปีงบประมาณมีไฟล์ของตัวเอง) แต่ละ master ตรวจชุดเดียวกัน: CRUD+ลำดับ, ชื่อซ้ำไม่สนตัวพิมพ์,
-//! ค่าว่าง/ยาวเกิน, ห้ามลบข้อมูลที่ยังถูกใช้, สิทธิ์ user.manage, ไม่พบ uuid และหน้าเมนูที่ seed
+//! ค่าว่าง/ยาวเกิน, ห้ามลบข้อมูลที่ยังถูกใช้, สิทธิ์ราย action (`<resource>.*`), ไม่พบ uuid และหน้าเมนูที่ seed
 
 mod common;
 
@@ -320,7 +320,7 @@ mod prename {
         let (label, group, permission) = seeded_page(&pool, "/settings/prenames").await;
         assert_eq!(label, "ตั้งค่าคำนำหน้า");
         assert_eq!(group.as_deref(), Some("การตั้งค่า"));
-        assert_eq!(permission, "user.manage");
+        assert_eq!(permission, "prename.view");
     }
 }
 
@@ -552,7 +552,7 @@ mod nationality {
         let (label, group, permission) = seeded_page(&pool, "/settings/nationalities").await;
         assert_eq!(label, "ตั้งค่าสัญชาติ");
         assert_eq!(group.as_deref(), Some("การตั้งค่า"));
-        assert_eq!(permission, "user.manage");
+        assert_eq!(permission, "nationality.view");
     }
 }
 
@@ -804,7 +804,7 @@ mod patient_group {
         let (label, group, permission) = seeded_page(&pool, "/settings/patient-groups").await;
         assert_eq!(label, "ตั้งค่ากลุ่มคนไข้");
         assert_eq!(group.as_deref(), Some("การตั้งค่า"));
-        assert_eq!(permission, "user.manage");
+        assert_eq!(permission, "patient_group.view");
     }
 }
 
@@ -1021,6 +1021,6 @@ mod lab {
         let (label, group, permission) = seeded_page(&pool, "/settings/labs").await;
         assert_eq!(label, "ตั้งค่าแลป");
         assert_eq!(group.as_deref(), Some("การตั้งค่า"));
-        assert_eq!(permission, "user.manage");
+        assert_eq!(permission, "lab.view");
     }
 }

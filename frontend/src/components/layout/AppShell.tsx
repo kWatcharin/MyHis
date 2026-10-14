@@ -1,8 +1,17 @@
-import { ChevronRight, HeartPulse, KeyRound, LogOut } from 'lucide-react'
+import { ChevronRight, HeartPulse } from 'lucide-react'
 import { useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router'
 
-import { Button } from '@/components/ui/button'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
   Sidebar,
@@ -22,45 +31,38 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar'
 import { useAuth } from '@/features/auth/AuthContext'
-import type { MenuItem } from '@/features/auth/AuthContext'
 import { ChangePasswordDialog } from '@/features/auth/ChangePasswordDialog'
+import { buildMenuTree, isRouteActive } from '@/features/auth/menu'
 import { useRolePreview } from '@/features/role-preview/RolePreviewContext'
 import { RoleSwitcher } from '@/features/role-preview/RoleSwitcher'
 import { ThemeSwitcher } from '@/features/theme/ThemeSwitcher'
 import { resolveIcon } from '@/lib/icons'
 
+import { UserMenu } from './UserMenu'
+
 // เมนูซ้ายมือ + โครงหน้าที่ต้อง login ทุกหน้า — รายการเมนูใช้ effectiveMenu (สิทธิ์จริง หรือ
 // สิทธิ์ที่กำลัง preview อยู่ผ่าน RoleSwitcher มุมขวาบนของ header — ดู RolePreviewContext.tsx)
-// ไม่ใช่ useAuth().menu ตรง ๆ
-// จัดกลุ่มเมนูตาม groupLabel — เก็บลำดับเดิมจาก array ที่ backend เรียง sort_order มาให้แล้ว
-// (Map เก็บลำดับ key ตามที่ insert ครั้งแรก) groupLabel ว่าง/null รวมกันเป็นกลุ่ม "ไม่มีชื่อ"
-// (เช่น Dashboard) แสดงแบบไม่มีหัวข้อคั่น
-function groupMenuItems(items: MenuItem[]): [string | null, MenuItem[]][] {
-  const groups = new Map<string | null, MenuItem[]>()
-  for (const item of items) {
-    const bucket = groups.get(item.groupLabel)
-    if (bucket) {
-      bucket.push(item)
-    } else {
-      groups.set(item.groupLabel, [item])
-    }
-  }
-  return [...groups.entries()]
-}
-
-// เมนูถือว่า active เมื่ออยู่หน้านั้นพอดีหรือหน้าย่อยของมัน (เช่น /lab/appointments/<id> ยังไฮไลต์ "นัดหมายแล็ป")
-function isRouteActive(pathname: string, route: string): boolean {
-  return pathname === route || pathname.startsWith(`${route}/`)
-}
+// ไม่ใช่ useAuth().menu ตรง ๆ จัดเป็นต้นไม้ 2 ชั้นตาม refId (เพจหลัก → เพจย่อย) ด้วย buildMenuTree
 
 export function AppShell() {
-  const { user, logout } = useAuth()
+  const { logout } = useAuth()
   const { effectiveMenu } = useRolePreview()
   const location = useLocation()
-  const menuGroups = groupMenuItems(effectiveMenu)
+  const menuTree = buildMenuTree(effectiveMenu)
   const [isChangingPassword, setIsChangingPassword] = useState(false)
-  // ยังใช้รหัสผ่านชั่วคราวที่แอดมินตั้งให้ — แค่เตือนที่ปุ่ม ไม่บังคับเปลี่ยน
-  const shouldChangePassword = user?.mustChangePassword ?? false
+  const [isConfirmingLogout, setIsConfirmingLogout] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true)
+    try {
+      await logout()
+    } catch {
+      // logout() ล้างสถานะฝั่งหน้าเว็บแล้วไม่ว่า POST จะสำเร็จไหม — RequireAuth พาไปหน้า login เอง
+    } finally {
+      setIsLoggingOut(false)
+    }
+  }
 
   return (
     <SidebarProvider>
@@ -75,43 +77,47 @@ export function AppShell() {
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu>
-                {menuGroups.map(([groupLabel, items]) =>
-                  groupLabel === null ? (
-                    items.map((item) => {
-                      const Icon = resolveIcon(item.icon)
-                      return (
-                        <SidebarMenuItem key={item.id}>
-                          <SidebarMenuButton
-                            render={<Link to={item.route} />}
-                            isActive={isRouteActive(location.pathname, item.route)}
-                          >
-                            <Icon />
-                            <span>{item.label}</span>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      )
-                    })
-                  ) : (
-                    // กลุ่มที่มีชื่อ (เช่น "การตั้งค่า") = main page เดียวที่กด toggle เปิด/ปิด
-                    // ดู sub page ข้างใน ไม่ใช่ลิงก์ที่คลิกแล้วมีเนื้อหาของตัวเอง — defaultOpen
-                    // เสมอกันคนเผลอมองไม่เห็นเมนูตั้งค่าที่เคยกดใช้อยู่แล้ว
-                    <Collapsible key={groupLabel} defaultOpen className="group/collapsible">
+                {menuTree.map(({ item: main, children }) => {
+                  if (children.length === 0) {
+                    // เพจหลักที่เป็นลิงก์เดี่ยว (เช่น Dashboard) — หัวข้อกลุ่มที่ไม่มีเพจย่อยให้เห็นไม่แสดง
+                    if (main.route === null) return null
+                    const route = main.route
+                    const Icon = resolveIcon(main.icon)
+                    return (
+                      <SidebarMenuItem key={main.id}>
+                        <SidebarMenuButton
+                          render={<Link to={route} />}
+                          isActive={isRouteActive(location.pathname, route)}
+                        >
+                          <Icon />
+                          <span>{main.label}</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    )
+                  }
+                  // เพจหลักที่มีเพจย่อย (เช่น "การตั้งค่า") = หัวข้อที่กด toggle เปิด/ปิดดูเพจย่อยข้างใน
+                  // ไม่ใช่ลิงก์ที่คลิกแล้วมีเนื้อหาของตัวเอง — defaultOpen เสมอกันคนเผลอมองไม่เห็นเมนูที่เคย
+                  // กดใช้อยู่แล้ว ไอคอนของหัวข้อแสดงเฉพาะเมื่อ admin ตั้งไว้ (ค่าเริ่มต้นไม่มี)
+                  const MainIcon = main.icon ? resolveIcon(main.icon) : null
+                  return (
+                    <Collapsible key={main.id} defaultOpen className="group/collapsible">
                       <SidebarMenuItem>
                         <CollapsibleTrigger
                           render={
                             <SidebarMenuButton
-                              isActive={items.some(
-                                (item) => isRouteActive(location.pathname, item.route),
+                              isActive={children.some((item) =>
+                                isRouteActive(location.pathname, item.route),
                               )}
                             >
-                              <span>{groupLabel}</span>
+                              {MainIcon && <MainIcon />}
+                              <span>{main.label}</span>
                               <ChevronRight className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-90" />
                             </SidebarMenuButton>
                           }
                         />
                         <CollapsibleContent>
                           <SidebarMenuSub>
-                            {items.map((item) => {
+                            {children.map((item) => {
                               const Icon = resolveIcon(item.icon)
                               return (
                                 <SidebarMenuSubItem key={item.id}>
@@ -129,52 +135,22 @@ export function AppShell() {
                         </CollapsibleContent>
                       </SidebarMenuItem>
                     </Collapsible>
-                  ),
-                )}
+                  )
+                })}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
         <SidebarFooter className="gap-3">
           <ThemeSwitcher />
-          <div className="flex items-center justify-between gap-2 rounded-lg border bg-sidebar-accent/50 px-2.5 py-2">
-            <p className="truncate text-sm font-medium">
-              {user?.displayName ?? user?.username}
-            </p>
-            <div className="flex shrink-0 items-center">
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="relative"
-                onClick={() => setIsChangingPassword(true)}
-                title={
-                  shouldChangePassword
-                    ? 'เปลี่ยนรหัสผ่าน — ยังใช้รหัสชั่วคราวอยู่ ควรเปลี่ยน'
-                    : 'เปลี่ยนรหัสผ่าน'
-                }
-              >
-                <KeyRound className="size-4" />
-                {shouldChangePassword && (
-                  <span
-                    aria-hidden
-                    className="absolute top-1 right-1 size-2 rounded-full bg-warning ring-2 ring-sidebar"
-                  />
-                )}
-                <span className="sr-only">
-                  เปลี่ยนรหัสผ่าน{shouldChangePassword ? ' (ยังใช้รหัสชั่วคราว ควรเปลี่ยน)' : ''}
-                </span>
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => void logout()}
-                title="ออกจากระบบ"
-              >
-                <LogOut className="size-4" />
-                <span className="sr-only">ออกจากระบบ</span>
-              </Button>
-            </div>
-          </div>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <UserMenu
+                onChangePassword={() => setIsChangingPassword(true)}
+                onLogout={() => setIsConfirmingLogout(true)}
+              />
+            </SidebarMenuItem>
+          </SidebarMenu>
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
@@ -193,6 +169,32 @@ export function AppShell() {
       </SidebarInset>
       {/* อยู่นอก Sidebar — บนมือถือเมนูเป็น sheet ที่ปิดแล้วถูก unmount ถ้าวางไว้ข้างในฟอร์มจะหายกลางคัน */}
       <ChangePasswordDialog open={isChangingPassword} onOpenChange={setIsChangingPassword} />
+      <AlertDialog
+        open={isConfirmingLogout}
+        onOpenChange={(open) => {
+          if (!open && !isLoggingOut) setIsConfirmingLogout(false)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>ยืนยันออกจากระบบ</AlertDialogTitle>
+            <AlertDialogDescription>
+              ต้องการออกจากระบบใช่ไหม? ต้องเข้าสู่ระบบใหม่ถึงจะใช้งานต่อได้
+              (อุปกรณ์อื่นที่เข้าสู่ระบบไว้ไม่ถูกออกด้วย)
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isLoggingOut}>ยกเลิก</AlertDialogCancel>
+            <AlertDialogAction
+              variant="danger"
+              onClick={() => void handleLogout()}
+              disabled={isLoggingOut}
+            >
+              {isLoggingOut ? 'กำลังออกจากระบบ...' : 'ออกจากระบบ'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SidebarProvider>
   )
 }

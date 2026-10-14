@@ -1,4 +1,4 @@
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Eye, EyeOff } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
@@ -34,6 +34,7 @@ import {
 import type { Patient } from '@/features/patients/patientsApi'
 import { patientsApi } from '@/features/patients/patientsApi'
 import { useRolePreview } from '@/features/role-preview/RolePreviewContext'
+import { usePagePermissions } from '@/features/role-preview/usePagePermissions'
 import { ApiError } from '@/lib/api'
 import { formatThaiDate, todayIso } from '@/lib/date'
 import { notify } from '@/lib/notify'
@@ -41,7 +42,13 @@ import { allTokensIncluded, hasCriteria, textIncludes } from '@/lib/search'
 import type { SearchValues } from '@/lib/search'
 
 import type { JoinedVisit, LabDocumentKind } from './documents'
-import { LAB_DOCUMENTS, buildLabDocumentData, joinVisits, patientFullName } from './documents'
+import {
+  LAB_DOCUMENTS,
+  buildLabDocumentData,
+  joinVisits,
+  patientDisplayId,
+  patientDisplayName,
+} from './documents'
 import { labVisitErrorMessage } from './errors'
 import { downloadLabExcel } from './excel'
 import { ExportMenu } from './ExportMenu'
@@ -59,6 +66,19 @@ import type { PreviousRound } from './PatientPickerDialog'
 import { PatientPickerDialog } from './PatientPickerDialog'
 
 type LoadStatus = 'loading' | 'ready' | 'error' | 'notFound'
+
+// โหมดซ่อนชื่อ, HN, NAP NO (ปุ่มรูปตา) จำไว้ในเบราว์เซอร์นี้ — เก็บแค่ค่าเปิด/ปิด ไม่ใช่ข้อมูลคนไข้ เปิดไว้แล้ว
+// เปลี่ยนหน้าหรือรีเฟรชก็ยังซ่อนอยู่ (กันข้อมูลโผล่ระหว่างแชร์หน้าจอ) ค่า key คงชื่อเดิมตั้งแต่ตอนซ่อนแค่ชื่อ อย่าเปลี่ยน
+// ไม่งั้นคนที่เปิดซ่อนไว้แล้วจะเห็นข้อมูลเต็มทันทีหลังอัปเดต
+const MASK_IDENTITY_KEY = 'my-his-lab-visit-mask-names'
+
+function readMaskIdentity(): boolean {
+  try {
+    return localStorage.getItem(MASK_IDENTITY_KEY) === '1'
+  } catch {
+    return false
+  }
+}
 
 function takeMedText(visit: LabVisit): string {
   const parts = [
@@ -80,12 +100,15 @@ function matchesCriteria({ patient }: JoinedVisit, criteria: SearchValues): bool
 
 // รายชื่อคนไข้ของนัดหมายหนึ่งรายการ: หัวนัดหมาย (วันนัด CD4/VL) + คนไข้ในนัดหมาย (ข้อมูลระบุตัวมาจาก GET /patients
 // แล้ว join ด้วย patientId — API ของนัดหมายไม่มีชื่อ/HN) + เพิ่ม/แก้/เอาออก + ส่งออกเอกสาร Excel/PDF
-// ไม่เก็บข้อมูลคนไข้ลง localStorage/URL/console
+// ไม่เก็บข้อมูลคนไข้ลง localStorage/URL/console (localStorage มีแค่ค่าเปิด/ปิดโหมดซ่อนชื่อ, HN, NAP NO)
 export function LabVisitGroupDetailPage() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const { hasEffectivePermission } = useRolePreview()
-  const canWrite = hasEffectivePermission('patient.write')
+  // แก้หัวนัดหมาย + เพิ่ม/แก้/เอาคนไข้ออก = แก้ไขนัดหมาย (lab_visit.update) ปุ่มส่งออก = lab_visit.export
+  const { canUpdate, canExport } = usePagePermissions('lab_visit')
+  // ชื่อ/HN มาจากทะเบียนผู้ป่วย (GET /patients) — ไม่มีสิทธิ์ดูผู้ป่วยก็ใช้หน้านี้ไม่ได้ ไม่ยิง API ให้โดน 403
+  const canViewPatients = hasEffectivePermission('patient.view')
 
   const [detail, setDetail] = useState<LabVisitGroupDetail | null>(null)
   const [patients, setPatients] = useState<Patient[]>([])
@@ -99,6 +122,17 @@ export function LabVisitGroupDetailPage() {
   const [pendingRemove, setPendingRemove] = useState<JoinedVisit | null>(null)
   const [isRemoving, setIsRemoving] = useState(false)
   const [criteria, setCriteria] = useState<SearchValues>({})
+  const [maskIdentity, setMaskIdentity] = useState(readMaskIdentity)
+
+  const toggleMaskIdentity = () => {
+    const next = !maskIdentity
+    setMaskIdentity(next)
+    try {
+      localStorage.setItem(MASK_IDENTITY_KEY, next ? '1' : '0')
+    } catch {
+      // localStorage ใช้ไม่ได้ (private mode ฯลฯ) — ยังสลับได้ปกติ แค่ไม่จำข้ามรีเฟรช
+    }
+  }
 
   // โหลดนัดหมาย + ทะเบียนคนไข้พร้อมกัน — หลังแก้ไขเรียกซ้ำโดยไม่กลับไปสถานะ loading (ตารางไม่กระพริบ)
   const load = useCallback(async () => {
@@ -113,8 +147,8 @@ export function LabVisitGroupDetailPage() {
   }, [id])
 
   useEffect(() => {
-    void load()
-  }, [load])
+    if (canViewPatients) void load()
+  }, [load, canViewPatients])
 
   // เปลี่ยนไปนัดหมายอื่น (id ใน URL เปลี่ยน) → กลับไปสถานะกำลังโหลด ไม่โชว์ข้อมูลของนัดหมายเดิมค้าง
   const [shownId, setShownId] = useState(id)
@@ -215,8 +249,15 @@ export function LabVisitGroupDetailPage() {
     }
   }
 
+  // บันทึกการส่งออก (ประวัติการใช้งาน + backend ตรวจ lab_visit.export) ก่อนสร้างไฟล์ — บันทึกไม่ได้ = ไม่ส่งออก
   const handleExcel = async (kind: LabDocumentKind) => {
     if (!detail) return
+    try {
+      await labVisitsApi.recordExport(id, kind, 'excel')
+    } catch (err) {
+      notify.error(`ส่งออกไม่สำเร็จ: ${labVisitErrorMessage(err)}`)
+      return
+    }
     try {
       await downloadLabExcel(kind, buildLabDocumentData(detail, patients, todayIso()))
       notify.exported(`ส่งออก${LAB_DOCUMENTS[kind].title}เป็น Excel แล้ว`)
@@ -242,7 +283,19 @@ export function LabVisitGroupDetailPage() {
       กลับไปรายการนัดหมาย
     </Button>
   )
+  const maskLabel = maskIdentity ? 'แสดงชื่อ, HN, NAP NO' : 'ซ่อนชื่อ, HN, NAP NO'
 
+  if (!canViewPatients) {
+    return (
+      <div className="flex flex-col items-start gap-4">
+        <p className="text-sm text-muted-foreground">
+          รายชื่อในนัดหมายแสดงชื่อ/HN จากทะเบียนผู้ป่วย — ต้องมีสิทธิ์ &quot;ดู&quot; ผู้ป่วยด้วยถึงจะเปิดหน้านี้ได้
+          (ตั้งได้ที่หน้าการตั้งค่าสิทธิ์)
+        </p>
+        {backButton}
+      </div>
+    )
+  }
   if (status === 'loading') {
     return <p className="p-4 text-sm text-muted-foreground">กำลังโหลด...</p>
   }
@@ -262,17 +315,30 @@ export function LabVisitGroupDetailPage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title={`นัดหมายแล็ป: กลุ่ม ${detail.patientGroupName}`}
+        fallbackTitle="นัดหมายแล็ป"
+        titleSuffix={`: กลุ่ม ${detail.patientGroupName}`}
         description={`ปีงบประมาณ ${detail.budgetYear}`}
         action={
           <div className="flex flex-wrap gap-2">
             {backButton}
-            <ExportMenu
-              disabled={detail.visits.length === 0}
-              onExcel={(kind) => void handleExcel(kind)}
-              onPdf={handlePdf}
-            />
-            {canWrite && <EditButton size="default" onClick={() => void openHeadForm()}>แก้ไขนัดหมาย</EditButton>}
+            {/* ซ่อนชื่อ, HN, NAP NO บนหน้าจอ (ตาราง + dialog ในหน้านี้) — ค้นหายังใช้ค่าจริง เอกสารที่ส่งออกไม่เปลี่ยน */}
+            <Button
+              variant={maskIdentity ? 'default' : 'outline'}
+              size="icon"
+              onClick={toggleMaskIdentity}
+              title={maskLabel}
+            >
+              {maskIdentity ? <EyeOff /> : <Eye />}
+              <span className="sr-only">{maskLabel}</span>
+            </Button>
+            {canExport && (
+              <ExportMenu
+                disabled={detail.visits.length === 0}
+                onExcel={(kind) => void handleExcel(kind)}
+                onPdf={handlePdf}
+              />
+            )}
+            {canUpdate && <EditButton size="default" onClick={() => void openHeadForm()}>แก้ไขนัดหมาย</EditButton>}
           </div>
         }
       />
@@ -313,14 +379,14 @@ export function LabVisitGroupDetailPage() {
         shown={visibleRows.length}
         filtered={hasCriteria(criteria)}
       >
-        {canWrite && <AddButton onClick={() => void openPicker()}>เพิ่มคนไข้</AddButton>}
+        {canUpdate && <AddButton onClick={() => void openPicker()}>เพิ่มคนไข้</AddButton>}
       </ListToolbar>
 
       <Card>
         <CardContent className="flex flex-col gap-3 px-0 sm:px-2">
           {joined.length === 0 && (
             <p className="p-4 text-sm text-muted-foreground">
-              ยังไม่มีคนไข้ในนัดหมายนี้{canWrite ? ' กด "+ เพิ่มคนไข้" เพื่อเลือกจากทะเบียนผู้ป่วย' : ''}
+              ยังไม่มีคนไข้ในนัดหมายนี้{canUpdate ? ' กด "+ เพิ่มคนไข้" เพื่อเลือกจากทะเบียนผู้ป่วย' : ''}
             </p>
           )}
           {joined.length > 0 && visibleRows.length === 0 && (
@@ -348,19 +414,21 @@ export function LabVisitGroupDetailPage() {
                   <TableHead>ผล VL</TableHead>
                   <TableHead>สูตรยา</TableHead>
                   <TableHead>โรคร่วม</TableHead>
-                  {canWrite && <TableHead className="text-right">จัดการ</TableHead>}
+                  {canUpdate && <TableHead className="text-right">จัดการ</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {pagination.pagedItems.map((row) => (
                   <TableRow key={row.visit.id}>
                     <TableCell className="text-muted-foreground">{row.visit.sortOrder}</TableCell>
-                    <TableCell className="font-mono text-sm">{row.patient?.hn ?? '—'}</TableCell>
+                    <TableCell className="font-mono text-sm">
+                      {row.patient ? patientDisplayId(row.patient.hn, maskIdentity) : '—'}
+                    </TableCell>
                     <TableCell className="font-medium">
-                      {row.patient ? patientFullName(row.patient) : 'ไม่พบข้อมูลคนไข้'}
+                      {row.patient ? patientDisplayName(row.patient, maskIdentity) : 'ไม่พบข้อมูลคนไข้'}
                       {row.patient && (
                         <div className="text-xs font-normal text-muted-foreground">
-                          NAP NO {row.patient.napNo}
+                          NAP NO {patientDisplayId(row.patient.napNo, maskIdentity)}
                         </div>
                       )}
                     </TableCell>
@@ -383,7 +451,7 @@ export function LabVisitGroupDetailPage() {
                         </div>
                       )}
                     </TableCell>
-                    {canWrite && (
+                    {canUpdate && (
                       <TableCell className="text-right whitespace-nowrap">
                         <EditButton onClick={() => setEditing(row)} />
                         <DeleteButton onClick={() => setPendingRemove(row)}>เอาออก</DeleteButton>
@@ -413,6 +481,7 @@ export function LabVisitGroupDetailPage() {
         patients={patients}
         excludedIds={excludedIds}
         previousRound={previousRound}
+        maskIdentity={maskIdentity}
         onSubmit={handleAddPatients}
       />
 
@@ -423,6 +492,7 @@ export function LabVisitGroupDetailPage() {
         }}
         visit={editing?.visit ?? null}
         patient={editing?.patient}
+        maskIdentity={maskIdentity}
         onSubmit={handleVisitSubmit}
       />
 
@@ -436,7 +506,9 @@ export function LabVisitGroupDetailPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>เอาคนไข้ออกจากนัดหมาย</AlertDialogTitle>
             <AlertDialogDescription>
-              ต้องการเอา HN {pendingRemove?.patient?.hn ?? '—'} ออกจากนัดหมายนี้ใช่ไหม? ข้อมูลในทะเบียนผู้ป่วยไม่ถูกลบ
+              ต้องการเอา HN{' '}
+              {pendingRemove?.patient ? patientDisplayId(pendingRemove.patient.hn, maskIdentity) : '—'}{' '}
+              ออกจากนัดหมายนี้ใช่ไหม? ข้อมูลในทะเบียนผู้ป่วยไม่ถูกลบ
               และเพิ่มกลับเข้านัดหมายได้ภายหลัง (ผล VL/สูตรยาที่กรอกไว้ในนัดหมายนี้จะหายไป)
             </AlertDialogDescription>
           </AlertDialogHeader>

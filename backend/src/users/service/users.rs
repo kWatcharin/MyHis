@@ -4,17 +4,22 @@
 //! **ไม่มีรหัสผ่านชั่วคราวแล้ว:** สร้างผู้ใช้/รีเซ็ตรหัส ตั้ง password_hash เป็น hash ของค่าสุ่มที่ทิ้งทันที (login ไม่มีทาง
 //! ผ่าน) แล้วออกลิงก์ใช้ครั้งเดียวอายุ 3 วัน — ผู้ใช้ตั้งรหัสเองผ่านลิงก์ (โมดูล registration) แอดมินไม่เคยเห็นรหัส
 //!
-//! **กันแอดมินล็อกตัวเองออก:** ปิดบัญชีตัวเอง, รีเซ็ตรหัสของตัวเอง และแทน role ของตัวเองด้วยชุดที่ไม่มี
-//! `user.manage` ถูกปฏิเสธ — ผู้กระทำมี `user.manage` เสมอ (require_user_manage) และหลังทุกคำสั่งในไฟล์นี้
-//! ยังเป็นผู้ใช้ active ที่มี `user.manage` อยู่ ระบบจึงไม่มีทางเหลือแอดมิน 0 คนผ่านหน้าจัดการผู้ใช้
+//! **สิทธิ์:** ดูรายชื่อ = `user.view`, สร้าง = `user.create`, ที่เหลือทั้งหมด (แก้ข้อมูล/ชุด role, เปิด-ปิดใช้งาน,
+//! รีเซ็ตรหัสผ่าน) = `user.update` — หน้านี้ไม่มีลบ
+//!
+//! **กันแอดมินล็อกตัวเองออก:** ปิดบัญชีตัวเอง, รีเซ็ตรหัสของตัวเอง และแทน role ของตัวเองด้วยชุดที่ไม่ให้สิทธิ์
+//! จัดการ role (`role.view` + `role.update`) ถูกปฏิเสธ — คนที่ยังจัดการ role ได้แก้สิทธิ์คืนให้ตัวเองได้เสมอ
 
 use chrono::{DateTime, Duration, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::{map_unique_violation, require_user_manage, UsersError};
+use super::{
+    map_unique_violation, require, require_role_management_kept, require_within_own, UsersError,
+    GRANT_BEYOND_OWN, STRONGER_USER,
+};
 use crate::auth::CurrentUser;
-use crate::domain::{PrenameId, RoleId, UserId};
+use crate::domain::{Action, PrenameId, Resource, RoleId, UserId};
 use crate::users::repository::{self, NewRegistrationLink, UserDetailsWrite};
 use crate::{password, token};
 
@@ -76,10 +81,7 @@ fn new_link(now: DateTime<Utc>) -> (IssuedLink, String) {
 /// (ตอบ "invalid credentials" เหมือนรหัสผิดทุกประการ ไม่ต้องแก้ตรรกะ login)
 async fn unusable_password_hash() -> Result<String, UsersError> {
     let secret = token::generate_token();
-    tokio::task::spawn_blocking(move || password::hash(&secret))
-        .await
-        .map_err(|_| password::PasswordError::Hash)?
-        .map_err(UsersError::from)
+    password::hash_async(secret).await.map_err(UsersError::from)
 }
 
 /// username ที่เก็บจริง = trim + ตัวพิมพ์เล็ก (login normalize แบบเดียวกัน — auth::service::login)
@@ -158,7 +160,19 @@ fn dedupe_role_ids(role_public_ids: &[Uuid]) -> Result<Vec<Uuid>, UsersError> {
     Ok(unique_role_ids)
 }
 
-/// หา role ทั้งชุดด้วย query เดียว (ไม่ครบ = RoleNotFound) + กฎกันตัวเอง: แก้ role ของตัวเองต้องเหลือ user.manage
+/// ห้ามแตะบัญชีที่มีสิทธิ์มากกว่าตัวเอง (แก้ข้อมูล/role, รีเซ็ตรหัส, เปิด-ปิดบัญชี) — กันยึดบัญชี admin ด้วยการรีเซ็ตรหัส
+/// แล้วได้ลิงก์ตั้งรหัสใหม่มาเอง (docs/auth-design.md ข้อ 10)
+async fn require_manageable(
+    pool: &PgPool,
+    actor: &CurrentUser,
+    target: UserId,
+) -> Result<(), UsersError> {
+    let held = repository::permissions_of_user(pool, target).await?;
+    require_within_own(actor, &held, STRONGER_USER)
+}
+
+/// หา role ทั้งชุดด้วย query เดียว (ไม่ครบ = RoleNotFound) + ห้ามให้สิทธิ์เกินตัวเอง + กฎกันตัวเอง: แก้ role ของตัวเองแล้วสิทธิ์รวมของชุดใหม่
+/// ต้องยังจัดการ role ได้ (`role.view` + `role.update`)
 async fn resolve_roles(
     pool: &PgPool,
     actor: &CurrentUser,
@@ -169,10 +183,16 @@ async fn resolve_roles(
     if roles.len() != unique_role_ids.len() {
         return Err(UsersError::RoleNotFound);
     }
-    if target == actor.user.id && !roles.iter().any(|role| role.grants_user_manage) {
-        return Err(UsersError::Validation(
-            "cannot remove your own user management permission".to_string(),
-        ));
+    // ห้ามให้สิทธิ์เกินตัวเอง — กันคนจัดการผู้ใช้ (ไม่ใช่ admin) ใส่ role admin ให้ตัวเอง/คนอื่น
+    for role in &roles {
+        require_within_own(actor, &role.permissions, GRANT_BEYOND_OWN)?;
+    }
+    if target == actor.user.id {
+        require_role_management_kept(
+            roles
+                .iter()
+                .flat_map(|role| role.permissions.iter().copied()),
+        )?;
     }
     Ok(roles.iter().map(|role| role.id).collect())
 }
@@ -181,7 +201,7 @@ pub async fn list_users(
     pool: &PgPool,
     actor: &CurrentUser,
 ) -> Result<Vec<repository::UserWithRoles>, UsersError> {
-    require_user_manage(actor)?;
+    require(actor, Resource::User, Action::View)?;
     Ok(repository::list_users(pool).await?)
 }
 
@@ -194,13 +214,14 @@ pub async fn create_user(
     role_public_id: Uuid,
     now: DateTime<Utc>,
 ) -> Result<CreatedUser, UsersError> {
-    require_user_manage(actor)?;
+    require(actor, Resource::User, Action::Create)?;
     let username = normalize_username(username)?;
     let display_name = normalize_display_name(display_name)?;
 
     let role = repository::find_role_by_public_id(pool, role_public_id)
         .await?
         .ok_or(UsersError::RoleNotFound)?;
+    require_within_own(actor, &role.permissions, GRANT_BEYOND_OWN)?;
 
     let password_hash = unusable_password_hash().await?;
     let (link, token_hash) = new_link(now);
@@ -240,9 +261,10 @@ pub async fn update_user(
     display_name: Option<&str>,
     is_active: Option<bool>,
 ) -> Result<(), UsersError> {
-    require_user_manage(actor)?;
+    require(actor, Resource::User, Action::Update)?;
     let display_name = display_name.map(normalize_display_name).transpose()?;
     let id = resolve_user_id(pool, public_id).await?;
+    require_manageable(pool, actor, id).await?;
 
     if is_active == Some(false) && id == actor.user.id {
         return Err(UsersError::Validation(
@@ -272,7 +294,7 @@ pub async fn replace_user(
     public_id: Uuid,
     input: ReplaceUserInput<'_>,
 ) -> Result<(), UsersError> {
-    require_user_manage(actor)?;
+    require(actor, Resource::User, Action::Update)?;
     let display_name = normalize_display_name(input.display_name)?;
     let first_name = normalize_optional_text(input.first_name, "first name")?;
     let last_name = normalize_optional_text(input.last_name, "last name")?;
@@ -280,6 +302,7 @@ pub async fn replace_user(
     let unique_role_ids = dedupe_role_ids(input.role_public_ids)?;
 
     let id = resolve_user_id(pool, public_id).await?;
+    require_manageable(pool, actor, id).await?;
     let prename_id = resolve_prename(pool, input.prename_public_id).await?;
     let role_ids = resolve_roles(pool, actor, id, &unique_role_ids).await?;
 
@@ -310,13 +333,14 @@ pub async fn reset_password(
     public_id: Uuid,
     now: DateTime<Utc>,
 ) -> Result<IssuedLink, UsersError> {
-    require_user_manage(actor)?;
+    require(actor, Resource::User, Action::Update)?;
     let id = resolve_user_id(pool, public_id).await?;
     if id == actor.user.id {
         return Err(UsersError::Validation(
             "cannot reset your own password".to_string(),
         ));
     }
+    require_manageable(pool, actor, id).await?;
 
     let password_hash = unusable_password_hash().await?;
     let (link, token_hash) = new_link(now);
@@ -342,9 +366,10 @@ pub async fn replace_user_roles(
     public_id: Uuid,
     role_public_ids: &[Uuid],
 ) -> Result<(), UsersError> {
-    require_user_manage(actor)?;
+    require(actor, Resource::User, Action::Update)?;
     let unique_role_ids = dedupe_role_ids(role_public_ids)?;
     let id = resolve_user_id(pool, public_id).await?;
+    require_manageable(pool, actor, id).await?;
     let role_ids = resolve_roles(pool, actor, id, &unique_role_ids).await?;
     repository::replace_user_roles(pool, actor.user.id, id, public_id, &role_ids).await?;
     Ok(())

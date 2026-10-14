@@ -61,7 +61,7 @@ fn page_to_response(p: PageWithPermissions) -> PageResponse {
         route: p.route,
         sort_order: p.sort_order,
         permissions: p.permissions.iter().map(|perm| perm.as_str()).collect(),
-        group_label: p.group_label,
+        ref_id: p.ref_public_id,
     }
 }
 
@@ -283,10 +283,10 @@ pub async fn create_page(
         service::CreatePageInput {
             label: &payload.label,
             icon: payload.icon.as_deref(),
-            route: &payload.route,
+            route: payload.route.as_deref(),
             sort_order: payload.sort_order.unwrap_or(0),
             permissions: &payload.permissions,
-            group_label: payload.group_label.as_deref(),
+            ref_id: payload.ref_id,
         },
     )
     .await?;
@@ -314,7 +314,7 @@ pub async fn update_page(
             route: payload.route.as_deref(),
             sort_order: payload.sort_order,
             permissions: payload.permissions.as_deref(),
-            group_label: payload.group_label.as_deref().map(Some),
+            ref_id: payload.ref_id,
         },
     )
     .await?;
@@ -347,7 +347,7 @@ pub async fn menu(
                 label: i.label,
                 icon: i.icon,
                 route: i.route,
-                group_label: i.group_label,
+                ref_id: i.ref_id,
             })
             .collect(),
     ))

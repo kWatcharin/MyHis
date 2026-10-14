@@ -9,6 +9,8 @@ import { PagesSettingsPage } from '@/features/admin/PagesSettingsPage'
 import { PatientGroupsSettingsPage } from '@/features/admin/PatientGroupsSettingsPage'
 import { PrenamesSettingsPage } from '@/features/admin/PrenamesSettingsPage'
 import { RolesSettingsPage } from '@/features/admin/RolesSettingsPage'
+import { ActivityHistoryPage } from '@/features/audit/ActivityHistoryPage'
+import { AuthHistoryPage } from '@/features/audit/AuthHistoryPage'
 import { RequireAuth } from '@/features/auth/RequireAuth'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
@@ -20,13 +22,13 @@ import { PatientsPage } from '@/features/patients/PatientsPage'
 import { RegisterPage } from '@/features/registration/RegisterPage'
 import { UsersPage } from '@/features/users/UsersPage'
 
-// หน้าตั้งค่า master ที่สร้างจาก MasterSettingsPage + config (ดู features/admin/master/) — ทุกหน้าต้อง
-// มี user.manage เหมือนหน้าตั้งค่าอื่น ๆ (path ต้องตรงกับ route ของหน้าที่ seed ใน migration)
+// หน้าตั้งค่า master ที่สร้างจาก MasterSettingsPage + config (ดู features/admin/master/) — เข้าหน้าได้ด้วยสิทธิ์
+// "ดู" ของหน้านั้น (path ต้องตรงกับ route ของหน้าที่ seed ใน migration)
 const MASTER_SETTINGS_ROUTES = [
-  { path: '/settings/prenames', element: <PrenamesSettingsPage /> },
-  { path: '/settings/nationalities', element: <NationalitiesSettingsPage /> },
-  { path: '/settings/patient-groups', element: <PatientGroupsSettingsPage /> },
-  { path: '/settings/labs', element: <LabsSettingsPage /> },
+  { path: '/settings/prenames', permission: 'prename.view', element: <PrenamesSettingsPage /> },
+  { path: '/settings/nationalities', permission: 'nationality.view', element: <NationalitiesSettingsPage /> },
+  { path: '/settings/patient-groups', permission: 'patient_group.view', element: <PatientGroupsSettingsPage /> },
+  { path: '/settings/labs', permission: 'lab.view', element: <LabsSettingsPage /> },
 ]
 
 function App() {
@@ -35,11 +37,11 @@ function App() {
       <Route path="/login" element={<LoginPage />} />
       {/* ลงทะเบียน/ตั้งรหัสผ่านใหม่จากลิงก์ที่แอดมินออกให้ (/register#<token>) — สาธารณะ ไม่ต้อง login */}
       <Route path="/register" element={<RegisterPage />} />
-      {/* หน้าเอกสารพร้อมพิมพ์ (ส่งออก PDF) — นอกโครงหน้าหลัก (ไม่มี sidebar) แต่ยังต้อง login + patient.read */}
+      {/* หน้าเอกสารพร้อมพิมพ์ (ส่งออก PDF) — นอกโครงหน้าหลัก (ไม่มี sidebar) แต่ยังต้อง login + สิทธิ์ส่งออก (lab_visit.export) */}
       <Route
         path="/lab/appointments/:id/print"
         element={
-          <RequireAuth permission="patient.read">
+          <RequireAuth permission="lab_visit.export">
             <LabVisitPrintPage />
           </RequireAuth>
         }
@@ -55,7 +57,7 @@ function App() {
         <Route
           path="/patients"
           element={
-            <RequireAuth permission="patient.read">
+            <RequireAuth permission="patient.view">
               <PatientsPage />
             </RequireAuth>
           }
@@ -63,7 +65,7 @@ function App() {
         <Route
           path="/lab/appointments"
           element={
-            <RequireAuth permission="patient.read">
+            <RequireAuth permission="lab_visit.view">
               <LabVisitGroupsPage />
             </RequireAuth>
           }
@@ -71,16 +73,16 @@ function App() {
         <Route
           path="/lab/appointments/:id"
           element={
-            <RequireAuth permission="patient.read">
+            <RequireAuth permission="lab_visit.view">
               <LabVisitGroupDetailPage />
             </RequireAuth>
           }
         />
-        {/* จัดการบัญชีผู้ใช้ (กลุ่มเมนู "ลงทะเบียน") — API /users ต้อง user.manage เหมือนกัน */}
+        {/* จัดการบัญชีผู้ใช้ (กลุ่มเมนู "ลงทะเบียน") — API /users ต้อง user.view (แก้/สร้างตรวจราย action) */}
         <Route
           path="/users"
           element={
-            <RequireAuth permission="user.manage">
+            <RequireAuth permission="user.view">
               <UsersPage />
             </RequireAuth>
           }
@@ -88,7 +90,7 @@ function App() {
         <Route
           path="/settings/roles"
           element={
-            <RequireAuth permission="user.manage">
+            <RequireAuth permission="role.view">
               <RolesSettingsPage />
             </RequireAuth>
           }
@@ -96,7 +98,7 @@ function App() {
         <Route
           path="/settings/pages"
           element={
-            <RequireAuth permission="user.manage">
+            <RequireAuth permission="page.view">
               <PagesSettingsPage />
             </RequireAuth>
           }
@@ -104,7 +106,7 @@ function App() {
         <Route
           path="/settings/budget-years"
           element={
-            <RequireAuth permission="user.manage">
+            <RequireAuth permission="budget_year.view">
               <BudgetYearsSettingsPage />
             </RequireAuth>
           }
@@ -112,18 +114,36 @@ function App() {
         <Route
           path="/settings/diseases"
           element={
-            <RequireAuth permission="user.manage">
+            <RequireAuth permission="disease.view">
               <DiseasesSettingsPage />
             </RequireAuth>
           }
         />
-        {MASTER_SETTINGS_ROUTES.map(({ path, element }) => (
+        {MASTER_SETTINGS_ROUTES.map(({ path, permission, element }) => (
           <Route
             key={path}
             path={path}
-            element={<RequireAuth permission="user.manage">{element}</RequireAuth>}
+            element={<RequireAuth permission={permission}>{element}</RequireAuth>}
           />
         ))}
+        {/* ประวัติการเข้าออก (เพจย่อยของ "ประวัติ") — login/logout ของผู้ใช้ทุกคน */}
+        <Route
+          path="/audit/auth"
+          element={
+            <RequireAuth permission="audit.view">
+              <AuthHistoryPage />
+            </RequireAuth>
+          }
+        />
+        {/* ประวัติการใช้งาน (เพจย่อยของ "ประวัติ") — เพิ่ม/แก้ไข/ลบ/ส่งออก ของทุกหน้า */}
+        <Route
+          path="/audit/activities"
+          element={
+            <RequireAuth permission="audit.view">
+              <ActivityHistoryPage />
+            </RequireAuth>
+          }
+        />
         {/* path ที่ไม่มีอยู่จริง: แสดงหน้า not found ในโครงหน้าหลัก พร้อมปุ่มกลับ Dashboard */}
         <Route path="*" element={<NotFoundPage />} />
       </Route>

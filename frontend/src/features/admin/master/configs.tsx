@@ -15,6 +15,7 @@ export interface Prename {
 }
 
 export const prenameConfig: MasterConfig<Prename> = {
+  resource: 'prename',
   title: 'ตั้งค่าคำนำหน้า',
   description: 'คำนำหน้าชื่อที่ใช้บันทึกข้อมูลคนไข้ เช่น นาย นาง นางสาว',
   entityLabel: 'คำนำหน้า',
@@ -57,6 +58,7 @@ export interface Nationality {
 }
 
 export const nationalityConfig: MasterConfig<Nationality> = {
+  resource: 'nationality',
   title: 'ตั้งค่าสัญชาติ',
   description: 'เชื้อชาติ/สัญชาติและประเทศ ที่ใช้บันทึกข้อมูลคนไข้',
   entityLabel: 'สัญชาติ',
@@ -105,6 +107,7 @@ export interface PatientGroup {
 }
 
 export const patientGroupConfig: MasterConfig<PatientGroup> = {
+  resource: 'patient_group',
   title: 'ตั้งค่ากลุ่มคนไข้',
   description: 'กลุ่มคนไข้ที่ใช้จัดนัดหมายและกลุ่มที่มา',
   entityLabel: 'กลุ่มคนไข้',
@@ -149,6 +152,7 @@ export interface Lab {
 }
 
 export const labConfig: MasterConfig<Lab> = {
+  resource: 'lab',
   title: 'ตั้งค่าแลป',
   description: 'รายการแลปที่ใช้ตรวจ เช่น CD4, Viral load',
   entityLabel: 'แลป',

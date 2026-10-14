@@ -17,6 +17,7 @@ import {
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { NativeSelect } from '@/components/ui/native-select'
+import { grantsRoleManagement } from '@/features/admin/permissions'
 import type { Role } from '@/features/admin/rolesApi'
 
 import type { User } from './usersApi'
@@ -24,7 +25,6 @@ import type { User } from './usersApi'
 // ตรงกับกฎ backend (backend/src/users/service/users.rs) — ตรวจซ้ำที่นี่ให้ผู้ใช้เห็นก่อนส่ง backend ตรวจอีกรอบเสมอ
 const USERNAME_PATTERN = /^[a-z0-9._-]{3,32}$/
 const DISPLAY_NAME_MAX = 100
-const USER_MANAGE = 'user.manage'
 
 const displayNameSchema = z
   .string()
@@ -200,7 +200,7 @@ interface EditUserDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   user: User | null
-  // แก้บัญชีของตัวเอง — ต้องเหลือ role ที่มี user.manage (backend ปฏิเสธแบบเดียวกัน)
+  // แก้บัญชีของตัวเอง — role ที่เหลือต้องให้ role.view + role.update รวมกัน (backend ปฏิเสธแบบเดียวกัน)
   isSelf: boolean
   roles: Role[]
   // คำนำหน้าที่ยังไม่ถูกลบ (GET /prenames)
@@ -250,13 +250,17 @@ export function EditUserDialog({
     }
   }, [open, user, prenames, form])
 
-  const grantsUserManage = (roleId: string) =>
-    roles.some((role) => role.id === roleId && role.permissions.includes(USER_MANAGE))
+  // สิทธิ์รวมของ role ที่เลือก (union) — กฎเดียวกับ backend: บัญชีตัวเองต้องยังจัดการ role ได้
+  const keepsRoleManagement = (roleIds: string[]) =>
+    grantsRoleManagement(
+      roles.filter((role) => roleIds.includes(role.id)).flatMap((role) => role.permissions),
+    )
 
   const handleSubmit = form.handleSubmit(async (values) => {
-    if (isSelf && !values.roleIds.some(grantsUserManage)) {
+    if (isSelf && !keepsRoleManagement(values.roleIds)) {
       form.setError('roleIds', {
-        message: 'บัญชีของตัวเองต้องเหลือ role ที่มีสิทธิ์จัดการผู้ใช้อย่างน้อย 1 role',
+        message:
+          'บัญชีของตัวเองต้องเหลือ role ที่ให้สิทธิ์ "ดู" และ "แก้ไข" การตั้งค่าสิทธิ์ (กันล็อกตัวเองออกจากหน้าจัดการ)',
       })
       return
     }
@@ -378,8 +382,8 @@ export function EditUserDialog({
                         <span className="flex flex-col gap-0.5">
                           <span className="flex flex-wrap items-center gap-1 font-medium">
                             {role.name}
-                            {role.permissions.includes(USER_MANAGE) && (
-                              <Badge variant="outline">จัดการผู้ใช้</Badge>
+                            {grantsRoleManagement(role.permissions) && (
+                              <Badge variant="outline">จัดการสิทธิ์</Badge>
                             )}
                           </span>
                           {role.description && (
@@ -391,8 +395,8 @@ export function EditUserDialog({
                   </div>
                   {isSelf && (
                     <FieldDescription>
-                      บัญชีของตัวเองต้องเหลือ role ที่มีป้าย &quot;จัดการผู้ใช้&quot; อย่างน้อย 1 role
-                      (กันล็อกตัวเองออกจากหน้านี้)
+                      บัญชีของตัวเองต้องเหลือสิทธิ์ &quot;ดู&quot; + &quot;แก้ไข&quot; การตั้งค่าสิทธิ์ (role ที่มีป้าย
+                      &quot;จัดการสิทธิ์&quot; หรือหลาย role รวมกัน) กันล็อกตัวเองออกจากหน้าจัดการ
                     </FieldDescription>
                   )}
                   {fieldState.invalid && <FieldError errors={[fieldState.error]} />}

@@ -28,6 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { usePagePermissions } from '@/features/role-preview/usePagePermissions'
 import { ApiError } from '@/lib/api'
 import { notify } from '@/lib/notify'
 import { hasCriteria, textIncludes } from '@/lib/search'
@@ -64,6 +65,7 @@ type FormState = { mode: 'create' } | { mode: 'edit'; item: Disease } | null
 // ต่อ API จริงเต็ม CRUD (backend/src/disease) — create/update คืนแค่ status ไม่มี body เลย
 // refetch() ทั้ง list หลังทุก mutation เหมือนหน้าตั้งค่าเพจ/role/ปีงบประมาณ
 export function DiseasesSettingsPage() {
+  const { canCreate, canUpdate, canDelete } = usePagePermissions('disease')
   const { items, status, refetch } = useAdminList(diseasesApi.list)
 
   const [formState, setFormState] = useState<FormState>(null)
@@ -112,7 +114,7 @@ export function DiseasesSettingsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="ตั้งค่าโรค" description="รายชื่อโรคที่ใช้บันทึกเป็นโรคประจำตัวของคนไข้" />
+      <PageHeader fallbackTitle="ตั้งค่าโรค" description="รายชื่อโรคที่ใช้บันทึกเป็นโรคประจำตัวของคนไข้" />
 
       <SearchForm
         id="disease-search"
@@ -133,7 +135,7 @@ export function DiseasesSettingsPage() {
         shown={visibleItems.length}
         filtered={hasCriteria(criteria)}
       >
-        <AddButton onClick={() => setFormState({ mode: 'create' })}>เพิ่มโรค</AddButton>
+        {canCreate && <AddButton onClick={() => setFormState({ mode: 'create' })}>เพิ่มโรค</AddButton>}
       </ListToolbar>
 
       <Card>
@@ -168,7 +170,7 @@ export function DiseasesSettingsPage() {
                   <TableHead>ชื่อโรค</TableHead>
                   <TableHead>คำย่อ</TableHead>
                   <TableHead>สถานะ</TableHead>
-                  <TableHead className="text-right">จัดการ</TableHead>
+                  {(canUpdate || canDelete) && <TableHead className="text-right">จัดการ</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -182,10 +184,12 @@ export function DiseasesSettingsPage() {
                         {item.isActive ? 'ใช้งานอยู่' : 'ปิดใช้งาน'}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <EditButton onClick={() => setFormState({ mode: 'edit', item })} />
-                      <DeleteButton onClick={() => setPendingDelete(item)} />
-                    </TableCell>
+                    {(canUpdate || canDelete) && (
+                      <TableCell className="text-right">
+                        {canUpdate && <EditButton onClick={() => setFormState({ mode: 'edit', item })} />}
+                        {canDelete && <DeleteButton onClick={() => setPendingDelete(item)} />}
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>

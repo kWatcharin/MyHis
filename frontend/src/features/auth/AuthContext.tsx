@@ -3,12 +3,15 @@ import type { ReactNode } from 'react'
 
 import { api, ApiError } from '@/lib/api'
 
+import { toLoginError } from './loginError'
+
+// เมนู 2 ชั้น (ดู menu.ts): refId = uuid ของเพจหลัก (null = เมนูชั้นบน), route null = หัวข้อกลุ่ม
 export interface MenuItem {
   id: string
   label: string
   icon: string | null
-  route: string
-  groupLabel: string | null
+  route: string | null
+  refId: string | null
 }
 
 interface UserResponse {
@@ -37,22 +40,6 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
-
-// backend ตั้งใจให้ error message เดียวกันไม่ว่าจะผิดเพราะอะไร (docs/auth-design.md ข้อ 6) —
-// map เป็นข้อความไทยตรงนี้ที่เดียว ไม่โชว์ string ดิบจาก backend ให้ผู้ใช้เห็น
-function loginErrorMessage(err: unknown): string {
-  if (err instanceof ApiError) {
-    if (err.message === 'invalid credentials') {
-      return 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'
-    }
-    if (err.message === 'account temporarily locked') {
-      return err.retryAfterSeconds
-        ? `บัญชีถูกล็อกชั่วคราว ลองใหม่อีกครั้งใน ${err.retryAfterSeconds} วินาที`
-        : 'บัญชีถูกล็อกชั่วคราว ลองใหม่อีกครั้งภายหลัง'
-    }
-  }
-  return 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง'
-}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('loading')
@@ -97,7 +84,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setMenu(menuItems)
       setStatus('authenticated')
     } catch (err) {
-      throw new Error(loginErrorMessage(err))
+      // LoginError: ข้อความไทย + จำนวนครั้งที่เหลือ/เวลาล็อก ให้หน้า login แสดงตัวนับ
+      throw toLoginError(err)
     }
   }, [])
 

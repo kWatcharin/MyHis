@@ -16,7 +16,7 @@ use http_body_util::BodyExt;
 use my_his_backend::auth::CurrentUser;
 use my_his_backend::config::Config;
 use my_his_backend::crypto::Crypto;
-use my_his_backend::domain::{Permission, User, UserId};
+use my_his_backend::domain::{Permission, Resource, User, UserId};
 use my_his_backend::state::AppState;
 use my_his_backend::{app, password};
 use serde_json::{json, Value};
@@ -43,6 +43,28 @@ pub async fn verify_password(plain: &str, hash: &str) -> bool {
         .await
         .unwrap()
         .unwrap()
+}
+
+/// รัน migration ทีละไฟล์ (เรียงตามเวอร์ชันในชื่อไฟล์) เฉพาะเวอร์ชันที่ `include` ตอบ true — ใช้กับ
+/// `#[sqlx::test(migrations = false)]` เพื่อใส่ข้อมูลแบบที่ admin ตั้งผ่านหน้าเว็บก่อน migration ที่ทดสอบ
+pub async fn run_migration_files(pool: &PgPool, include: impl Fn(i64) -> bool) {
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/migrations");
+    let mut files: Vec<_> = std::fs::read_dir(dir)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.extension().is_some_and(|ext| ext == "sql"))
+        .collect();
+    files.sort();
+    for path in files {
+        let name = path.file_name().unwrap().to_str().unwrap();
+        let version: i64 = name.split('_').next().unwrap().parse().unwrap();
+        if include(version) {
+            let sql = std::fs::read_to_string(&path).unwrap();
+            let mut tx = pool.begin().await.unwrap();
+            sqlx::raw_sql(&sql).execute(&mut *tx).await.unwrap();
+            tx.commit().await.unwrap();
+        }
+    }
 }
 
 /// router จริงของแอปบน DB ของเทส — Config ใช้ค่าทดสอบ (ไม่อ่าน environment variable)
@@ -101,6 +123,8 @@ pub struct TestResponse {
     pub body: Value,
     /// ค่า "ชื่อ=ค่า" ของ Set-Cookie (ตัด attribute ทิ้ง) ไว้แนบเป็น Cookie ของ request ถัดไป
     pub set_cookie: Option<String>,
+    /// header Retry-After (วินาที) — มีเฉพาะตอนถูกล็อก (429)
+    pub retry_after: Option<i64>,
 }
 
 /// ยิง request หนึ่งครั้งเข้า router (JSON body ถ้ามี + cookie session ถ้ามี)
@@ -111,9 +135,24 @@ pub async fn send(
     cookie: Option<&str>,
     body: Option<Value>,
 ) -> TestResponse {
+    send_with_headers(app, method, path, cookie, body, &[]).await
+}
+
+/// เหมือน `send` แต่แนบ header เพิ่ม เช่น X-Forwarded-For / User-Agent (ประวัติการเข้าออก)
+pub async fn send_with_headers(
+    app: &Router,
+    method: Method,
+    path: &str,
+    cookie: Option<&str>,
+    body: Option<Value>,
+    headers: &[(&str, &str)],
+) -> TestResponse {
     let mut builder = Request::builder().method(method).uri(path);
     if let Some(cookie) = cookie {
         builder = builder.header(header::COOKIE, cookie);
+    }
+    for (name, value) in headers {
+        builder = builder.header(*name, *value);
     }
     let request = match body {
         Some(json) => builder
@@ -131,12 +170,18 @@ pub async fn send(
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.split(';').next())
         .map(str::to_string);
+    let retry_after = response
+        .headers()
+        .get(header::RETRY_AFTER)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse().ok());
     let bytes = response.into_body().collect().await.unwrap().to_bytes();
     let body = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
     TestResponse {
         status,
         body,
         set_cookie,
+        retry_after,
     }
 }
 
@@ -178,14 +223,33 @@ pub async fn actor_with(pool: &PgPool, permissions: Vec<Permission>) -> CurrentU
     }
 }
 
-/// ผู้ใช้ที่มี `user.manage` (สิทธิ์ที่หน้าตั้งค่า master ทุกหน้าต้องการ)
-pub async fn admin(pool: &PgPool) -> CurrentUser {
-    actor_with(pool, vec![Permission::UserManage]).await
+/// permission จากคีย์ เช่น "patient.view" (คีย์ผิด = เทสพังทันที)
+pub fn perm(key: &str) -> Permission {
+    Permission::parse(key).unwrap_or_else(|| panic!("unknown permission {key}"))
 }
 
-/// ผู้ใช้ที่ไม่มี `user.manage` (เหมือน role nurse)
+/// ทุก action ของเพจหนึ่ง เช่น "patient" → patient.view/create/update/delete
+pub fn all_of(resource: Resource) -> Vec<Permission> {
+    Permission::all()
+        .filter(|p| p.resource() == resource)
+        .collect()
+}
+
+/// ทุกสิทธิ์ยกเว้นของเพจหนึ่ง — ใช้เช็คว่าสิทธิ์ของเพจอื่น (แม้ครบทุกตัว) ไม่ให้เข้าเพจนี้
+pub fn all_except(resource: Resource) -> Vec<Permission> {
+    Permission::all()
+        .filter(|p| p.resource() != resource)
+        .collect()
+}
+
+/// ผู้ใช้ที่มีทุกสิทธิ์ (เหมือน role admin หลัง migration สิทธิ์รายเพจ)
+pub async fn admin(pool: &PgPool) -> CurrentUser {
+    actor_with(pool, Permission::all().collect()).await
+}
+
+/// ผู้ใช้ที่ไม่มีสิทธิ์หน้าตั้งค่า/ผู้ป่วยใด ๆ (มีแค่ตารางเวร)
 pub async fn nurse(pool: &PgPool) -> CurrentUser {
-    actor_with(pool, vec![Permission::ShiftRead, Permission::ShiftWrite]).await
+    actor_with(pool, vec![perm("shift.view"), perm("shift.update")]).await
 }
 
 pub async fn insert_prename(pool: &PgPool, user_id: i32, name: &str) -> i32 {
@@ -244,10 +308,13 @@ pub async fn soft_delete_row(pool: &PgPool, table: &str, id: i32, user_id: i32) 
         .unwrap();
 }
 
+/// เพจที่ migration seed ไว้: (ชื่อเพจ, ชื่อเพจหลักที่อยู่ใต้ — None = เป็นเพจหลักเอง, permission)
 pub async fn seeded_page(pool: &PgPool, route: &str) -> (String, Option<String>, String) {
     sqlx::query_as(
-        "select p.label, p.group_label, pp.permission
-         from pages p join page_permissions pp on pp.page_id = p.id
+        "select p.label, m.label, pp.permission
+         from pages p
+         join page_permissions pp on pp.page_id = p.id
+         left join pages m on m.id = p.ref_id
          where p.route = $1",
     )
     .bind(route)

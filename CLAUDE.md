@@ -51,15 +51,17 @@ my-his/
       ├─ db.rs                 สร้าง connection pool, รัน migration ตอนเริ่ม
       ├─ domain/               ชนิดข้อมูลกลาง: UserId, User, Role, Permission
       ├─ auth/                 ดู docs/auth-design.md
-      ├─ users/                จัดการบัญชีผู้ใช้/role/เพจ (เฉพาะ admin, user.manage) — หน้า "ผู้ใช้งาน" /users กลุ่มเมนูลงทะเบียน
+      ├─ users/                จัดการบัญชีผู้ใช้/role/เพจ (สิทธิ์ `user.*` / `role.*` / `page.*`) — หน้า "ผู้ใช้งาน" /users กลุ่มเมนูลงทะเบียน
       │                        สร้างบัญชี/รีเซ็ตรหัส = ออกลิงก์ลงทะเบียน (ไม่มีรหัสผ่านชั่วคราว)
       ├─ registration/         ลงทะเบียน/ตั้งรหัสผ่านผ่านลิงก์ (สาธารณะ, หน้า /register#<token>) ผู้ใช้กรอกข้อมูลตัว + ตั้งรหัสเอง
-      ├─ budget_year/          ตั้งค่าปีงบประมาณ (หน้า master แรก ใช้สิทธิ์ user.manage)
-      ├─ disease/              ตั้งค่าโรค (หน้า master, สิทธิ์ user.manage เหมือน budget_year)
+      ├─ budget_year/          ตั้งค่าปีงบประมาณ (หน้า master แรก สิทธิ์ `budget_year.*`)
+      ├─ disease/              ตั้งค่าโรค (หน้า master, สิทธิ์ `disease.*`)
       ├─ prename/ nationality/ patient_group/ lab/   master อื่น ๆ โครงเดียวกับ disease/
-      ├─ patient/              ลงทะเบียนผู้ป่วย + โรคประจำตัว (สิทธิ์ patient.read/write, เข้ารหัสด้วย crypto.rs)
-      ├─ lab_visit/            นัดหมายแล็ป (lab_visit_group + lab_visit) สิทธิ์ patient.* — คืนแค่ uuid คนไข้ ไม่แตะข้อมูลระบุตัว
-      └─ audit/                บันทึกว่าใครทำอะไร
+      ├─ patient/              ลงทะเบียนผู้ป่วย + โรคประจำตัว (สิทธิ์ `patient.*`, เข้ารหัสด้วย crypto.rs)
+      ├─ lab_visit/            นัดหมายแล็ป (lab_visit_group + lab_visit) สิทธิ์ `lab_visit.*` — คืนแค่ uuid คนไข้ ไม่แตะข้อมูลระบุตัว
+      └─ audit/                บันทึกว่าใครทำอะไร (แต่ละโมดูลเขียน audit_log เอง) + API อ่านประวัติ สิทธิ์ `audit.view`:
+                               `GET /audit/auth-events` (login/logout พร้อม IP/User-Agent) และ `GET /audit/activities`
+                               (เพิ่ม/แก้ไข/ลบ/ส่งออก ทุกหน้า — แถวผู้ป่วยไม่มีชื่อรายการ)
 ```
 
 ## กฎการเขียนโค้ดที่ต้องยึด

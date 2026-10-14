@@ -36,12 +36,11 @@ pub struct UserWithRoles {
     pub roles: Vec<RoleRef>,
 }
 
-/// role ที่จะผูกให้ผู้ใช้ + ธงว่า role นี้ให้สิทธิ์ `user.manage` ไหม (service ใช้กันแอดมินถอดสิทธิ์จัดการ
-/// ผู้ใช้ออกจากตัวเอง)
+/// role ที่จะผูกให้ผู้ใช้ + permission ของ role นั้น (service ใช้กันแอดมินถอดสิทธิ์จัดการ role ออกจากตัวเอง)
 #[derive(Debug)]
 pub struct AssignableRole {
     pub id: RoleId,
-    pub grants_user_manage: bool,
+    pub permissions: Vec<Permission>,
 }
 
 /// ชื่อที่แสดง + ข้อมูลตัวผู้ใช้ (ผ่านการ normalize/ตรวจแล้วที่ service) สำหรับแทนที่ทั้งชุด — None = ล้างค่า
@@ -140,25 +139,57 @@ pub async fn find_prename_id(
     Ok(row.map(|r| r.id))
 }
 
+/// สิทธิ์รวมของผู้ใช้คนหนึ่ง (ทุก role ที่ถือ) — ใช้กับกฎห้ามแตะบัญชีที่มีสิทธิ์มากกว่าตัวเอง
+pub async fn permissions_of_user(
+    pool: &PgPool,
+    user: UserId,
+) -> Result<Vec<Permission>, RepositoryError> {
+    let keys = sqlx::query_scalar!(
+        "select distinct rp.permission
+         from user_roles ur join role_permissions rp on rp.role_id = ur.role_id
+         where ur.user_id = $1",
+        user.0
+    )
+    .fetch_all(pool)
+    .await?;
+    keys.into_iter()
+        .map(|key| Permission::parse(&key).ok_or(RepositoryError::UnknownPermission(key)))
+        .collect()
+}
+
 /// หา role หลายตัวจาก uuid ใน query เดียว (แทนการหาทีละตัวในลูป) — คืนเฉพาะ role ที่พบ caller เทียบ
 /// จำนวนเองว่าครบไหม
 pub async fn find_roles_for_assignment(
     pool: &PgPool,
     public_ids: &[Uuid],
 ) -> Result<Vec<AssignableRole>, RepositoryError> {
-    let rows = sqlx::query_as!(
-        AssignableRole,
+    let rows = sqlx::query!(
         r#"select r.id as "id: RoleId",
-                  exists(select 1 from role_permissions rp
-                         where rp.role_id = r.id and rp.permission = $2) as "grants_user_manage!"
+                  coalesce(array_agg(rp.permission) filter (where rp.permission is not null), '{}')
+                      as "permissions!"
            from roles r
-           where r.uuid = any($1)"#,
-        public_ids,
-        Permission::UserManage.as_str()
+           left join role_permissions rp on rp.role_id = r.id
+           where r.uuid = any($1)
+           group by r.id"#,
+        public_ids
     )
     .fetch_all(pool)
     .await?;
-    Ok(rows)
+
+    rows.into_iter()
+        .map(|row| {
+            let permissions = row
+                .permissions
+                .into_iter()
+                .map(|p| Permission::parse(&p).ok_or(p))
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(RepositoryError::UnknownPermission)?;
+            Ok(AssignableRole {
+                id: row.id,
+                permissions,
+            })
+        })
+        .collect()
 }
 
 /// สร้างผู้ใช้ที่ยังไม่ลงทะเบียน (`registered_at` null, รหัสผ่านใช้ไม่ได้) + ผูก role + ออกลิงก์ลงทะเบียน +

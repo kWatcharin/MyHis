@@ -13,10 +13,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { useAuth } from '@/features/auth/AuthContext'
 
-import { ALL_PERMISSIONS, PERMISSION_LABELS } from './permissions'
+import type { PermissionAction } from './permissions'
+import { ACTION_LABELS, ALL_PERMISSIONS, groupPermissionResources, permissionKey } from './permissions'
 import type { Role } from './rolesApi'
 
 const roleFormSchema = z.object({
@@ -64,6 +66,9 @@ export function RoleFormDialog({
   }, [open, mode, initialValue, form])
 
   const isSystem = mode === 'edit' && initialValue?.isSystem === true
+  // ชื่อเพจ/กลุ่มตามเมนู (การตั้งค่าเพจ) — GET /menu ทุกคนเรียกได้ ไม่ต้องมี page.view
+  const { menu } = useAuth()
+  const permissionGroups = groupPermissionResources(menu)
 
   const handleSubmit = form.handleSubmit(async (values) => {
     try {
@@ -78,7 +83,8 @@ export function RoleFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      {/* ตารางสิทธิ์รายเพจยาวเกินจอ — จำกัดความสูงแล้วเลื่อนในกรอบ dialog */}
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{mode === 'create' ? 'เพิ่ม role' : 'แก้ไข role'}</DialogTitle>
           {isSystem && (
@@ -118,33 +124,66 @@ export function RoleFormDialog({
             <Controller
               name="permissions"
               control={form.control}
-              render={({ field }) => (
-                <Field>
-                  <FieldLabel>สิทธิ์</FieldLabel>
-                  <div className="flex flex-col gap-2">
-                    {ALL_PERMISSIONS.map((permission) => (
-                      <label
-                        key={permission}
-                        className="flex items-center gap-2 text-sm font-normal"
-                      >
-                        <Checkbox
-                          checked={field.value.includes(permission)}
-                          onCheckedChange={(checked) => {
-                            const next = checked === true
-                            field.onChange(
-                              next
-                                ? [...field.value, permission]
-                                : field.value.filter((p) => p !== permission),
-                            )
-                          }}
-                        />
-                        {PERMISSION_LABELS[permission]}
-                        <span className="text-muted-foreground">({permission})</span>
-                      </label>
-                    ))}
-                  </div>
-                </Field>
-              )}
+              render={({ field }) => {
+                const selected = new Set(field.value)
+                // ติ๊ก เพิ่ม/แก้ไข/ลบ/ส่งออก แล้วติ๊ก "ดู" ของเพจนั้นให้ด้วย (ไม่มีดูก็เข้าหน้านั้นไม่ได้) เอาออกทีละช่อง
+                // ค่าที่ส่งเรียงตาม ALL_PERMISSIONS (ลำดับเดียวกับตาราง backend)
+                const toggle = (resourceKey: string, action: PermissionAction, checked: boolean) => {
+                  const next = new Set(field.value)
+                  const key = permissionKey(resourceKey, action)
+                  if (checked) {
+                    next.add(key)
+                    next.add(permissionKey(resourceKey, 'view'))
+                  } else {
+                    next.delete(key)
+                  }
+                  field.onChange(ALL_PERMISSIONS.filter((permission) => next.has(permission)))
+                }
+                return (
+                  <Field>
+                    <FieldLabel>สิทธิ์</FieldLabel>
+                    <FieldDescription>
+                      แยกตามเพจ — ติ๊ก เพิ่ม/แก้ไข/ลบ/ส่งออก แล้วจะติ๊ก &quot;ดู&quot; ให้อัตโนมัติ
+                    </FieldDescription>
+                    <div className="flex flex-col gap-4">
+                      {permissionGroups.map((group) => (
+                        <div key={group.label} className="flex flex-col gap-2">
+                          <p className="text-sm font-semibold">{group.label}</p>
+                          {group.resources.map(({ resource, label }) => (
+                            <div
+                              key={resource.key}
+                              className="flex flex-col gap-1.5 rounded-lg border px-3 py-2"
+                            >
+                              <span className="text-sm font-medium">{label}</span>
+                              <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                                {resource.actions.map((action) => (
+                                  <label
+                                    key={action}
+                                    className="flex items-center gap-1.5 text-sm font-normal"
+                                  >
+                                    <Checkbox
+                                      checked={selected.has(permissionKey(resource.key, action))}
+                                      onCheckedChange={(checked) =>
+                                        toggle(resource.key, action, checked === true)
+                                      }
+                                    />
+                                    {ACTION_LABELS[action]}
+                                  </label>
+                                ))}
+                              </div>
+                              {resource.requires &&
+                                selected.has(permissionKey(resource.key, 'view')) &&
+                                !selected.has(resource.requires.permission) && (
+                                  <p className="text-xs text-warning">{resource.requires.message}</p>
+                                )}
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  </Field>
+                )
+              }}
             />
             {form.formState.errors.root && (
               <Field data-invalid>

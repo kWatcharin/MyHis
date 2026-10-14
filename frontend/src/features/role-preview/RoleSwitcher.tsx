@@ -68,9 +68,12 @@ export function RoleSwitcher() {
           }
         />
         <DropdownMenuContent align="end">
-          <DropdownMenuLabel>สลับมุมมองสิทธิ์</DropdownMenuLabel>
-          <DropdownMenuSeparator />
           <DropdownMenuRadioGroup value={activeRoleName ?? ''} onValueChange={handleSelect}>
+            {/* label ต้องอยู่ใน group เสมอ (ที่นี่คือ RadioGroup) — DropdownMenuLabel คือ Menu.GroupLabel
+                ของ base-ui ซึ่ง throw ถ้าไม่มี group ครอบ กดเปิดเมนูแล้วทั้งแอปหน้าขาว (Base UI error #31)
+                วางไว้ในนี้ยังเป็นชื่อกลุ่ม (aria-labelledby) ของตัวเลือก role ด้วย */}
+            <DropdownMenuLabel>สลับมุมมองสิทธิ์</DropdownMenuLabel>
+            <DropdownMenuSeparator />
             {/* โชว์ตัวเลือกนี้เฉพาะตอน preview อยู่จริง — ถ้าใช้สิทธิ์จริงอยู่แล้ว value ของ
                 radio group จะเท่ากับ "__real__" อยู่แล้ว กดซ้ำจะไม่ยิง onValueChange
                 (radio group ไม่แจ้ง change ถ้าค่าที่กดเหมือนค่าปัจจุบัน) ทำให้กดแล้วดูเหมือน

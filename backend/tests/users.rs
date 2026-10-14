@@ -1,5 +1,5 @@
 //! เทสโมดูล users (หน้า "ผู้ใช้งาน") บน DB สะอาด (`#[sqlx::test]`):
-//! - ระดับ service: สิทธิ์ `user.manage`, กฎข้อมูลขาเข้า, ลิงก์ลงทะเบียน (แทนรหัสผ่านชั่วคราว), กันแอดมินล็อกตัวเองออก,
+//! - ระดับ service: สิทธิ์ราย action (`user.*`), กฎข้อมูลขาเข้า, ลิงก์ลงทะเบียน (แทนรหัสผ่านชั่วคราว), กันแอดมินล็อกตัวเองออก,
 //!   ผลต่อ session, audit
 //! - ระดับ router (ยิงผ่าน `app::router` จริงด้วย cookie จริง): ปิดบัญชี/รีเซ็ตรหัสแล้ว session เดิมใช้ไม่ได้,
 //!   ผู้ใช้ใหม่ลงทะเบียนผ่านลิงก์แล้วเข้าระบบได้, ผู้ไม่มีสิทธิ์ถูกปฏิเสธ
@@ -12,7 +12,6 @@ mod common;
 use axum::http::{Method, StatusCode};
 use chrono::{DateTime, Duration, Utc};
 use my_his_backend::auth::CurrentUser;
-use my_his_backend::domain::Permission;
 use my_his_backend::token;
 use my_his_backend::users::{service, UsersError};
 use serde_json::{json, Value};
@@ -482,7 +481,7 @@ async fn replace_user_updates_details_and_roles_in_one_step(pool: PgPool) {
     .await
     .unwrap_err();
     assert!(
-        is_validation(&err, "cannot remove your own user management permission"),
+        is_validation(&err, "cannot remove your own role management permission"),
         "{err:?}"
     );
 }
@@ -605,21 +604,21 @@ async fn replace_user_roles_validates_dedupes_and_audits(pool: PgPool) {
 }
 
 #[sqlx::test]
-async fn admin_cannot_remove_own_user_manage_permission(pool: PgPool) {
+async fn admin_cannot_remove_own_role_management_permission(pool: PgPool) {
     let admin = common::admin(&pool).await;
     let own = admin.user.public_id;
     let nurse_role = role_uuid(&pool, "nurse").await;
     let admin_role = role_uuid(&pool, "admin").await;
-    // role ที่แอดมินสร้างเองซึ่งให้ user.manage ก็นับ (กฎดูที่สิทธิ์ ไม่ผูกกับชื่อ role "admin")
+    // role ที่แอดมินสร้างเองซึ่งให้ role.view + role.update ก็นับ (กฎดูที่สิทธิ์ ไม่ผูกกับชื่อ role "admin")
     let backup_admin_role: Uuid =
         sqlx::query_scalar("insert into roles (name) values ('ผู้ดูแลสำรอง') returning uuid")
             .fetch_one(&pool)
             .await
             .unwrap();
     sqlx::query(
-        "insert into role_permissions (role_id, permission) select id, $1 from roles where uuid = $2",
+        "insert into role_permissions (role_id, permission)
+         select id, unnest(array['role.view', 'role.update']) from roles where uuid = $1",
     )
-    .bind(Permission::UserManage.as_str())
     .bind(backup_admin_role)
     .execute(&pool)
     .await
@@ -629,7 +628,7 @@ async fn admin_cannot_remove_own_user_manage_permission(pool: PgPool) {
         .await
         .unwrap_err();
     assert!(
-        is_validation(&err, "cannot remove your own user management permission"),
+        is_validation(&err, "cannot remove your own role management permission"),
         "{err:?}"
     );
 
@@ -640,7 +639,7 @@ async fn admin_cannot_remove_own_user_manage_permission(pool: PgPool) {
         .await
         .unwrap();
 
-    // ผู้ใช้คนอื่นตั้งเป็นชุดที่ไม่มี user.manage ได้ตามปกติ
+    // ผู้ใช้คนอื่นตั้งเป็นชุดที่จัดการ role ไม่ได้ได้ตามปกติ
     let (other, _, _) = create_nurse(&pool, &admin, "other.user").await;
     service::replace_user_roles(&pool, &admin, other, &[nurse_role])
         .await

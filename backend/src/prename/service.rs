@@ -1,14 +1,15 @@
-//! กฎของ prename: สิทธิ์ (ต้องมี user.manage), ข้อความ (trim, ไม่ว่างถ้าบังคับ, ไม่เกิน 100 ตัวอักษร),
+//! กฎของ prename: สิทธิ์ (`prename.*` ราย action), ข้อความ (trim, ไม่ว่างถ้าบังคับ, ไม่เกิน 100 ตัวอักษร),
 //! ชื่อซ้ำ, ห้ามลบข้อมูลที่ยังถูกใช้อยู่ ห้าม import ชนิดข้อมูลของ Axum (docs/auth-design.md ข้อ 10)
 //!
-//! **จุดตรวจสิทธิ์**: ทุกฟังก์ชันรับ `actor: &CurrentUser` เป็นพารามิเตอร์แรกและเช็ค `user.manage`
-//! ที่นี่ เหมือนโมดูล users/disease — id ขาเข้าเป็น uuid (`public_id`) แล้ว resolve เป็น id ภายในเอง
+//! **จุดตรวจสิทธิ์**: ทุกฟังก์ชันรับ `actor: &CurrentUser` เป็นพารามิเตอร์แรกและเช็คสิทธิ์
+//! ของ action นั้น (`prename.view/create/update/delete`) ที่นี่ เหมือนโมดูล users/disease
+//! — id ขาเข้าเป็น uuid (`public_id`) แล้ว resolve เป็น id ภายในเอง
 
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::auth::CurrentUser;
-use crate::domain::Permission;
+use crate::domain::{Action, Resource};
 use crate::prename::repository::{self, PrenameRow, RepositoryError, UpdatePrenameFields};
 
 /// จำกัดความยาวที่ app ให้เท่ากันทุก master (ตรงกับ varchar(100) ของคอลัมน์ที่มี limit) — นับเป็นตัวอักษร
@@ -29,8 +30,9 @@ pub enum PrenameError {
     Repository(#[from] RepositoryError),
 }
 
-fn require_user_manage(actor: &CurrentUser) -> Result<(), PrenameError> {
-    if actor.has_permission(Permission::UserManage) {
+/// ตรวจสิทธิ์ของ action นี้กับหน้านี้ (`prename.view/create/update/delete`)
+fn require(actor: &CurrentUser, action: Action) -> Result<(), PrenameError> {
+    if actor.can(Resource::Prename, action) {
         Ok(())
     } else {
         Err(PrenameError::Forbidden)
@@ -67,8 +69,11 @@ fn clean_optional(value: &str, field: &str) -> Result<Option<String>, PrenameErr
     clean_text(value, field).map(Some)
 }
 
+/// อ่านรายการได้ทั้งคนที่ดูหน้านี้ได้ และคนที่ดูหน้าผู้ใช้งานได้ (ฟอร์มผู้ใช้เลือกคำนำหน้าจากรายการนี้)
 pub async fn list(pool: &PgPool, actor: &CurrentUser) -> Result<Vec<PrenameRow>, PrenameError> {
-    require_user_manage(actor)?;
+    if !actor.can(Resource::User, Action::View) {
+        require(actor, Action::View)?;
+    }
     Ok(repository::list_prename_rows(pool).await?)
 }
 
@@ -83,7 +88,7 @@ pub async fn create(
     actor: &CurrentUser,
     input: CreatePrenameInput<'_>,
 ) -> Result<(), PrenameError> {
-    require_user_manage(actor)?;
+    require(actor, Action::Create)?;
     let name = clean_text(input.name, "name")?;
     let abbreviation = input
         .abbreviation
@@ -115,7 +120,7 @@ pub async fn update(
     public_id: Uuid,
     input: UpdatePrenameInput<'_>,
 ) -> Result<(), PrenameError> {
-    require_user_manage(actor)?;
+    require(actor, Action::Update)?;
 
     let existing = repository::find_prename_by_public_id(pool, public_id)
         .await?
@@ -147,7 +152,7 @@ pub async fn delete(
     actor: &CurrentUser,
     public_id: Uuid,
 ) -> Result<(), PrenameError> {
-    require_user_manage(actor)?;
+    require(actor, Action::Delete)?;
 
     let existing = repository::find_prename_by_public_id(pool, public_id)
         .await?

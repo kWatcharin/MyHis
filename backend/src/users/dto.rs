@@ -158,11 +158,23 @@ pub struct CreatePageRequest {
     #[validate(length(min = 1, message = "label is required"))]
     pub label: String,
     pub icon: Option<String>,
-    #[validate(length(min = 1, message = "route is required"))]
-    pub route: String,
+    // ไม่ส่ง/null = เพจหลักที่เป็นหัวข้อกลุ่มเมนู (ไม่มีหน้าของตัวเอง) — เพจย่อยต้องมี route (service ตรวจ)
+    #[validate(length(min = 1, message = "route cannot be empty"))]
+    pub route: Option<String>,
     pub sort_order: Option<i32>,
     pub permissions: Vec<String>,
-    pub group_label: Option<String>,
+    /// uuid ของเพจหลัก (ไม่ส่ง/null = เป็นเพจหลักเอง)
+    pub ref_id: Option<Uuid>,
+}
+
+/// แยก "ไม่ส่ง field" (None — ใช้คู่กับ `#[serde(default)]`) ออกจาก "ส่ง null" (Some(None)) — PATCH ต้องรู้ว่า
+/// ผู้ใช้ตั้งใจล้างค่าหรือแค่ไม่แตะ (Option ชั้นเดียวของ serde รวมสองกรณีนี้เป็น None)
+fn double_option<'de, D, T>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Option::<T>::deserialize(deserializer).map(Some)
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -175,9 +187,9 @@ pub struct UpdatePageRequest {
     pub route: Option<String>,
     pub sort_order: Option<i32>,
     pub permissions: Option<Vec<String>>,
-    // เหมือน icon: ไม่รองรับตั้งกลับเป็น null ผ่าน endpoint นี้ตรง ๆ (Option ชั้นเดียว — serde ทำให้
-    // "ไม่ส่ง field" กับ "ส่ง null" กลายเป็น None เหมือนกัน) ยอมรับข้อจำกัดนี้เหมือนที่ยอมรับกับ icon
-    pub group_label: Option<String>,
+    /// ไม่ส่ง = ไม่แตะ, null = ย้ายขึ้นเป็นเพจหลัก, uuid = ย้ายไปอยู่ใต้เพจหลักนั้น
+    #[serde(default, deserialize_with = "double_option")]
+    pub ref_id: Option<Option<Uuid>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -186,10 +198,12 @@ pub struct PageResponse {
     pub id: Uuid,
     pub label: String,
     pub icon: Option<String>,
-    pub route: String,
+    /// null = เพจหลักที่เป็นหัวข้อกลุ่มเมนู
+    pub route: Option<String>,
     pub sort_order: i32,
     pub permissions: Vec<&'static str>,
-    pub group_label: Option<String>,
+    /// uuid ของเพจหลัก (null = เป็นเพจหลักเอง)
+    pub ref_id: Option<Uuid>,
 }
 
 #[derive(Debug, Serialize)]
@@ -198,6 +212,6 @@ pub struct MenuItemResponse {
     pub id: Uuid,
     pub label: String,
     pub icon: Option<String>,
-    pub route: String,
-    pub group_label: Option<String>,
+    pub route: Option<String>,
+    pub ref_id: Option<Uuid>,
 }

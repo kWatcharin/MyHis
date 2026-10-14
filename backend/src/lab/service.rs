@@ -1,14 +1,15 @@
-//! กฎของ lab: สิทธิ์ (ต้องมี user.manage), ข้อความ (trim, ไม่ว่างถ้าบังคับ, ไม่เกิน 100 ตัวอักษร),
+//! กฎของ lab: สิทธิ์ (`lab.*` ราย action), ข้อความ (trim, ไม่ว่างถ้าบังคับ, ไม่เกิน 100 ตัวอักษร),
 //! ชื่อซ้ำ, ห้ามลบข้อมูลที่ยังถูกใช้อยู่ ห้าม import ชนิดข้อมูลของ Axum (docs/auth-design.md ข้อ 10)
 //!
-//! **จุดตรวจสิทธิ์**: ทุกฟังก์ชันรับ `actor: &CurrentUser` เป็นพารามิเตอร์แรกและเช็ค `user.manage`
-//! ที่นี่ เหมือนโมดูล users/disease — id ขาเข้าเป็น uuid (`public_id`) แล้ว resolve เป็น id ภายในเอง
+//! **จุดตรวจสิทธิ์**: ทุกฟังก์ชันรับ `actor: &CurrentUser` เป็นพารามิเตอร์แรกและเช็คสิทธิ์
+//! ของ action นั้น (`lab.view/create/update/delete`) ที่นี่ เหมือนโมดูล users/disease
+//! — id ขาเข้าเป็น uuid (`public_id`) แล้ว resolve เป็น id ภายในเอง
 
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::auth::CurrentUser;
-use crate::domain::Permission;
+use crate::domain::{Action, Resource};
 use crate::lab::repository::{self, LabRow, RepositoryError, UpdateLabFields};
 
 /// จำกัดความยาวที่ app ให้เท่ากันทุก master (ตรงกับ varchar(100) ของคอลัมน์ที่มี limit) — นับเป็นตัวอักษร
@@ -29,8 +30,9 @@ pub enum LabError {
     Repository(#[from] RepositoryError),
 }
 
-fn require_user_manage(actor: &CurrentUser) -> Result<(), LabError> {
-    if actor.has_permission(Permission::UserManage) {
+/// ตรวจสิทธิ์ของ action นี้กับหน้านี้ (`lab.view/create/update/delete`)
+fn require(actor: &CurrentUser, action: Action) -> Result<(), LabError> {
+    if actor.can(Resource::Lab, action) {
         Ok(())
     } else {
         Err(LabError::Forbidden)
@@ -68,7 +70,7 @@ fn clean_optional(value: &str, field: &str) -> Result<Option<String>, LabError> 
 }
 
 pub async fn list(pool: &PgPool, actor: &CurrentUser) -> Result<Vec<LabRow>, LabError> {
-    require_user_manage(actor)?;
+    require(actor, Action::View)?;
     Ok(repository::list_lab_rows(pool).await?)
 }
 
@@ -84,7 +86,7 @@ pub async fn create(
     actor: &CurrentUser,
     input: CreateLabInput<'_>,
 ) -> Result<(), LabError> {
-    require_user_manage(actor)?;
+    require(actor, Action::Create)?;
     let name = clean_text(input.name, "name")?;
     let abbreviation = input
         .abbreviation
@@ -118,7 +120,7 @@ pub async fn update(
     public_id: Uuid,
     input: UpdateLabInput<'_>,
 ) -> Result<(), LabError> {
-    require_user_manage(actor)?;
+    require(actor, Action::Update)?;
 
     let existing = repository::find_lab_by_public_id(pool, public_id)
         .await?
@@ -147,7 +149,7 @@ pub async fn update(
 }
 
 pub async fn delete(pool: &PgPool, actor: &CurrentUser, public_id: Uuid) -> Result<(), LabError> {
-    require_user_manage(actor)?;
+    require(actor, Action::Delete)?;
 
     let existing = repository::find_lab_by_public_id(pool, public_id)
         .await?

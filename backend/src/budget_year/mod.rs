@@ -1,5 +1,5 @@
 //! หน้าร้านของโมดูล budget_year — ตั้งค่าปีงบประมาณ (ตาราง `budget_year` ใน docs/my-his-data-dict.xlsx)
-//! เป็นหน้า master ที่อยู่ในกลุ่มเมนู "การตั้งค่า" ใช้สิทธิ์ `user.manage` เหมือนหน้าตั้งค่าเพจ/role
+//! เป็นหน้า master ที่อยู่ในกลุ่มเมนู "การตั้งค่า" ใช้สิทธิ์ `budget_year.view/create/update/delete` (ตั้งรายเพจที่หน้าการตั้งค่าสิทธิ์)
 //!
 //! `service` เปิดเป็น pub เพราะเทสระดับ service ใน backend/tests/ เรียกตรง ๆ (ไม่มี HTTP ในทางผ่าน)
 

@@ -1,14 +1,15 @@
-//! กฎของ patient_group: สิทธิ์ (ต้องมี user.manage), ข้อความ (trim, ไม่ว่างถ้าบังคับ, ไม่เกิน 100 ตัวอักษร),
+//! กฎของ patient_group: สิทธิ์ (`patient_group.*` ราย action), ข้อความ (trim, ไม่ว่างถ้าบังคับ, ไม่เกิน 100 ตัวอักษร),
 //! ชื่อซ้ำ, ห้ามลบข้อมูลที่ยังถูกใช้อยู่ ห้าม import ชนิดข้อมูลของ Axum (docs/auth-design.md ข้อ 10)
 //!
-//! **จุดตรวจสิทธิ์**: ทุกฟังก์ชันรับ `actor: &CurrentUser` เป็นพารามิเตอร์แรกและเช็ค `user.manage`
-//! ที่นี่ เหมือนโมดูล users/disease — id ขาเข้าเป็น uuid (`public_id`) แล้ว resolve เป็น id ภายในเอง
+//! **จุดตรวจสิทธิ์**: ทุกฟังก์ชันรับ `actor: &CurrentUser` เป็นพารามิเตอร์แรกและเช็คสิทธิ์
+//! ของ action นั้น (`patient_group.view/create/update/delete`) ที่นี่ เหมือนโมดูล users/disease
+//! — id ขาเข้าเป็น uuid (`public_id`) แล้ว resolve เป็น id ภายในเอง
 
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::auth::CurrentUser;
-use crate::domain::Permission;
+use crate::domain::{Action, Resource};
 use crate::patient_group::repository::{
     self, PatientGroupRow, RepositoryError, UpdatePatientGroupFields,
 };
@@ -31,8 +32,9 @@ pub enum PatientGroupError {
     Repository(#[from] RepositoryError),
 }
 
-fn require_user_manage(actor: &CurrentUser) -> Result<(), PatientGroupError> {
-    if actor.has_permission(Permission::UserManage) {
+/// ตรวจสิทธิ์ของ action นี้กับหน้านี้ (`patient_group.view/create/update/delete`)
+fn require(actor: &CurrentUser, action: Action) -> Result<(), PatientGroupError> {
+    if actor.can(Resource::PatientGroup, action) {
         Ok(())
     } else {
         Err(PatientGroupError::Forbidden)
@@ -67,7 +69,7 @@ pub async fn list(
     pool: &PgPool,
     actor: &CurrentUser,
 ) -> Result<Vec<PatientGroupRow>, PatientGroupError> {
-    require_user_manage(actor)?;
+    require(actor, Action::View)?;
     Ok(repository::list_patient_group_rows(pool).await?)
 }
 
@@ -82,7 +84,7 @@ pub async fn create(
     actor: &CurrentUser,
     input: CreatePatientGroupInput<'_>,
 ) -> Result<(), PatientGroupError> {
-    require_user_manage(actor)?;
+    require(actor, Action::Create)?;
     let name = clean_text(input.name, "name")?;
 
     repository::insert_patient_group(
@@ -109,7 +111,7 @@ pub async fn update(
     public_id: Uuid,
     input: UpdatePatientGroupInput<'_>,
 ) -> Result<(), PatientGroupError> {
-    require_user_manage(actor)?;
+    require(actor, Action::Update)?;
 
     let existing = repository::find_patient_group_by_public_id(pool, public_id)
         .await?
@@ -137,7 +139,7 @@ pub async fn delete(
     actor: &CurrentUser,
     public_id: Uuid,
 ) -> Result<(), PatientGroupError> {
-    require_user_manage(actor)?;
+    require(actor, Action::Delete)?;
 
     let existing = repository::find_patient_group_by_public_id(pool, public_id)
         .await?

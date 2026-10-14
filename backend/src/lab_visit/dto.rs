@@ -83,6 +83,15 @@ pub struct AddVisitsRequest {
     pub patient_ids: Vec<Uuid>,
 }
 
+/// POST /lab-visit-groups/{id}/exports — บันทึกการส่งออกเอกสาร (`document` = cd4 | roster,
+/// `format` = excel | pdf ตรวจค่าที่ service)
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct ExportRequest {
+    pub document: String,
+    pub format: String,
+}
+
 /// PUT /lab-visits/{id} — แทนที่ทั้งชุด (ฟิลด์ที่ไม่ส่ง/null = ล้างค่า ยกเว้น sortOrder = คงเดิม)
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
@@ -120,7 +129,7 @@ pub struct PatientGroupOption {
     pub is_active: bool,
 }
 
-/// ตัวเลือกของฟอร์มนัดหมาย — ต้องมีที่นี่เพราะ `/budget-years`, `/patient-groups` ต้องมี `user.manage`
+/// ตัวเลือกของฟอร์มนัดหมาย — ต้องมีที่นี่เพราะ `/budget-years`, `/patient-groups` ต้องมีสิทธิ์ดูหน้า master นั้น
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OptionsResponse {

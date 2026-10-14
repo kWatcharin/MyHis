@@ -20,7 +20,6 @@ pub enum ConfigError {
     InvalidSecret(&'static str),
 }
 
-#[derive(Debug)]
 pub struct Config {
     pub database_url: String,
     pub bind_addr: SocketAddr,
@@ -29,6 +28,22 @@ pub struct Config {
     pub initial_admin_username: String,
     pub initial_admin_password: String,
     pub crypto: Crypto,
+}
+
+/// เขียน Debug เอง (AppState ถือ Config และ derive Debug) — DATABASE_URL มีรหัส DB, รหัส admin เริ่มต้นเป็นข้อความธรรมดา
+/// ห้ามหลุดลง log แม้มีคนเผลอ `{:?}` state ทั้งก้อน (เหมือน `Crypto` ที่ redact key ไว้แล้ว)
+impl std::fmt::Debug for Config {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Config")
+            .field("database_url", &"[redacted]")
+            .field("bind_addr", &self.bind_addr)
+            .field("session_idle_ttl", &self.session_idle_ttl)
+            .field("session_absolute_ttl", &self.session_absolute_ttl)
+            .field("initial_admin_username", &self.initial_admin_username)
+            .field("initial_admin_password", &"[redacted]")
+            .field("crypto", &self.crypto)
+            .finish()
+    }
 }
 
 impl Config {
@@ -87,4 +102,26 @@ impl Config {
 
 fn require(name: &'static str) -> Result<String, ConfigError> {
     std::env::var(name).map_err(|_| ConfigError::Missing(name))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn debug_output_hides_secrets() {
+        let config = Config {
+            database_url: "postgres://my_his:db-secret-123@db:5432/my_his".to_string(),
+            bind_addr: "127.0.0.1:8080".parse().unwrap(),
+            session_idle_ttl: Duration::hours(8),
+            session_absolute_ttl: Duration::days(30),
+            initial_admin_username: "admin".to_string(),
+            initial_admin_password: "admin-secret-456".to_string(),
+            crypto: Crypto::from_hex_keys(&"a".repeat(64), &"b".repeat(64)).unwrap(),
+        };
+        let printed = format!("{config:?}");
+        assert!(!printed.contains("db-secret-123"), "{printed}");
+        assert!(!printed.contains("admin-secret-456"), "{printed}");
+        assert!(printed.contains("[redacted]"));
+    }
 }

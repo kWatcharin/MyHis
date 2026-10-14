@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into audit_log (actor_user_id, action, target_type, target_id, metadata)\n         values ($1, 'lab_visit_group_exported', 'lab_visit_group', $2,\n                 jsonb_build_object('document', $3::text, 'format', $4::text))",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b1757703d6df4a7f32837dae1405c27dad2139b47e18371bf8561657634911b6"
+}

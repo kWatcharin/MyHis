@@ -1,5 +1,5 @@
 //! หน้าร้านของโมดูล disease — ตั้งค่าโรค (ตาราง `disease` ใน docs/my-his-data-dict.xlsx) หน้า master
-//! ในกลุ่มเมนู "การตั้งค่า" ใช้สิทธิ์ `user.manage` เหมือนหน้าตั้งค่าปีงบประมาณ/เพจ/role
+//! ในกลุ่มเมนู "การตั้งค่า" ใช้สิทธิ์ `disease.view/create/update/delete` (ตั้งรายเพจที่หน้าการตั้งค่าสิทธิ์)
 //!
 //! `service` เปิดเป็น pub เพราะเทสระดับ service ใน backend/tests/ เรียกตรง ๆ (ไม่มี HTTP ในทางผ่าน)
 

@@ -8,7 +8,8 @@
 //! กันบางส่วน
 //!
 //! การเขียนบัญชีผู้ใช้ทุกครั้ง (`users.rs`) เขียน `audit_log` ในทรานแซกชันเดียวกัน (ตรงจากที่นี่ เหมือน
-//! lab_visit/patient) target_id เป็น uuid ของผู้ใช้ ไม่มี metadata — role/page ยังไม่มี audit
+//! lab_visit/patient) target_id เป็น uuid ของผู้ใช้ ไม่มี metadata — role/page ก็เขียนเหมือนกันแต่เก็บชื่อไว้ใน
+//! `metadata.label` ด้วย (`insert_labeled_audit`) เพราะสองตารางนี้ลบจริง
 
 mod pages;
 mod registration_links;
@@ -20,7 +21,11 @@ pub(crate) use registration_links::NewRegistrationLink;
 pub(crate) use roles::*;
 pub(crate) use users::*;
 
+use sqlx::{Postgres, Transaction};
 use thiserror::Error;
+use uuid::Uuid;
+
+use crate::domain::UserId;
 
 #[derive(Debug, Error)]
 pub enum RepositoryError {
@@ -36,4 +41,28 @@ impl RepositoryError {
     pub fn is_unique_violation(&self) -> bool {
         matches!(self, RepositoryError::Database(e) if e.as_database_error().is_some_and(|d| d.is_unique_violation()))
     }
+}
+
+/// audit ของ role/เพจ (หน้า "ประวัติการใช้งาน") — สองตารางนี้ลบจริง จึงเก็บชื่อ ณ ตอนนั้นไว้ใน
+/// `metadata = {"label": ...}` ให้ประวัติยังแสดงชื่อได้หลังแถวหายไป (ชื่อ role/เพจ ไม่ใช่ความลับหรือข้อมูลผู้ป่วย)
+async fn insert_labeled_audit(
+    tx: &mut Transaction<'_, Postgres>,
+    actor: UserId,
+    action: &str,
+    target_type: &str,
+    target_public_id: Uuid,
+    label: &str,
+) -> Result<(), RepositoryError> {
+    sqlx::query!(
+        "insert into audit_log (actor_user_id, action, target_type, target_id, metadata)
+         values ($1, $2, $3, $4, jsonb_build_object('label', $5::text))",
+        actor.0,
+        action,
+        target_type,
+        target_public_id.to_string(),
+        label
+    )
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
 }

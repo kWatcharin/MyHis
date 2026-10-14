@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useLocation, useNavigate } from 'react-router'
 import * as z from 'zod'
 
+import { PasswordInput } from '@/components/PasswordInput'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
@@ -246,10 +247,9 @@ function RegisterForm({ token, info, onDone, onInvalid }: RegisterFormProps) {
       render={({ field, fieldState }) => (
         <Field data-invalid={fieldState.invalid}>
           <FieldLabel htmlFor={`register-${name}`}>{label}</FieldLabel>
-          <Input
+          <PasswordInput
             {...field}
             id={`register-${name}`}
-            type="password"
             autoComplete="new-password"
             aria-invalid={fieldState.invalid}
           />

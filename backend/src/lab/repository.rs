@@ -2,7 +2,7 @@
 //! ไม่ประกอบ SQL ด้วย format! (docs/rust-guidelines.md ข้อ 11) แถวที่ถูก soft delete
 //! (`deleted_at is not null`) ไม่ถูกคืนจากฟังก์ชันใดในนี้
 
-use sqlx::PgPool;
+use sqlx::{PgPool, Postgres, Transaction};
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -70,6 +70,7 @@ pub async fn insert_lab(
     is_active: bool,
     sort_order: i32,
 ) -> Result<LabId, RepositoryError> {
+    let mut tx = pool.begin().await?;
     let row = sqlx::query!(
         r#"insert into lab (name, abbreviation, is_active, sort_order, created_by, updated_by)
            values ($1, $2, $3, $4, $5, $5)
@@ -80,8 +81,10 @@ pub async fn insert_lab(
         sort_order,
         actor.0
     )
-    .fetch_one(pool)
+    .fetch_one(&mut *tx)
     .await?;
+    insert_audit(&mut tx, actor, "lab_created", row.id).await?;
+    tx.commit().await?;
     Ok(row.id)
 }
 
@@ -103,7 +106,7 @@ pub async fn update_lab(
 ) -> Result<(), RepositoryError> {
     let mut tx = pool.begin().await?;
 
-    sqlx::query!(
+    let updated = sqlx::query!(
         r#"update lab
            set
                name = coalesce($3, name),
@@ -133,6 +136,9 @@ pub async fn update_lab(
         .await?;
     }
 
+    if updated.rows_affected() > 0 {
+        insert_audit(&mut tx, actor, "lab_updated", id).await?;
+    }
     tx.commit().await?;
     Ok(())
 }
@@ -144,14 +150,39 @@ pub async fn soft_delete_lab(
     actor: UserId,
     id: LabId,
 ) -> Result<(), RepositoryError> {
-    sqlx::query!(
+    let mut tx = pool.begin().await?;
+    let deleted = sqlx::query!(
         r#"update lab
            set deleted_at = now(), deleted_by = $2, updated_by = $2, updated_at = now()
            where id = $1 and deleted_at is null"#,
         id.0,
         actor.0
     )
-    .execute(pool)
+    .execute(&mut *tx)
+    .await?;
+    if deleted.rows_affected() > 0 {
+        insert_audit(&mut tx, actor, "lab_deleted", id).await?;
+    }
+    tx.commit().await?;
+    Ok(())
+}
+
+/// audit ของหน้าตั้งค่าแลป (หน้า "ประวัติการใช้งาน") — target_id = uuid ของแถว ไม่มี metadata
+/// ชื่อรายการอ่านจาก join ตอนแสดงผล (soft delete แถวจึงยังอยู่เสมอ) เขียนในทรานแซกชันเดียวกับการแก้ข้อมูล
+async fn insert_audit(
+    tx: &mut Transaction<'_, Postgres>,
+    actor: UserId,
+    action: &str,
+    id: LabId,
+) -> Result<(), RepositoryError> {
+    sqlx::query!(
+        "insert into audit_log (actor_user_id, action, target_type, target_id)
+         select $1, $2, 'lab', uuid::text from lab where id = $3",
+        actor.0,
+        action,
+        id.0
+    )
+    .execute(&mut **tx)
     .await?;
     Ok(())
 }

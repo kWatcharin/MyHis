@@ -1,9 +1,11 @@
-//! กฎของนัดหมายแล็ป: สิทธิ์ (อ่าน `patient.read` / เขียน `patient.write` ตรวจแยกกัน), master ที่อ้างถึง,
+//! กฎของนัดหมายแล็ป: สิทธิ์ (`lab_visit.view/create/update/delete` ตรวจแยกกัน), master ที่อ้างถึง,
 //! วันนัด, คนไข้ในนัดหมาย, ช่วงค่า/ความยาวของข้อมูลรายคน ห้าม import ชนิดข้อมูลของ Axum
 //! (docs/auth-design.md ข้อ 10)
 //!
-//! **จุดตรวจสิทธิ์**: ทุกฟังก์ชันรับ `actor: &CurrentUser` และเช็คสิทธิ์ที่นี่ — ใช้สิทธิ์ผู้ป่วยเดิม เพราะหน้านี้
-//! แสดงชื่อ/HN คนไข้ (หน้าเว็บ join กับ `GET /patients` ที่ต้อง `patient.read` อยู่แล้ว)
+//! **จุดตรวจสิทธิ์**: ทุกฟังก์ชันรับ `actor: &CurrentUser` และเช็คสิทธิ์ที่นี่ — สร้างนัดหมาย = `create`,
+//! แก้หัวนัดหมายและเพิ่ม/แก้/เอาคนไข้ออกจากนัดหมาย = `update`, ลบนัดหมาย = `delete`, บันทึกการส่งออกเอกสาร =
+//! `export` หน้าเว็บที่แสดงชื่อ/HN
+//! คนไข้ join กับ `GET /patients` จึงต้องมี `patient.view` ด้วย (ตรวจที่ endpoint นั้น)
 //!
 //! วันนัด CD4 ครั้งที่ 2 ค่าเริ่มต้น "ครั้งที่ 1 + 6 เดือน" เป็นแค่ค่าตั้งต้นในฟอร์ม — ที่นี่บังคับแค่ว่าครั้งที่ 2
 //! ต้องหลังครั้งที่ 1 (ผู้ใช้เลื่อนวันจริงได้)
@@ -15,7 +17,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::auth::CurrentUser;
-use crate::domain::{PatientId, Permission};
+use crate::domain::{Action, PatientId, Resource};
 use crate::lab_visit::repository::{
     self, GroupRow, GroupWrite, MasterOptions, RepositoryError, VisitRow, VisitWrite,
 };
@@ -44,16 +46,10 @@ pub enum LabVisitError {
     Repository(#[from] RepositoryError),
 }
 
-fn require_read(actor: &CurrentUser) -> Result<(), LabVisitError> {
-    if actor.has_permission(Permission::PatientRead) {
-        Ok(())
-    } else {
-        Err(LabVisitError::Forbidden)
-    }
-}
-
-fn require_write(actor: &CurrentUser) -> Result<(), LabVisitError> {
-    if actor.has_permission(Permission::PatientWrite) {
+/// ตรวจสิทธิ์ของ action นี้ (`lab_visit.*`) — ตรวจแยกกันทุกตัว แก้ไขไม่ implies ดู
+/// (export ตรวจตอนบันทึกการส่งออกที่ `record_export` — ตัวเอกสารสร้างฝั่งหน้าเว็บจากข้อมูลที่อ่านด้วยสิทธิ์ดู)
+fn require(actor: &CurrentUser, action: Action) -> Result<(), LabVisitError> {
+    if actor.can(Resource::LabVisit, action) {
         Ok(())
     } else {
         Err(LabVisitError::Forbidden)
@@ -184,12 +180,12 @@ pub async fn list_groups(
     pool: &PgPool,
     actor: &CurrentUser,
 ) -> Result<Vec<GroupRow>, LabVisitError> {
-    require_read(actor)?;
+    require(actor, Action::View)?;
     Ok(repository::list_groups(pool).await?)
 }
 
 pub async fn options(pool: &PgPool, actor: &CurrentUser) -> Result<MasterOptions, LabVisitError> {
-    require_read(actor)?;
+    require(actor, Action::View)?;
     Ok(repository::list_master_options(pool).await?)
 }
 
@@ -198,7 +194,7 @@ pub async fn get_group(
     actor: &CurrentUser,
     public_id: Uuid,
 ) -> Result<GroupDetail, LabVisitError> {
-    require_read(actor)?;
+    require(actor, Action::View)?;
     let group = existing_group(pool, public_id).await?;
     let visits = repository::list_visits(pool, group.id).await?;
     Ok(GroupDetail { group, visits })
@@ -210,7 +206,7 @@ pub async fn create_group(
     actor: &CurrentUser,
     input: GroupInput,
 ) -> Result<Uuid, LabVisitError> {
-    require_write(actor)?;
+    require(actor, Action::Create)?;
     let write = prepare_group(pool, &input, None).await?;
     let public_id = repository::insert_group(pool, actor.user.id, &write)
         .await
@@ -224,7 +220,7 @@ pub async fn update_group(
     public_id: Uuid,
     input: GroupInput,
 ) -> Result<(), LabVisitError> {
-    require_write(actor)?;
+    require(actor, Action::Update)?;
     let current = existing_group(pool, public_id).await?;
     let write = prepare_group(pool, &input, Some(&current)).await?;
     repository::update_group(pool, actor.user.id, current.id, public_id, &write)
@@ -239,9 +235,34 @@ pub async fn delete_group(
     actor: &CurrentUser,
     public_id: Uuid,
 ) -> Result<(), LabVisitError> {
-    require_write(actor)?;
+    require(actor, Action::Delete)?;
     let current = existing_group(pool, public_id).await?;
     repository::soft_delete_group(pool, actor.user.id, current.id, public_id).await?;
+    Ok(())
+}
+
+/// เอกสารที่ส่งออกได้ (ตรงกับ `LAB_DOCUMENTS` ฝั่งหน้าเว็บ) และรูปแบบไฟล์ — ค่าที่ยอมรับใน `record_export`
+const EXPORT_DOCUMENTS: &[&str] = &["cd4", "roster"];
+const EXPORT_FORMATS: &[&str] = &["excel", "pdf"];
+
+/// บันทึกการส่งออกเอกสาร (หน้า "ประวัติการใช้งาน") — เอกสาร Excel/PDF สร้างฝั่งหน้าเว็บ หน้าเว็บเรียกที่นี่ก่อน
+/// สร้างไฟล์/แสดงหน้าพิมพ์ทุกครั้ง ต้องมี `lab_visit.export` และนัดหมายต้องยังไม่ถูกลบ
+pub async fn record_export(
+    pool: &PgPool,
+    actor: &CurrentUser,
+    public_id: Uuid,
+    document: &str,
+    format: &str,
+) -> Result<(), LabVisitError> {
+    require(actor, Action::Export)?;
+    if !EXPORT_DOCUMENTS.contains(&document) {
+        return Err(validation("document must be cd4 or roster"));
+    }
+    if !EXPORT_FORMATS.contains(&format) {
+        return Err(validation("format must be excel or pdf"));
+    }
+    existing_group(pool, public_id).await?;
+    repository::insert_export_audit(pool, actor.user.id, public_id, document, format).await?;
     Ok(())
 }
 
@@ -253,7 +274,7 @@ pub async fn add_visits(
     group_public_id: Uuid,
     patient_ids: &[Uuid],
 ) -> Result<(), LabVisitError> {
-    require_write(actor)?;
+    require(actor, Action::Update)?;
 
     let mut unique_ids: Vec<Uuid> = Vec::with_capacity(patient_ids.len());
     for id in patient_ids {
@@ -307,7 +328,7 @@ pub async fn update_visit(
     public_id: Uuid,
     input: VisitInput<'_>,
 ) -> Result<(), LabVisitError> {
-    require_write(actor)?;
+    require(actor, Action::Update)?;
     check_range(
         input.take_med_year_range,
         MAX_TAKE_MED_YEARS,
@@ -339,7 +360,7 @@ pub async fn delete_visit(
     actor: &CurrentUser,
     public_id: Uuid,
 ) -> Result<(), LabVisitError> {
-    require_write(actor)?;
+    require(actor, Action::Update)?;
     let id = repository::find_visit_id(pool, public_id)
         .await?
         .ok_or(LabVisitError::VisitNotFound)?;

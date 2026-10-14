@@ -2,7 +2,7 @@
 //! (docs/rust-guidelines.md — โมดูลฟีเจอร์ไม่เรียกกันเอง, app.rs เป็นข้อยกเว้นที่รู้จักทุกโมดูล)
 //!
 //! /health อยู่นอก /api ตามธรรมเนียม healthcheck (docs/auth-design.md ข้อ 5 — ทุก path อื่นอยู่ใต้
-//! /api) audit/ ยังไม่ implement รอบนี้ เลยยัง merge เข้ามาไม่ได้
+//! /api)
 
 use std::time::Duration;
 
@@ -39,6 +39,7 @@ fn api_router() -> Router<AppState> {
         .merge(crate::nationality::router())
         .merge(crate::prename::router())
         .merge(crate::registration::router())
+        .merge(crate::audit::router())
 }
 
 async fn health() -> &'static str {

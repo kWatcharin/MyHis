@@ -7,7 +7,7 @@ use chrono::NaiveDate;
 use common::*;
 use my_his_backend::auth::CurrentUser;
 use my_his_backend::crypto::Crypto;
-use my_his_backend::domain::Permission;
+use my_his_backend::domain::Resource;
 use my_his_backend::patient::service::{self, PatientInput};
 use my_his_backend::patient::{PatientError, PatientView};
 use sqlx::PgPool;
@@ -34,7 +34,7 @@ fn today() -> NaiveDate {
 }
 
 struct Fixture {
-    /// ผู้ใช้ที่มี patient.read + patient.write
+    /// ผู้ใช้ที่มีทุกสิทธิ์ของหน้าผู้ป่วย (patient.view/create/update/delete)
     actor: CurrentUser,
     prename: Uuid,
     nationality: Uuid,
@@ -52,11 +52,7 @@ async fn insert_uuid(pool: &PgPool, sql: &str, user_id: i32, name: &str) -> Uuid
 }
 
 async fn setup(pool: &PgPool) -> Fixture {
-    let actor = actor_with(
-        pool,
-        vec![Permission::PatientRead, Permission::PatientWrite],
-    )
-    .await;
+    let actor = actor_with(pool, common::all_of(Resource::Patient)).await;
     let user = actor.user.id.0;
     let prename = insert_uuid(
         pool,
@@ -737,7 +733,7 @@ async fn read_and_write_permissions_are_checked_separately(pool: PgPool) {
     create(&pool, &f, input(&f, "HN-001")).await.unwrap();
     let id = find(&pool, &f, "HN-001").await.public_id;
 
-    let read_only = actor_with(&pool, vec![Permission::PatientRead]).await;
+    let read_only = actor_with(&pool, vec![common::perm("patient.view")]).await;
     assert_eq!(
         service::list(&pool, &crypto(), &read_only, today())
             .await
@@ -767,8 +763,16 @@ async fn read_and_write_permissions_are_checked_separately(pool: PgPool) {
         Err(PatientError::Forbidden)
     ));
 
-    // write ไม่ implies read
-    let write_only = actor_with(&pool, vec![Permission::PatientWrite]).await;
+    // สร้าง/แก้/ลบ ไม่ implies ดู
+    let write_only = actor_with(
+        &pool,
+        vec![
+            common::perm("patient.create"),
+            common::perm("patient.update"),
+            common::perm("patient.delete"),
+        ],
+    )
+    .await;
     assert!(matches!(
         service::list(&pool, &crypto(), &write_only, today()).await,
         Err(PatientError::Forbidden)
@@ -781,12 +785,8 @@ async fn read_and_write_permissions_are_checked_separately(pool: PgPool) {
         .await
         .unwrap();
 
-    // สิทธิ์อื่น ๆ (แม้ user.manage หรือ shift.*) ไม่ให้เข้าถึงข้อมูลผู้ป่วย
-    for permissions in [
-        vec![Permission::UserManage],
-        vec![Permission::ShiftRead, Permission::ShiftWrite],
-        vec![],
-    ] {
+    // สิทธิ์ของเพจอื่น (แม้ครบทุกตัว) ไม่ให้เข้าถึงข้อมูลผู้ป่วย
+    for permissions in [common::all_except(Resource::Patient), vec![]] {
         let other = actor_with(&pool, permissions).await;
         assert!(matches!(
             service::list(&pool, &crypto(), &other, today()).await,
@@ -898,7 +898,7 @@ async fn migration_seeds_menu_page_and_grants_permissions_to_system_roles(pool: 
     // คู่กับหน้า "ผู้ใช้งาน" (ดู tests/schema.rs)
     assert_eq!(label, "ผู้ป่วย");
     assert_eq!(group.as_deref(), Some("ลงทะเบียน"));
-    assert_eq!(permission, "patient.read");
+    assert_eq!(permission, "patient.view");
 
     for role in ["admin", "nurse"] {
         let granted: Vec<String> = sqlx::query_scalar(
@@ -909,6 +909,15 @@ async fn migration_seeds_menu_page_and_grants_permissions_to_system_roles(pool: 
         .fetch_all(&pool)
         .await
         .unwrap();
-        assert_eq!(granted, ["patient.read", "patient.write"], "{role}");
+        assert_eq!(
+            granted,
+            [
+                "patient.create",
+                "patient.delete",
+                "patient.update",
+                "patient.view"
+            ],
+            "{role}"
+        );
     }
 }

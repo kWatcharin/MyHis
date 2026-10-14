@@ -58,7 +58,28 @@ backend รัน migration ตอนเริ่มทำงานโดยอ�
 - firewall เปิดเฉพาะพอร์ต 22, 80, 443
 - เปิดการอัปเดตความปลอดภัยอัตโนมัติของระบบปฏิบัติการ
 - บังคับ HTTPS ตั้งแต่วันแรก ไม่มีโหมด http สำหรับใช้งานจริง
-- container รันด้วยผู้ใช้ที่ไม่ใช่ root
+- container รันด้วยผู้ใช้ที่ไม่ใช่ root (backend = `nobody`, frontend = Caddy เป็น `nobody` ฟังพอร์ต 8080)
+
+### Security header (ตั้งไว้แล้วใน `frontend/Caddyfile`)
+
+- `Content-Security-Policy` — script ได้เฉพาะไฟล์ของเว็บเอง (ห้าม inline script — ตัวตั้งธีมแยกเป็น
+  `public/theme-init.js`), style อนุญาต inline (React/chart), `frame-ancestors 'none'`
+- `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Permissions-Policy`
+- ซ่อน header `Server`, response ของ `/api/*` มี `Cache-Control: no-store` (มีข้อมูลคนไข้)
+- เพิ่ม script/style/รูปจากโดเมนอื่นเมื่อไร ต้องแก้ CSP ด้วย ไม่งั้นเบราว์เซอร์บล็อก (ดูได้ใน console)
+
+### Checklist ก่อนขึ้นเครื่องจริง (จาก security audit 2026-10-12 — ยังไม่ได้ทำ)
+
+- **แยกบัญชี DB ของแอปที่ไม่ใช่ superuser** — ตอนนี้ backend ต่อด้วย `POSTGRES_USER` ซึ่งเป็น superuser ของ image
+  postgres (ทำอะไรบนเครื่อง DB ก็ได้ถ้าวันหนึ่งมีช่องโหว่) วิธีทำ: สร้าง role `my_his_app` แบบ `LOGIN NOSUPERUSER
+  NOCREATEDB NOCREATEROLE` เป็นเจ้าของ schema/ตารางของแอป (`ALTER ... OWNER TO`, แอปรัน migration เองตอนเริ่มจึงต้องเป็น
+  เจ้าของ) แล้วเปลี่ยน `DATABASE_URL` ใน `.env` ให้ใช้บัญชีนี้ — `POSTGRES_USER` เหลือไว้ใช้ backup/ดูแลเท่านั้น
+- **HSTS** (`Strict-Transport-Security`) ใส่ที่ Caddy หน้าบ้านเมื่อมี HTTPS จริงแล้วเท่านั้น
+- **`ops/Caddyfile`** (Caddy หน้าบ้านที่ publish 80/443) ยังไม่มีไฟล์ — ตอนสร้าง: proxy ไปที่ `frontend:8080` (ไม่ใช่ :80
+  — container frontend ฟัง 8080 เพราะรันเป็น nobody), TLS อัตโนมัติ, `trusted_proxies` ถ้ามี proxy
+  ซ้อน (ประวัติการเข้าออกใช้ค่าขวาสุดของ `X-Forwarded-For`), rate limit ที่ `/api/auth/login` (ต้องใช้ plugin
+  rate-limit ของ Caddy หรือ fail2ban)
+- เปลี่ยนรหัส admin ที่สร้างจาก `INITIAL_ADMIN_PASSWORD` ผ่านหน้าเว็บ แล้วเปลี่ยนค่าใน `.env` ไม่ให้ตรงกับรหัสที่ใช้อยู่
 
 ## 7. Log และการเฝ้าระวัง
 

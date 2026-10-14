@@ -3,6 +3,7 @@ import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 
+import { PasswordInput } from '@/components/PasswordInput'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -13,7 +14,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
-import { Input } from '@/components/ui/input'
 import { ApiError } from '@/lib/api'
 import { notify } from '@/lib/notify'
 
@@ -77,7 +77,7 @@ interface ChangePasswordDialogProps {
   onOpenChange: (open: boolean) => void
 }
 
-// เปลี่ยนรหัสผ่านของตัวเอง (ไม่บังคับ — เปิดจากปุ่มกุญแจท้ายเมนู) สำเร็จแล้ว backend เพิกถอน session อื่น
+// เปลี่ยนรหัสผ่านของตัวเอง (ไม่บังคับ — เปิดจากเมนูชื่อผู้ใช้ท้ายเมนูซ้าย) สำเร็จแล้ว backend เพิกถอน session อื่น
 // ทั้งหมดยกเว้นอุปกรณ์นี้ และล้างสถานะ "ยังใช้รหัสชั่วคราว" — รหัสผ่านไม่ถูกเก็บ/log ที่ไหนนอกจากส่งไป backend
 export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialogProps) {
   const { user, changePassword } = useAuth()
@@ -112,10 +112,9 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
       render={({ field, fieldState }) => (
         <Field data-invalid={fieldState.invalid}>
           <FieldLabel htmlFor={`change-password-${name}`}>{label}</FieldLabel>
-          <Input
+          <PasswordInput
             {...field}
             id={`change-password-${name}`}
-            type="password"
             autoComplete={autoComplete}
             aria-invalid={fieldState.invalid}
           />

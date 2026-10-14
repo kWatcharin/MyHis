@@ -41,9 +41,10 @@ export function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      {/* ชื่อหน้ามาจากการตั้งค่าเพจเหมือนหน้าอื่น — คำทักทายย้ายมาอยู่ในคำอธิบาย */}
       <PageHeader
-        title={`สวัสดี ${user?.displayName ?? user?.username ?? ''}`}
-        description="ภาพรวมคร่าว ๆ — mockup, ยังไม่ผูกกับข้อมูลจริง"
+        fallbackTitle="Dashboard"
+        description={`สวัสดี ${user?.displayName ?? user?.username ?? ''} — ภาพรวมคร่าว ๆ (mockup ยังไม่ผูกกับข้อมูลจริง)`}
       />
 
       <div className="grid gap-4 sm:grid-cols-3">

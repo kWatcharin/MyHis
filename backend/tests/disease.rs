@@ -30,7 +30,7 @@ async fn actor_with(pool: &PgPool, permissions: Vec<Permission>) -> CurrentUser 
 }
 
 async fn admin(pool: &PgPool) -> CurrentUser {
-    actor_with(pool, vec![Permission::UserManage]).await
+    actor_with(pool, Permission::all().collect()).await
 }
 
 fn input<'a>(name: &'a str, abbreviation: &'a str) -> CreateDiseaseInput<'a> {
@@ -287,14 +287,21 @@ async fn disease_used_by_medical_condition_cannot_be_deleted(pool: PgPool) {
 }
 
 #[sqlx::test]
-async fn requires_user_manage_permission(pool: PgPool) {
+async fn requires_page_permission(pool: PgPool) {
     let admin_actor = admin(&pool).await;
     service::create(&pool, &admin_actor, input("Asthma", "AS"))
         .await
         .unwrap();
     let id = find(&pool, &admin_actor, "Asthma").await;
 
-    let nurse = actor_with(&pool, vec![Permission::ShiftRead, Permission::ShiftWrite]).await;
+    let nurse = actor_with(
+        &pool,
+        vec![
+            Permission::parse("shift.view").unwrap(),
+            Permission::parse("shift.update").unwrap(),
+        ],
+    )
+    .await;
     assert!(matches!(
         service::list(&pool, &nurse).await,
         Err(DiseaseError::Forbidden)
@@ -333,8 +340,10 @@ async fn unknown_id_is_not_found(pool: PgPool) {
 #[sqlx::test]
 async fn menu_page_is_seeded_under_settings_group(pool: PgPool) {
     let (label, group, permission): (String, Option<String>, String) = sqlx::query_as(
-        "select p.label, p.group_label, pp.permission
-         from pages p join page_permissions pp on pp.page_id = p.id
+        "select p.label, m.label, pp.permission
+         from pages p
+         join page_permissions pp on pp.page_id = p.id
+         left join pages m on m.id = p.ref_id
          where p.route = '/settings/diseases'",
     )
     .fetch_one(&pool)
@@ -342,5 +351,5 @@ async fn menu_page_is_seeded_under_settings_group(pool: PgPool) {
     .unwrap();
     assert_eq!(label, "ตั้งค่าโรค");
     assert_eq!(group.as_deref(), Some("การตั้งค่า"));
-    assert_eq!(permission, "user.manage");
+    assert_eq!(permission, "disease.view");
 }

@@ -79,24 +79,41 @@ async fn existing_tables_have_int_id_and_unique_uuid(pool: PgPool) {
     .fetch_one(&pool)
     .await
     .unwrap();
-    // user.manage, shift.read, shift.write, audit.read + patient.read, patient.write
-    assert_eq!(admin_permissions, 6);
+    // ทุก permission ราย action (20261013100000_page_action_permissions.sql)
+    assert_eq!(admin_permissions, 47);
 
-    let pages_with_user_manage: i64 = sqlx::query_scalar(
-        "select count(*) from pages p join page_permissions pp on pp.page_id = p.id where pp.permission = 'user.manage'",
+    // หน้าตั้งค่าเพจ, role, ปีงบประมาณ, โรค, คำนำหน้า, สัญชาติ, กลุ่มคนไข้, แลป และผู้ใช้งาน — แต่ละหน้าต้องมีสิทธิ์
+    // "ดู" ของหน้านั้นเอง (เดิมทุกหน้าใช้ user.manage ตัวเดียว)
+    let settings_pages: Vec<(String, String)> = sqlx::query_as(
+        "select p.route, pp.permission from pages p join page_permissions pp on pp.page_id = p.id
+         where p.route like '/settings/%' or p.route = '/users' order by p.route",
     )
-    .fetch_one(&pool)
+    .fetch_all(&pool)
     .await
     .unwrap();
-    // หน้าตั้งค่าเพจ, role, ปีงบประมาณ, โรค, คำนำหน้า, สัญชาติ, กลุ่มคนไข้, แลป และผู้ใช้งาน
-    assert_eq!(pages_with_user_manage, 9);
+    assert_eq!(
+        settings_pages,
+        [
+            ("/settings/budget-years", "budget_year.view"),
+            ("/settings/diseases", "disease.view"),
+            ("/settings/labs", "lab.view"),
+            ("/settings/nationalities", "nationality.view"),
+            ("/settings/pages", "page.view"),
+            ("/settings/patient-groups", "patient_group.view"),
+            ("/settings/prenames", "prename.view"),
+            ("/settings/roles", "role.view"),
+            ("/users", "user.view"),
+        ]
+        .map(|(route, permission)| (route.to_string(), permission.to_string()))
+    );
 }
 
 /// เมนูแบ่ง 2 กลุ่ม: "สิทธิ์" (เพจ, role) กับ "การตั้งค่า" (หน้า master) — route เดิมไม่เปลี่ยน
 #[sqlx::test]
 async fn menu_groups_permission_pages_separately_from_settings(pool: PgPool) {
     let groups: Vec<(String, Option<String>)> = sqlx::query_as(
-        "select route, group_label from pages where route like '/settings/%' order by route",
+        "select p.route, m.label from pages p left join pages m on m.id = p.ref_id
+         where p.route like '/settings/%' order by p.route",
     )
     .fetch_all(&pool)
     .await
@@ -311,8 +328,10 @@ async fn medical_condition_and_lab_visit_group_reject_duplicates(pool: PgPool) {
 async fn lab_appointment_page_is_in_lab_group_with_patient_read(pool: PgPool) {
     let (label, group, sort_order, permission): (String, Option<String>, i32, String) =
         sqlx::query_as(
-            "select p.label, p.group_label, p.sort_order, pp.permission
-             from pages p join page_permissions pp on pp.page_id = p.id
+            "select p.label, m.label, p.sort_order, pp.permission
+             from pages p
+             join page_permissions pp on pp.page_id = p.id
+             left join pages m on m.id = p.ref_id
              where p.route = '/lab/appointments'",
         )
         .fetch_one(&pool)
@@ -320,7 +339,7 @@ async fn lab_appointment_page_is_in_lab_group_with_patient_read(pool: PgPool) {
         .unwrap();
     assert_eq!(label, "นัดหมายแล็ป");
     assert_eq!(group.as_deref(), Some("Lab"));
-    assert_eq!(permission, "patient.read");
+    assert_eq!(permission, "lab_visit.view");
 
     let neighbours: Vec<i32> = sqlx::query_scalar(
         "select sort_order from pages where route in ('/patients', '/settings/pages') order by route",
@@ -335,13 +354,15 @@ async fn lab_appointment_page_is_in_lab_group_with_patient_read(pool: PgPool) {
     );
 }
 
-/// กลุ่มเมนู "ลงทะเบียน" = หน้า "ผู้ป่วย" (/patients, patient.read) + "ผู้ใช้งาน" (/users, user.manage)
-/// อยู่ก่อนกลุ่ม Lab — nurse ที่ไม่มี user.manage เห็นกลุ่มนี้แค่หน้าผู้ป่วย
+/// กลุ่มเมนู "ลงทะเบียน" = หน้า "ผู้ป่วย" (/patients, patient.view) + "ผู้ใช้งาน" (/users, user.view)
+/// อยู่ก่อนกลุ่ม Lab — nurse ที่ไม่มี user.view เห็นกลุ่มนี้แค่หน้าผู้ป่วย
 #[sqlx::test]
 async fn registration_group_holds_patients_and_users_pages(pool: PgPool) {
     let pages: Vec<(String, String, Option<String>, String)> = sqlx::query_as(
-        "select p.route, p.label, p.group_label, pp.permission
-         from pages p join page_permissions pp on pp.page_id = p.id
+        "select p.route, p.label, m.label, pp.permission
+         from pages p
+         join page_permissions pp on pp.page_id = p.id
+         left join pages m on m.id = p.ref_id
          where p.route in ('/patients', '/users', '/lab/appointments')
          order by p.sort_order",
     )
@@ -364,13 +385,13 @@ async fn registration_group_holds_patients_and_users_pages(pool: PgPool) {
     assert_eq!(
         summary,
         [
-            ("/patients", "ผู้ป่วย", Some("ลงทะเบียน"), "patient.read"),
-            ("/users", "ผู้ใช้งาน", Some("ลงทะเบียน"), "user.manage"),
+            ("/patients", "ผู้ป่วย", Some("ลงทะเบียน"), "patient.view"),
+            ("/users", "ผู้ใช้งาน", Some("ลงทะเบียน"), "user.view"),
             (
                 "/lab/appointments",
                 "นัดหมายแล็ป",
                 Some("Lab"),
-                "patient.read"
+                "lab_visit.view"
             ),
         ]
     );

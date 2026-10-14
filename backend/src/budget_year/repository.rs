@@ -3,7 +3,7 @@
 //! (`deleted_at is not null`) ไม่ถูกคืนจากฟังก์ชันใดในนี้
 
 use chrono::NaiveDate;
-use sqlx::PgPool;
+use sqlx::{PgPool, Postgres, Transaction};
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -75,6 +75,7 @@ pub async fn insert_budget_year(
     sort_order: i32,
     is_active: bool,
 ) -> Result<BudgetYearId, RepositoryError> {
+    let mut tx = pool.begin().await?;
     let row = sqlx::query!(
         r#"insert into budget_year
              (year, start_date, end_date, sort_order, is_active, created_by, updated_by)
@@ -87,8 +88,10 @@ pub async fn insert_budget_year(
         is_active,
         actor.0
     )
-    .fetch_one(pool)
+    .fetch_one(&mut *tx)
     .await?;
+    insert_audit(&mut tx, actor, "budget_year_created", row.id).await?;
+    tx.commit().await?;
     Ok(row.id)
 }
 
@@ -108,7 +111,8 @@ pub async fn update_budget_year(
     id: BudgetYearId,
     fields: UpdateBudgetYearFields<'_>,
 ) -> Result<(), RepositoryError> {
-    sqlx::query!(
+    let mut tx = pool.begin().await?;
+    let updated = sqlx::query!(
         r#"update budget_year
            set year = coalesce($3, year),
                start_date = coalesce($4, start_date),
@@ -126,8 +130,12 @@ pub async fn update_budget_year(
         fields.sort_order,
         fields.is_active
     )
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+    if updated.rows_affected() > 0 {
+        insert_audit(&mut tx, actor, "budget_year_updated", id).await?;
+    }
+    tx.commit().await?;
     Ok(())
 }
 
@@ -151,14 +159,39 @@ pub async fn soft_delete_budget_year(
     actor: UserId,
     id: BudgetYearId,
 ) -> Result<(), RepositoryError> {
-    sqlx::query!(
+    let mut tx = pool.begin().await?;
+    let deleted = sqlx::query!(
         r#"update budget_year
            set deleted_at = now(), deleted_by = $2, updated_by = $2, updated_at = now()
            where id = $1 and deleted_at is null"#,
         id.0,
         actor.0
     )
-    .execute(pool)
+    .execute(&mut *tx)
+    .await?;
+    if deleted.rows_affected() > 0 {
+        insert_audit(&mut tx, actor, "budget_year_deleted", id).await?;
+    }
+    tx.commit().await?;
+    Ok(())
+}
+
+/// audit ของหน้าตั้งค่าปีงบประมาณ (หน้า "ประวัติการใช้งาน") — target_id = uuid ของแถว ไม่มี metadata
+/// ชื่อรายการอ่านจาก join ตอนแสดงผล (soft delete แถวจึงยังอยู่เสมอ) เขียนในทรานแซกชันเดียวกับการแก้ข้อมูล
+async fn insert_audit(
+    tx: &mut Transaction<'_, Postgres>,
+    actor: UserId,
+    action: &str,
+    id: BudgetYearId,
+) -> Result<(), RepositoryError> {
+    sqlx::query!(
+        "insert into audit_log (actor_user_id, action, target_type, target_id)
+         select $1, $2, 'budget_year', uuid::text from budget_year where id = $3",
+        actor.0,
+        action,
+        id.0
+    )
+    .execute(&mut **tx)
     .await?;
     Ok(())
 }

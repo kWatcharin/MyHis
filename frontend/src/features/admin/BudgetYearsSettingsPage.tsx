@@ -28,6 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { usePagePermissions } from '@/features/role-preview/usePagePermissions'
 import { ApiError } from '@/lib/api'
 import { formatThaiDate } from '@/lib/date'
 import { notify } from '@/lib/notify'
@@ -62,6 +63,7 @@ type FormState = { mode: 'create' } | { mode: 'edit'; item: BudgetYear } | null
 // ต่อ API จริงเต็ม CRUD (backend/src/budget_year) — create/update คืนแค่ status ไม่มี body เลย
 // refetch() ทั้ง list หลังทุก mutation เหมือนหน้าตั้งค่าเพจ/role
 export function BudgetYearsSettingsPage() {
+  const { canCreate, canUpdate, canDelete } = usePagePermissions('budget_year')
   const { items, status, refetch } = useAdminList(budgetYearsApi.list)
 
   const [formState, setFormState] = useState<FormState>(null)
@@ -107,7 +109,7 @@ export function BudgetYearsSettingsPage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title="ตั้งค่าปีงบประมาณ"
+        fallbackTitle="ตั้งค่าปีงบประมาณ"
         description="กำหนดปีงบประมาณ (พ.ศ.) และช่วงวันที่ของแต่ละปี ใช้อ้างอิงในนัดหมาย lab"
       />
 
@@ -127,7 +129,7 @@ export function BudgetYearsSettingsPage() {
         shown={visibleItems.length}
         filtered={hasCriteria(criteria)}
       >
-        <AddButton onClick={() => setFormState({ mode: 'create' })}>เพิ่มปีงบประมาณ</AddButton>
+        {canCreate && <AddButton onClick={() => setFormState({ mode: 'create' })}>เพิ่มปีงบประมาณ</AddButton>}
       </ListToolbar>
 
       <Card>
@@ -164,7 +166,7 @@ export function BudgetYearsSettingsPage() {
                   <TableHead>ปีงบประมาณ</TableHead>
                   <TableHead>ช่วงวันที่</TableHead>
                   <TableHead>สถานะ</TableHead>
-                  <TableHead className="text-right">จัดการ</TableHead>
+                  {(canUpdate || canDelete) && <TableHead className="text-right">จัดการ</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -180,10 +182,12 @@ export function BudgetYearsSettingsPage() {
                         {item.isActive ? 'ใช้งานอยู่' : 'ปิดใช้งาน'}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <EditButton onClick={() => setFormState({ mode: 'edit', item })} />
-                      <DeleteButton onClick={() => setPendingDelete(item)} />
-                    </TableCell>
+                    {(canUpdate || canDelete) && (
+                      <TableCell className="text-right">
+                        {canUpdate && <EditButton onClick={() => setFormState({ mode: 'edit', item })} />}
+                        {canDelete && <DeleteButton onClick={() => setPendingDelete(item)} />}
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>

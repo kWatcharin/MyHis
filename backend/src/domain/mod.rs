@@ -56,46 +56,147 @@ pub struct LabVisitGroupId(pub i32);
 #[sqlx(transparent)]
 pub struct LabVisitId(pub i32);
 
-/// ชุด permission ที่มีอยู่จริงในระบบ — ปิดตาย ผูกกับ authorization check จริงในโค้ดเท่านั้น
-/// สร้างผ่าน UI ไม่ได้ role ไหนมี permission ไหนเป็นข้อมูลใน DB (role_permissions) ไม่ใช่
-/// compile-time อีกต่อไป (docs/auth-design.md ข้อ 10)
+/// เพจ/ข้อมูลที่ตั้งสิทธิ์แยกได้ — ส่วนหน้าของคีย์ permission เช่น `patient` ใน `patient.view`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Permission {
-    UserManage,
-    ShiftRead,
-    ShiftWrite,
-    AuditRead,
-    /// ดูข้อมูลผู้ป่วย (HN, ชื่อ-สกุล ฯลฯ — ข้อมูลระบุตัวคนไข้) แยกจาก shift.* โดยตั้งใจ
-    PatientRead,
-    /// ลงทะเบียน/แก้ไข/ลบผู้ป่วย — ไม่ implies PatientRead (service ตรวจแยกกัน)
-    PatientWrite,
+pub enum Resource {
+    /// ทะเบียนผู้ป่วย (ข้อมูลระบุตัวคนไข้) — หน้า "ผู้ป่วย"
+    Patient,
+    /// นัดหมายแล็ป — หน้าที่แสดงชื่อ/HN คนไข้ต้องมี `patient.view` ด้วย
+    LabVisit,
+    User,
+    Role,
+    Page,
+    BudgetYear,
+    Disease,
+    Prename,
+    Nationality,
+    PatientGroup,
+    Lab,
+    /// ตารางเวร (ยังไม่มีหน้า)
+    Shift,
+    /// audit log (ยังไม่มีหน้า)
+    Audit,
+}
+
+/// การกระทำต่อเพจ: ดู / เพิ่ม / แก้ไข / ลบ / ส่งออกเอกสาร — ตรวจแยกกันทุกตัว (แก้ไขไม่ implies ดู)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Action {
+    View,
+    Create,
+    Update,
+    Delete,
+    /// ส่งออก PDF/Excel — เอกสารสร้างฝั่งหน้าเว็บ backend ไม่มี endpoint ให้ตรวจ สิทธิ์นี้คุมที่หน้าเว็บ
+    Export,
+}
+
+use Action::{Create, Delete, Export, Update, View};
+
+/// permission ทั้งหมดที่มีจริง (resource, action, คีย์ที่เก็บใน DB) — ปิดตาย ผูกกับ authorization check จริงในโค้ด
+/// สร้างผ่าน UI ไม่ได้ คีย์ต้องตรงกับ migration `…_page_action_permissions.sql` เป๊ะ (docs/auth-design.md ข้อ 10)
+const PERMISSIONS: &[(Resource, Action, &str)] = &[
+    (Resource::Patient, View, "patient.view"),
+    (Resource::Patient, Create, "patient.create"),
+    (Resource::Patient, Update, "patient.update"),
+    (Resource::Patient, Delete, "patient.delete"),
+    (Resource::LabVisit, View, "lab_visit.view"),
+    (Resource::LabVisit, Create, "lab_visit.create"),
+    (Resource::LabVisit, Update, "lab_visit.update"),
+    (Resource::LabVisit, Delete, "lab_visit.delete"),
+    (Resource::LabVisit, Export, "lab_visit.export"),
+    (Resource::User, View, "user.view"),
+    (Resource::User, Create, "user.create"),
+    (Resource::User, Update, "user.update"),
+    (Resource::Role, View, "role.view"),
+    (Resource::Role, Create, "role.create"),
+    (Resource::Role, Update, "role.update"),
+    (Resource::Role, Delete, "role.delete"),
+    (Resource::Page, View, "page.view"),
+    (Resource::Page, Create, "page.create"),
+    (Resource::Page, Update, "page.update"),
+    (Resource::Page, Delete, "page.delete"),
+    (Resource::BudgetYear, View, "budget_year.view"),
+    (Resource::BudgetYear, Create, "budget_year.create"),
+    (Resource::BudgetYear, Update, "budget_year.update"),
+    (Resource::BudgetYear, Delete, "budget_year.delete"),
+    (Resource::Disease, View, "disease.view"),
+    (Resource::Disease, Create, "disease.create"),
+    (Resource::Disease, Update, "disease.update"),
+    (Resource::Disease, Delete, "disease.delete"),
+    (Resource::Prename, View, "prename.view"),
+    (Resource::Prename, Create, "prename.create"),
+    (Resource::Prename, Update, "prename.update"),
+    (Resource::Prename, Delete, "prename.delete"),
+    (Resource::Nationality, View, "nationality.view"),
+    (Resource::Nationality, Create, "nationality.create"),
+    (Resource::Nationality, Update, "nationality.update"),
+    (Resource::Nationality, Delete, "nationality.delete"),
+    (Resource::PatientGroup, View, "patient_group.view"),
+    (Resource::PatientGroup, Create, "patient_group.create"),
+    (Resource::PatientGroup, Update, "patient_group.update"),
+    (Resource::PatientGroup, Delete, "patient_group.delete"),
+    (Resource::Lab, View, "lab.view"),
+    (Resource::Lab, Create, "lab.create"),
+    (Resource::Lab, Update, "lab.update"),
+    (Resource::Lab, Delete, "lab.delete"),
+    (Resource::Shift, View, "shift.view"),
+    (Resource::Shift, Update, "shift.update"),
+    (Resource::Audit, View, "audit.view"),
+];
+
+/// permission หนึ่งตัว = แถวหนึ่งใน `PERMISSIONS` (เก็บเป็นลำดับแถว) — สร้างได้จากตารางเท่านั้น (`of`, `parse`,
+/// `all`) จึงไม่มีคู่ resource/action ที่ไม่มีจริง เช่น user.delete
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Permission(u8);
+
+impl std::fmt::Debug for Permission {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
 }
 
 impl Permission {
-    /// ค่าที่เก็บใน role_permissions.permission และใน seed migration — ต้องตรงกันเป๊ะ
+    fn row(self) -> &'static (Resource, Action, &'static str) {
+        // ลำดับแถวมาจาก PERMISSIONS เอง (ตัวสร้างทุกตัวอยู่ในไฟล์นี้) จึงอยู่ในช่วงเสมอ
+        &PERMISSIONS[usize::from(self.0)]
+    }
+
+    fn from_index(index: usize) -> Option<Self> {
+        u8::try_from(index).ok().map(Permission)
+    }
+
+    /// permission ของ resource + action — None ถ้าคู่นี้ไม่มีจริง (เช่น ผู้ใช้งานไม่มี "ลบ")
+    pub fn of(resource: Resource, action: Action) -> Option<Self> {
+        PERMISSIONS
+            .iter()
+            .position(|(r, a, _)| *r == resource && *a == action)
+            .and_then(Self::from_index)
+    }
+
+    /// ทุก permission ตามลำดับในตาราง
+    pub fn all() -> impl Iterator<Item = Self> {
+        (0..PERMISSIONS.len()).filter_map(Self::from_index)
+    }
+
+    pub fn resource(self) -> Resource {
+        self.row().0
+    }
+
+    pub fn action(self) -> Action {
+        self.row().1
+    }
+
+    /// ค่าที่เก็บใน role_permissions.permission / page_permissions.permission — ต้องตรงกับ migration เป๊ะ
     pub fn as_str(self) -> &'static str {
-        match self {
-            Permission::UserManage => "user.manage",
-            Permission::ShiftRead => "shift.read",
-            Permission::ShiftWrite => "shift.write",
-            Permission::AuditRead => "audit.read",
-            Permission::PatientRead => "patient.read",
-            Permission::PatientWrite => "patient.write",
-        }
+        self.row().2
     }
 
     /// parse ค่าที่มาจาก DB — ถ้าไม่รู้จักถือว่าข้อมูลเสีย ให้ error ไม่ใช่ข้าม
     /// (docs/auth-design.md ข้อ 4)
     pub fn parse(value: &str) -> Option<Self> {
-        match value {
-            "user.manage" => Some(Permission::UserManage),
-            "shift.read" => Some(Permission::ShiftRead),
-            "shift.write" => Some(Permission::ShiftWrite),
-            "audit.read" => Some(Permission::AuditRead),
-            "patient.read" => Some(Permission::PatientRead),
-            "patient.write" => Some(Permission::PatientWrite),
-            _ => None,
-        }
+        PERMISSIONS
+            .iter()
+            .position(|(_, _, key)| *key == value)
+            .and_then(Self::from_index)
     }
 }
 

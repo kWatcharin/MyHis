@@ -1,7 +1,9 @@
-//! query SQLx ต่อ users, sessions, roles, user_roles, role_permissions, audit_log
+//! query SQLx ต่อ users, sessions, roles, user_roles, role_permissions, audit_log, login_throttle
 //! (ห้ามรู้เรื่อง HTTP) ใช้ query!/query_as! เพื่อตรวจตอน compile ห้ามประกอบ SQL ด้วย format!
 //! (docs/rust-guidelines.md ข้อ 11) เขียน audit_log ตรงจากที่นี่ (ไม่เรียกโมดูล audit — โมดูล
 //! ฟีเจอร์ไม่เรียกกันเอง, audit_log เป็นแค่ตารางที่ทุกโมดูลเขียนตรงได้)
+
+use std::net::IpAddr;
 
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
@@ -86,14 +88,20 @@ pub async fn find_user_by_id(
     Ok(row)
 }
 
-pub async fn increment_failed_attempts(
+/// นับ login ผิดของบัญชีนี้เพิ่มหนึ่ง — ถ้าล็อกครั้งก่อนหมดอายุแล้ว เริ่มนับใหม่ที่ 1 (ได้ครบ 5 ครั้งอีกรอบ)
+pub async fn register_user_failure(
     pool: &PgPool,
     user_id: UserId,
+    now: DateTime<Utc>,
 ) -> Result<i32, RepositoryError> {
     let row = sqlx::query!(
-        r#"update users set failed_attempts = failed_attempts + 1, updated_at = now()
+        r#"update users
+           set failed_attempts = case when locked_until <= $2 then 1 else failed_attempts + 1 end,
+               locked_until = case when locked_until <= $2 then null else locked_until end,
+               updated_at = now()
            where id = $1 returning failed_attempts"#,
-        user_id.0
+        user_id.0,
+        now
     )
     .fetch_one(pool)
     .await?;
@@ -108,6 +116,66 @@ pub async fn lock_account(
     sqlx::query!(
         "update users set locked_until = $2, updated_at = now() where id = $1",
         user_id.0,
+        until
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// ล็อกของชื่อที่ไม่มีในระบบ (`login_throttle` — key = SHA-256 ของชื่อ ไม่เก็บชื่อดิบ) ไม่มีแถว = ไม่เคยผิด
+pub async fn find_unknown_lock(
+    pool: &PgPool,
+    username_hash: &str,
+) -> Result<Option<DateTime<Utc>>, RepositoryError> {
+    let row = sqlx::query!(
+        "select locked_until from login_throttle where username_hash = $1",
+        username_hash
+    )
+    .fetch_optional(pool)
+    .await?;
+    Ok(row.and_then(|r| r.locked_until))
+}
+
+/// นับ login ผิดของชื่อที่ไม่มีในระบบ — กติกาเดียวกับ `register_user_failure` (ล็อกหมดอายุ = เริ่มนับใหม่)
+/// แล้วลบแถวที่ไม่ได้แตะเกิน 30 วัน กันตารางโตจากชื่อสุ่ม
+pub async fn register_unknown_failure(
+    pool: &PgPool,
+    username_hash: &str,
+    now: DateTime<Utc>,
+) -> Result<i32, RepositoryError> {
+    let row = sqlx::query!(
+        r#"insert into login_throttle (username_hash, failed_attempts, updated_at)
+           values ($1, 1, $2)
+           on conflict (username_hash) do update
+           set failed_attempts = case when login_throttle.locked_until <= $2 then 1
+                                      else login_throttle.failed_attempts + 1 end,
+               locked_until = case when login_throttle.locked_until <= $2 then null
+                                   else login_throttle.locked_until end,
+               updated_at = $2
+           returning failed_attempts"#,
+        username_hash,
+        now
+    )
+    .fetch_one(pool)
+    .await?;
+    sqlx::query!(
+        "delete from login_throttle where updated_at < $1::timestamptz - interval '30 days'",
+        now
+    )
+    .execute(pool)
+    .await?;
+    Ok(row.failed_attempts)
+}
+
+pub async fn lock_unknown(
+    pool: &PgPool,
+    username_hash: &str,
+    until: DateTime<Utc>,
+) -> Result<(), RepositoryError> {
+    sqlx::query!(
+        "update login_throttle set locked_until = $2 where username_hash = $1",
+        username_hash,
         until
     )
     .execute(pool)
@@ -148,6 +216,21 @@ pub async fn insert_session(
     Ok(())
 }
 
+/// ลบ session ที่หมดอายุแล้ว (idle หรือ absolute) ของทุกคน — เรียกตอน login สำเร็จ ไม่ต้องมีงานตั้งเวลาแยก
+/// (แถวที่หมดอายุใช้ต่อไม่ได้อยู่แล้ว แค่ไม่ให้ค้างในตาราง)
+pub async fn delete_expired_sessions(
+    pool: &PgPool,
+    now: DateTime<Utc>,
+) -> Result<(), RepositoryError> {
+    sqlx::query!(
+        "delete from sessions where idle_expires_at < $1 or absolute_expires_at < $1",
+        now
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 pub async fn find_session_by_token_hash(
     pool: &PgPool,
     token_hash: &str,
@@ -180,11 +263,18 @@ pub async fn touch_session(
     Ok(())
 }
 
-pub async fn delete_session(pool: &PgPool, token_hash: &str) -> Result<(), RepositoryError> {
-    sqlx::query!("delete from sessions where token_hash = $1", token_hash)
-        .execute(pool)
-        .await?;
-    Ok(())
+/// ลบ session แล้วคืนเจ้าของ (คำสั่งเดียว atomic) — None = ไม่มี session นี้ (หมดอายุ/ลบไปแล้ว)
+pub async fn delete_session(
+    pool: &PgPool,
+    token_hash: &str,
+) -> Result<Option<UserId>, RepositoryError> {
+    let row = sqlx::query!(
+        r#"delete from sessions where token_hash = $1 returning user_id as "user_id: UserId""#,
+        token_hash
+    )
+    .fetch_optional(pool)
+    .await?;
+    Ok(row.map(|r| r.user_id))
 }
 
 pub async fn delete_all_sessions_for_user(
@@ -313,17 +403,21 @@ pub struct AuditEntry<'a> {
     pub target_type: Option<&'a str>,
     pub target_id: Option<&'a str>,
     pub metadata: Option<serde_json::Value>,
+    /// IP ของผู้ใช้จาก header (ประวัติการเข้าออก) — None = ไม่ทราบ/ไม่เกี่ยว
+    pub ip: Option<IpAddr>,
 }
 
 pub async fn insert_audit_log(pool: &PgPool, entry: AuditEntry<'_>) -> Result<(), RepositoryError> {
+    // ส่ง IP เป็นข้อความแล้ว cast เป็น inet ใน SQL — ไม่ต้องเปิด feature ipnetwork ของ sqlx (dependency เพิ่ม)
     sqlx::query!(
-        r#"insert into audit_log (actor_user_id, action, target_type, target_id, metadata)
-           values ($1, $2, $3, $4, $5)"#,
+        r#"insert into audit_log (actor_user_id, action, target_type, target_id, metadata, ip)
+           values ($1, $2, $3, $4, $5, ($6::text)::inet)"#,
         entry.actor_user_id.map(|id| id.0),
         entry.action,
         entry.target_type,
         entry.target_id,
-        entry.metadata
+        entry.metadata,
+        entry.ip.map(|ip| ip.to_string())
     )
     .execute(pool)
     .await?;

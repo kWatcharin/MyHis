@@ -6,12 +6,20 @@ const BASE = '/api'
 export class ApiError extends Error {
   status: number
   retryAfterSeconds: number | null
+  // body JSON ทั้งก้อนของ error (เช่น remainingAttempts ของ login ไม่ผ่าน) — null ถ้าไม่มี/อ่านไม่ได้
+  body: unknown
 
-  constructor(status: number, message: string, retryAfterSeconds: number | null = null) {
+  constructor(
+    status: number,
+    message: string,
+    retryAfterSeconds: number | null = null,
+    body: unknown = null,
+  ) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.retryAfterSeconds = retryAfterSeconds
+    this.body = body
   }
 }
 
@@ -32,7 +40,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const message =
       (body as { error?: string } | null)?.error ?? response.statusText
     const retryAfter = response.headers.get('Retry-After')
-    throw new ApiError(response.status, message, retryAfter ? Number(retryAfter) : null)
+    throw new ApiError(response.status, message, retryAfter ? Number(retryAfter) : null, body)
   }
 
   return body as T

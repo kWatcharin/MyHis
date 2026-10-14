@@ -1,9 +1,9 @@
-//! กฎของ patient: สิทธิ์ (patient.read / patient.write), การเข้า/ถอดรหัสคอลัมน์ระบุตัวคนไข้, ค่าที่ต้อง
+//! กฎของ patient: สิทธิ์ (`patient.view/create/update/delete`), การเข้า/ถอดรหัสคอลัมน์ระบุตัวคนไข้, ค่าที่ต้อง
 //! ถูกต้อง, HN ซ้ำ, การผูกโรคประจำตัว ห้าม import ชนิดข้อมูลของ Axum (docs/auth-design.md ข้อ 10)
 //! เวลา (วันนี้) เป็นพารามิเตอร์เสมอ ไม่เรียก Utc::now() ในนี้ตรง ๆ (docs/rust-guidelines.md ข้อ 14)
 //!
 //! **จุดตรวจสิทธิ์**: ทุกฟังก์ชันรับ `actor: &CurrentUser` เป็นพารามิเตอร์แรกและเช็คสิทธิ์ที่นี่ — อ่าน
-//! ต้อง `patient.read` เขียน (สร้าง/แก้/ลบ) ต้อง `patient.write` ตรวจแยกกัน write ไม่ implies read
+//! ต้อง `patient.view` สร้าง/แก้/ลบ ต้อง `patient.create` / `patient.update` / `patient.delete` ตรวจแยกกัน
 //!
 //! **ข้อมูลระบุตัวคนไข้ (HN, เลขประจำตัวคนไข้, ชื่อ, สกุล)** เข้ารหัสด้วย `Crypto` ก่อนส่งลง repository เสมอ
 //! และถอดตอนอ่าน — ชนิดที่ถือค่าจริงในไฟล์นี้เขียน `Debug` เองให้ redact และข้อความ error ไม่แนบค่า
@@ -16,7 +16,7 @@ use uuid::Uuid;
 
 use crate::auth::CurrentUser;
 use crate::crypto::{Crypto, CryptoError};
-use crate::domain::{PatientId, Permission};
+use crate::domain::{Action, PatientId, Resource};
 use crate::patient::repository::{
     self, ConditionRow, MasterOptions, PatientRow, PatientWrite, RepositoryError,
 };
@@ -51,16 +51,9 @@ pub enum PatientError {
     Repository(#[from] RepositoryError),
 }
 
-fn require_read(actor: &CurrentUser) -> Result<(), PatientError> {
-    if actor.has_permission(Permission::PatientRead) {
-        Ok(())
-    } else {
-        Err(PatientError::Forbidden)
-    }
-}
-
-fn require_write(actor: &CurrentUser) -> Result<(), PatientError> {
-    if actor.has_permission(Permission::PatientWrite) {
+/// ตรวจสิทธิ์ของ action นี้ (`patient.*`) — ตรวจแยกกันทุกตัว แก้ไขไม่ implies ดู
+fn require(actor: &CurrentUser, action: Action) -> Result<(), PatientError> {
+    if actor.can(Resource::Patient, action) {
         Ok(())
     } else {
         Err(PatientError::Forbidden)
@@ -302,7 +295,7 @@ pub async fn list(
     actor: &CurrentUser,
     today: NaiveDate,
 ) -> Result<Vec<PatientView>, PatientError> {
-    require_read(actor)?;
+    require(actor, Action::View)?;
 
     let rows = repository::list_patients(pool).await?;
     let mut conditions_by_patient: HashMap<PatientId, Vec<ConditionRow>> = HashMap::new();
@@ -322,7 +315,7 @@ pub async fn list(
 }
 
 pub async fn options(pool: &PgPool, actor: &CurrentUser) -> Result<MasterOptions, PatientError> {
-    require_read(actor)?;
+    require(actor, Action::View)?;
     Ok(repository::list_master_options(pool).await?)
 }
 
@@ -333,7 +326,7 @@ pub async fn create(
     input: PatientInput<'_>,
     today: NaiveDate,
 ) -> Result<(), PatientError> {
-    require_write(actor)?;
+    require(actor, Action::Create)?;
     let write = prepare(pool, crypto, &input, today, None).await?;
     repository::insert_patient(pool, actor.user.id, &write)
         .await
@@ -350,7 +343,7 @@ pub async fn replace(
     input: PatientInput<'_>,
     today: NaiveDate,
 ) -> Result<(), PatientError> {
-    require_write(actor)?;
+    require(actor, Action::Update)?;
     let id = repository::find_patient_id(pool, public_id)
         .await?
         .ok_or(PatientError::NotFound)?;
@@ -366,7 +359,7 @@ pub async fn delete(
     actor: &CurrentUser,
     public_id: Uuid,
 ) -> Result<(), PatientError> {
-    require_write(actor)?;
+    require(actor, Action::Delete)?;
     let id = repository::find_patient_id(pool, public_id)
         .await?
         .ok_or(PatientError::NotFound)?;

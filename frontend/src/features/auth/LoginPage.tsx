@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { HeartPulse } from 'lucide-react'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Navigate, useLocation, useNavigate } from 'react-router'
 import * as z from 'zod'
 
+import { PasswordInput } from '@/components/PasswordInput'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -15,8 +16,10 @@ import {
 } from '@/components/ui/card'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { cn } from '@/lib/utils'
 
 import { useAuth } from './AuthContext'
+import { LoginError, MAX_LOGIN_ATTEMPTS } from './loginError'
 
 const loginSchema = z.object({
   username: z.string().min(1, 'กรอกชื่อผู้ใช้'),
@@ -31,6 +34,11 @@ export function LoginPage() {
   const location = useLocation()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  // ตัวนับจาก backend (นับต่อชื่อผู้ใช้ที่ server — refresh แล้วหน้ากลับเป็น 5/5 แต่ server ยังจำ)
+  const [remaining, setRemaining] = useState(MAX_LOGIN_ATTEMPTS)
+  // ล็อกกี่วินาที (จาก Retry-After ของ 429) — ระหว่างล็อกปิดฟอร์มและนับถอยหลัง null = ไม่ล็อก
+  const [lockSeconds, setLockSeconds] = useState<number | null>(null)
+  const [secondsLeft, setSecondsLeft] = useState(0)
   // มาจากหน้าลงทะเบียน (RegisterPage) — เติมชื่อผู้ใช้ไว้ให้ / มาจาก RequireAuth — หน้าเดิมที่จะกลับไป
   const navState = location.state as { from?: string; username?: string; registered?: boolean } | null
 
@@ -38,6 +46,25 @@ export function LoginPage() {
     resolver: zodResolver(loginSchema),
     defaultValues: { username: navState?.username ?? '', password: '' },
   })
+
+  // นับถอยหลังจากเวลาสิ้นสุด (ไม่นับลดทีละ 1 กันเวลาคลาดเมื่อแท็บถูกพัก) ครบแล้วเปิดฟอร์ม กลับเป็น 5/5
+  useEffect(() => {
+    if (lockSeconds === null) return
+    const deadline = Date.now() + lockSeconds * 1000
+    const timer = window.setInterval(() => {
+      const left = Math.ceil((deadline - Date.now()) / 1000)
+      if (left <= 0) {
+        setLockSeconds(null)
+        setRemaining(MAX_LOGIN_ATTEMPTS)
+        setFormError(null)
+      } else {
+        setSecondsLeft(left)
+      }
+    }, 250)
+    return () => window.clearInterval(timer)
+  }, [lockSeconds])
+
+  const locked = lockSeconds !== null
 
   // ระหว่างเช็ค /auth/me ตอนโหลดแอปครั้งแรก ยังไม่โชว์ฟอร์ม กันการกระพริบเห็นฟอร์ม login แป๊บเดียว
   // ก่อนเด้งไป dashboard ถ้าจริง ๆ แล้ว login ค้างอยู่แล้ว (เช่น refresh หน้านี้ทั้งที่ login อยู่)
@@ -58,6 +85,15 @@ export function LoginPage() {
       navigate(navState?.from ?? '/dashboard', { replace: true })
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง')
+      if (err instanceof LoginError) {
+        if (err.lockedForSeconds !== null) {
+          setSecondsLeft(err.lockedForSeconds)
+          setLockSeconds(err.lockedForSeconds)
+          setRemaining(0)
+        } else if (err.remainingAttempts !== null) {
+          setRemaining(err.remainingAttempts)
+        }
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -100,6 +136,12 @@ export function LoginPage() {
                       id="username"
                       autoComplete="username"
                       aria-invalid={fieldState.invalid}
+                      disabled={locked}
+                      onChange={(event) => {
+                        field.onChange(event)
+                        // นับแยกต่อชื่อผู้ใช้ — เปลี่ยนชื่อแล้วยังไม่รู้ค่าจริง server จะบอกในครั้งถัดไป
+                        setRemaining(MAX_LOGIN_ATTEMPTS)
+                      }}
                     />
                     {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
                   </Field>
@@ -111,24 +153,45 @@ export function LoginPage() {
                 render={({ field, fieldState }) => (
                   <Field data-invalid={fieldState.invalid}>
                     <FieldLabel htmlFor="password">รหัสผ่าน</FieldLabel>
-                    <Input
+                    <PasswordInput
                       {...field}
                       id="password"
-                      type="password"
                       autoComplete="current-password"
                       aria-invalid={fieldState.invalid}
+                      disabled={locked}
                     />
                     {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
                   </Field>
                 )}
               />
-              {formError && (
+              {(locked || formError) && (
                 <Field data-invalid>
-                  <FieldError>{formError}</FieldError>
+                  <FieldError>
+                    {locked
+                      ? `ลองผิดครบ ${MAX_LOGIN_ATTEMPTS} ครั้ง — เข้าสู่ระบบได้อีกครั้งใน ${secondsLeft} วินาที`
+                      : formError}
+                  </FieldError>
                 </Field>
               )}
-              <Button type="submit" disabled={isSubmitting} className="w-full">
-                {isSubmitting ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
+              <p
+                aria-live="polite"
+                className={cn(
+                  'text-center text-sm',
+                  remaining === 0
+                    ? 'text-destructive'
+                    : remaining <= 2
+                      ? 'text-warning'
+                      : 'text-muted-foreground',
+                )}
+              >
+                เหลือโอกาส {remaining}/{MAX_LOGIN_ATTEMPTS} ครั้ง
+              </p>
+              <Button type="submit" disabled={isSubmitting || locked} className="w-full">
+                {locked
+                  ? `รอ ${secondsLeft} วินาที`
+                  : isSubmitting
+                    ? 'กำลังเข้าสู่ระบบ...'
+                    : 'เข้าสู่ระบบ'}
               </Button>
             </FieldGroup>
           </form>

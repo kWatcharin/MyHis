@@ -7,7 +7,7 @@ mod common;
 use chrono::NaiveDate;
 use common::*;
 use my_his_backend::auth::CurrentUser;
-use my_his_backend::domain::Permission;
+use my_his_backend::domain::Resource;
 use my_his_backend::lab_visit::service::{self, GroupDetail, GroupInput, VisitInput};
 use my_his_backend::lab_visit::LabVisitError;
 use sqlx::PgPool;
@@ -21,7 +21,7 @@ fn date(y: i32, m: u32, d: u32) -> NaiveDate {
 }
 
 struct Fixture {
-    /// ผู้ใช้ที่มี patient.read + patient.write
+    /// ผู้ใช้ที่มีทุกสิทธิ์ของหน้านัดหมายแล็ป (lab_visit.*)
     actor: CurrentUser,
     user_id: i32,
     prename_id: i32,
@@ -66,11 +66,7 @@ async fn insert_patient_group(pool: &PgPool, user_id: i32, name: &str, active: b
 }
 
 async fn setup(pool: &PgPool) -> Fixture {
-    let actor = actor_with(
-        pool,
-        vec![Permission::PatientRead, Permission::PatientWrite],
-    )
-    .await;
+    let actor = actor_with(pool, common::all_of(Resource::LabVisit)).await;
     let user_id = actor.user.id.0;
     let prename_id = insert_prename(pool, user_id, "นาย").await;
     Fixture {
@@ -161,7 +157,7 @@ async fn read_and_write_permissions_are_checked_separately(pool: PgPool) {
     let visit = detail(&pool, &f, group).await.visits[0].public_id;
 
     // อ่านอย่างเดียว: อ่านได้ทุกอย่าง เขียนไม่ได้สักอย่าง
-    let reader = actor_with(&pool, vec![Permission::PatientRead]).await;
+    let reader = actor_with(&pool, vec![common::perm("lab_visit.view")]).await;
     assert!(service::list_groups(&pool, &reader).await.is_ok());
     assert!(service::options(&pool, &reader).await.is_ok());
     assert!(service::get_group(&pool, &reader, group).await.is_ok());
@@ -182,8 +178,8 @@ async fn read_and_write_permissions_are_checked_separately(pool: PgPool) {
         );
     }
 
-    // เขียนอย่างเดียว: เขียนได้ แต่อ่านไม่ได้ (write ไม่ implies read)
-    let writer = actor_with(&pool, vec![Permission::PatientWrite]).await;
+    // แก้ไขอย่างเดียว: แก้ได้ แต่อ่านไม่ได้ (แก้ไขไม่ implies ดู)
+    let writer = actor_with(&pool, vec![common::perm("lab_visit.update")]).await;
     assert!(matches!(
         service::list_groups(&pool, &writer).await,
         Err(LabVisitError::Forbidden)
@@ -200,8 +196,11 @@ async fn read_and_write_permissions_are_checked_separately(pool: PgPool) {
         .await
         .unwrap();
 
-    // ไม่มีสิทธิ์ผู้ป่วยเลย (แอดมินที่มีแค่ user.manage, พยาบาลที่มีแค่ shift.*)
-    for outsider in [admin(&pool).await, nurse(&pool).await] {
+    // ไม่มีสิทธิ์ของหน้านัดหมายแล็ปเลย (แม้มีสิทธิ์เพจอื่นครบ รวมดูผู้ป่วย)
+    for outsider in [
+        actor_with(&pool, common::all_except(Resource::LabVisit)).await,
+        nurse(&pool).await,
+    ] {
         assert!(matches!(
             service::list_groups(&pool, &outsider).await,
             Err(LabVisitError::Forbidden)

@@ -10,7 +10,7 @@ use axum_extra::extract::CookieJar;
 use chrono::{Duration, Utc};
 
 use crate::auth::{repository, service, session};
-use crate::domain::{Permission, User};
+use crate::domain::{Action, Permission, Resource, User};
 use crate::error::AppError;
 use crate::state::AppState;
 
@@ -26,6 +26,11 @@ pub struct CurrentUser {
 impl CurrentUser {
     pub fn has_permission(&self, permission: Permission) -> bool {
         self.permissions.contains(&permission)
+    }
+
+    /// มีสิทธิ์ทำ action นี้กับเพจ/ข้อมูลนี้ไหม (คู่ที่ไม่มีจริง เช่น user + delete = false เสมอ)
+    pub fn can(&self, resource: Resource, action: Action) -> bool {
+        Permission::of(resource, action).is_some_and(|p| self.has_permission(p))
     }
 }
 
