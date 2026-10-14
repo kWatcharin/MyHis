@@ -9,7 +9,7 @@ edition = "2021"
 [dependencies]
 # --- Web / async (docs/auth-design.md ข้อ 3) ---
 axum = "0.8"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "sync"] } # sync: semaphore จำกัด argon2 พร้อมกัน (password.rs)
 tower-http = { version = "0.6", features = ["trace", "request-id", "timeout"] }
 
 # --- Database (docs/rust-guidelines.md ข้อ 11) ---
@@ -25,7 +25,6 @@ chrono = { version = "0.4", features = ["serde"] } # DateTime<Utc> ทุกท�
 
 # --- Error (docs/rust-guidelines.md ข้อ 3) ---
 thiserror = "2"
-anyhow = "1" # ใช้ได้เฉพาะใน main.rs และสคริปต์เท่านั้น ห้ามเป็นชนิด error ของ service/repository
 
 # --- Password / session (docs/auth-design.md ข้อ 2, 8) ---
 argon2 = "0.5"
@@ -41,18 +40,8 @@ hmac = "0.12" # blind index (HMAC-SHA256 ใช้คู่กับ sha2 ด้
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
-# OpenAPI spec generation จาก handler/struct — ให้ API ใน docs/auth-design.md ข้อ 5 sync กับโค้ดได้
-utoipa = { version = "5", features = ["axum_extras", "uuid", "chrono"] }
-
-# เสิร์ฟหน้า Swagger UI แบบ interactive จาก spec ของ utoipa ด้านบน (เช่น mount ที่ /docs)
-utoipa-swagger-ui = { version = "9", features = ["axum"] }
-
-# เผื่อไว้สำหรับ script migrate data แยกต่างหาก (ยังไม่ได้เขียน) — ไม่ได้ใช้กับตัว server หลัก
-# server ยังอ่าน config จาก environment variable อย่างเดียวตาม docs/rust-guidelines.md ข้อ 15
-clap = { version = "4", features = ["derive"] }
-
 # validate field ของ DTO ขาเข้าที่ขอบระบบ (username, ความยาวรหัสผ่าน ฯลฯ) ก่อนแปลงเป็นชนิดโดเมน
-validator = { version = "0.18", features = ["derive"] }
+validator = { version = "0.21", features = ["derive"] }
 
 [dev-dependencies]
 # ยิง request เข้า router จริงในเทสระดับ API (backend/tests/) ด้วย oneshot ตาม CLAUDE.md
