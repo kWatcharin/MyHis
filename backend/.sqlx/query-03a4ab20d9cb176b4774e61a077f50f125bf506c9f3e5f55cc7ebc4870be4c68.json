@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select relname::text as \"name!\" from pg_class where oid::int8 = any($1) order by relname",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8Array"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "03a4ab20d9cb176b4774e61a077f50f125bf506c9f3e5f55cc7ebc4870be4c68"
+}

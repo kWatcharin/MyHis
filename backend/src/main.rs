@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use my_his_backend::auth;
 use my_his_backend::config::Config;
+use my_his_backend::sql_console::{self, SqlConsole};
 use my_his_backend::state::AppState;
 use my_his_backend::turnstile::Turnstile;
 use my_his_backend::{app, db, password};
@@ -53,12 +54,33 @@ async fn main() {
         }
     };
 
+    // หน้า SQL: สร้าง/อัปเดต role อ่านอย่างเดียว + sync grant หลัง migration (ตารางใหม่ต้องอยู่ใน allowlist ก่อนถึงเห็น)
+    let sql_console = match &config.sql_console_db_password {
+        Some(password) => {
+            let console = SqlConsole::new(
+                pool.connect_options().as_ref(),
+                sql_console::READER_ROLE,
+                password,
+            )
+            .expect("invalid SQL console role");
+            sql_console::setup(&pool, &console)
+                .await
+                .expect("failed to set up the SQL console database role");
+            Some(Arc::new(console))
+        }
+        None => {
+            tracing::info!("SQL console disabled: SQL_CONSOLE_DB_PASSWORD not set");
+            None
+        }
+    };
+
     let bind_addr = config.bind_addr;
     let state = AppState {
         pool,
         config: Arc::new(config),
         dummy_password_hash,
         turnstile,
+        sql_console,
     };
 
     let listener = tokio::net::TcpListener::bind(bind_addr)

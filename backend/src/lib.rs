@@ -19,6 +19,7 @@ pub mod patient;
 pub mod patient_group;
 pub mod prename;
 pub mod registration;
+pub mod sql_console;
 pub mod state;
 pub mod token;
 pub mod turnstile;

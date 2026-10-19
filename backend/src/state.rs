@@ -6,6 +6,7 @@ use std::sync::Arc;
 use sqlx::PgPool;
 
 use crate::config::Config;
+use crate::sql_console::SqlConsole;
 use crate::turnstile::Turnstile;
 
 #[derive(Debug, Clone)]
@@ -17,4 +18,6 @@ pub struct AppState {
     pub dummy_password_hash: Arc<str>,
     /// ตัวตรวจ Cloudflare Turnstile ตอน login — None = ปิด (ไม่ได้ตั้ง key, เทสส่วนใหญ่)
     pub turnstile: Option<Arc<Turnstile>>,
+    /// หน้า SQL (connection ของ role อ่านอย่างเดียวที่แยกจาก pool หลัก) — None = ปิด (ไม่ได้ตั้งรหัสของ role)
+    pub sql_console: Option<Arc<SqlConsole>>,
 }

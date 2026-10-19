@@ -9,6 +9,7 @@
 use uuid::Uuid;
 
 pub mod changes;
+pub mod patient_crypto;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, sqlx::Type)]
 #[sqlx(transparent)]
@@ -78,6 +79,9 @@ pub enum Resource {
     Shift,
     /// audit log (ยังไม่มีหน้า)
     Audit,
+    /// หน้า SQL (`/data/script`) — รัน SQL อ่านอย่างเดียวด้วย role ฐานข้อมูลแยก (sql_console/) ถอดรหัสข้อมูลผู้ป่วย
+    /// ในผลลัพธ์ได้เมื่อมี `patient.view` ด้วย
+    Sql,
 }
 
 /// การกระทำต่อเพจ: ดู / เพิ่ม / แก้ไข / ลบ / ส่งออกเอกสาร — ตรวจแยกกันทุกตัว (แก้ไขไม่ implies ดู)
@@ -143,6 +147,8 @@ const PERMISSIONS: &[(Resource, Action, &str)] = &[
     (Resource::Shift, View, "shift.view"),
     (Resource::Shift, Update, "shift.update"),
     (Resource::Audit, View, "audit.view"),
+    // เพิ่มหลัง migration page_action_permissions — admin ได้จาก migration sql_console_admin_permission (role อื่นติ๊กเอง)
+    (Resource::Sql, View, "sql.view"),
 ];
 
 /// permission หนึ่งตัว = แถวหนึ่งใน `PERMISSIONS` (เก็บเป็นลำดับแถว) — สร้างได้จากตารางเท่านั้น (`of`, `parse`,

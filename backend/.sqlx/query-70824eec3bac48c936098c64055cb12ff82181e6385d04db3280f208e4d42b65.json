@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "set transaction read only",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "70824eec3bac48c936098c64055cb12ff82181e6385d04db3280f208e4d42b65"
+}

@@ -50,6 +50,17 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
   { key: 'shift', route: null, fallbackLabel: 'ตารางเวร (ยังไม่มีหน้า)', actions: ['view', 'update'] },
   // audit.view ตัวเดียวคุมทุกหน้าใต้ "ประวัติ" (ประวัติการเข้าออก /audit/auth, ประวัติการใช้งาน)
   { key: 'audit', route: '/audit/auth', fallbackLabel: 'ประวัติการเข้าออก', actions: ['view'] },
+  // หน้า SQL: รัน SQL อ่านอย่างเดียว (ทุกครั้งถูกบันทึกในประวัติการใช้งาน)
+  {
+    key: 'sql',
+    route: '/data/script',
+    fallbackLabel: 'SQL',
+    actions: ['view'],
+    requires: {
+      permission: 'patient.view',
+      message: 'ถอดรหัสชื่อ/HN ผู้ป่วยในผลลัพธ์ได้เมื่อติ๊ก "ดู" ผู้ป่วยด้วย (ไม่ติ๊ก = เห็นเป็นรหัส)',
+    },
+  },
 ]
 
 export function permissionKey(resource: string, action: PermissionAction): string {

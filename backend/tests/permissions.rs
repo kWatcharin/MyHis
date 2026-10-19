@@ -46,7 +46,8 @@ async fn insert_role(pool: &PgPool, name: &str, permissions: &[&str]) {
 #[test]
 fn permission_table_round_trips_and_has_no_impossible_pairs() {
     let all: Vec<Permission> = Permission::all().collect();
-    assert_eq!(all.len(), 47);
+    // 47 ตัวจาก migration page_action_permissions + sql.view (หน้า SQL)
+    assert_eq!(all.len(), 48);
     for permission in &all {
         assert_eq!(Permission::parse(permission.as_str()), Some(*permission));
         assert_eq!(
@@ -113,8 +114,17 @@ async fn migration_converts_every_role_and_page_permission(pool: PgPool) {
     assert!(auditor.iter().any(|key| key == "role.update"));
     assert!(auditor.iter().any(|key| key == "audit.view"));
 
-    // role ระบบ: admin ได้ครบทุกตัว, nurse (seed: shift + patient) ได้ shift.view/update + ผู้ป่วย + นัดหมายแล็ป
-    assert_eq!(role_permissions(&pool, "admin").await.len(), 47);
+    // role ระบบ: admin ได้ครบทุกตัว (47 ตัวจาก migration นี้ + sql.view จาก migration sql_console_admin_permission),
+    // nurse (seed: shift + patient) ได้ shift.view/update + ผู้ป่วย + นัดหมายแล็ป
+    assert_eq!(role_permissions(&pool, "admin").await.len(), 48);
+    assert!(role_permissions(&pool, "admin")
+        .await
+        .iter()
+        .any(|key| key == "sql.view"));
+    assert!(!role_permissions(&pool, "nurse")
+        .await
+        .iter()
+        .any(|key| key == "sql.view"));
     assert_eq!(role_permissions(&pool, "nurse").await.len(), 2 + 4 + 5);
 
     let mut report_page: Vec<String> = sqlx::query_scalar(

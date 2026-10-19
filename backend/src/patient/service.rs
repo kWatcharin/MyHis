@@ -16,17 +16,12 @@ use uuid::Uuid;
 
 use crate::auth::CurrentUser;
 use crate::crypto::{Crypto, CryptoError};
+// AAD ของแต่ละคอลัมน์ที่เข้ารหัส อยู่ใน domain เพราะหน้า SQL (sql_console/) ถอดคอลัมน์เดียวกันด้วย
+use crate::domain::patient_crypto::{AAD_FIRST_NAME, AAD_HN, AAD_LAST_NAME, AAD_NAP_NO};
 use crate::domain::{Action, PatientId, Resource};
 use crate::patient::repository::{
     self, ConditionRow, MasterOptions, PatientRow, PatientWrite, RepositoryError,
 };
-
-// AAD ของแต่ละคอลัมน์ที่เข้ารหัส — ผูก ciphertext กับคอลัมน์ ถ้าถูกสลับข้ามคอลัมน์ถอดรหัสจะล้มเหลว
-// (blind index ของ hn/nap_no ใช้ AAD ตัวเดียวกับคอลัมน์ของมัน)
-const AAD_HN: &str = "patient.hn";
-const AAD_NAP_NO: &str = "patient.nap_no";
-const AAD_FIRST_NAME: &str = "patient.first_name";
-const AAD_LAST_NAME: &str = "patient.last_name";
 
 const MAX_ID_CHARS: usize = 50; // hn, nap_no
 const MAX_NAME_CHARS: usize = 100; // first_name, last_name — นับเป็นตัวอักษร ไม่ใช่ byte (ชื่อไทย)

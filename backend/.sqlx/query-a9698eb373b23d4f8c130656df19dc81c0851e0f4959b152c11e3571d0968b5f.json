@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select r.rolsuper as \"rolsuper!\", r.rolcreaterole as \"rolcreaterole!\",\n                  r.rolcreatedb as \"rolcreatedb!\", r.rolbypassrls as \"rolbypassrls!\",\n                  r.rolreplication as \"rolreplication!\",\n                  exists(select 1 from pg_auth_members m where m.member = r.oid) as \"is_member!\"\n           from pg_roles r\n           where r.rolname = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "rolsuper!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 1,
+        "name": "rolcreaterole!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 2,
+        "name": "rolcreatedb!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 3,
+        "name": "rolbypassrls!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 4,
+        "name": "rolreplication!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "is_member!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Name"
+      ]
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      null
+    ]
+  },
+  "hash": "a9698eb373b23d4f8c130656df19dc81c0851e0f4959b152c11e3571d0968b5f"
+}

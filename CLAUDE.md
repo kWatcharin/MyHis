@@ -60,6 +60,8 @@ my-his/
       ├─ prename/ nationality/ patient_group/ lab/   master อื่น ๆ โครงเดียวกับ disease/
       ├─ patient/              ลงทะเบียนผู้ป่วย + โรคประจำตัว (สิทธิ์ `patient.*`, เข้ารหัสด้วย crypto.rs)
       ├─ lab_visit/            นัดหมายแล็ป (lab_visit_group + lab_visit) สิทธิ์ `lab_visit.*` — คืนแค่ uuid คนไข้ ไม่แตะข้อมูลระบุตัว
+      ├─ sql_console/          หน้า SQL /data/script (สิทธิ์ `sql.view`): รัน SQL อ่านอย่างเดียวด้วย role DB แยก
+      │                        (my_his_sql_reader, grant ระดับคอลัมน์ตาม allowlist ใน setup.rs) ถอดรหัสคอลัมน์ผู้ป่วยในผลลัพธ์
       └─ audit/                บันทึกว่าใครทำอะไร (แต่ละโมดูลเขียน audit_log เอง) + API อ่านประวัติ สิทธิ์ `audit.view`:
                                `GET /audit/auth-events` (login/logout พร้อม IP/User-Agent) และ `GET /audit/activities`
                                (เพิ่ม/แก้ไข/ลบ/ส่งออก ทุกหน้า — แถวผู้ป่วยไม่มีชื่อรายการ)
@@ -104,6 +106,9 @@ my-his/
 - อย่า log หรือใส่ใน `audit_log.metadata`/error message ซึ่ง plaintext หรือ ciphertext ของข้อมูลผู้ป่วย
   และ key เข้ารหัส (`DATA_ENCRYPTION_KEY`, `BLIND_INDEX_KEY`)
 - **อย่า `git commit` จนกว่าผู้ใช้จะบอกให้ commit** แก้ไฟล์/`git add` ได้ตามปกติ แต่ห้ามสั่ง commit เองจนกว่าจะได้รับคำสั่งชัดเจน
+- **ตารางใหม่หรือคอลัมน์ลับใหม่** (hash, token, รหัส): ตัดสินใจทุกครั้งว่าหน้า SQL เห็นไหม — ตารางใหม่มองไม่เห็นจนกว่าจะเพิ่มใน
+  `READABLE_TABLES`, คอลัมน์ลับในตารางที่อ่านได้ต้องเพิ่มใน `HIDDEN_COLUMNS` (`backend/src/sql_console/setup.rs`) ไม่งั้นถูก grant
+  ให้อัตโนมัติ — คอลัมน์เข้ารหัสใหม่ต้องเพิ่มใน `domain/patient_crypto.rs` ด้วย
 - **REA** (MCP `rea`, skill reverse-engineer-anything): อ่าน `docs/rea.md` ก่อนเรียก tool ของ REA ทุกครั้ง —
   ใช้กับเป้าหมายนอก repo ที่ผู้ใช้สั่งเท่านั้น ห้ามชี้ไปที่ `.env`, ข้อมูลผู้ป่วย หรือระบบที่รันอยู่จริง
 

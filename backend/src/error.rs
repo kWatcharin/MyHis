@@ -43,6 +43,15 @@ pub enum AppError {
     #[error("{0}")]
     Unavailable(String),
 
+    /// หน้า SQL: Postgres ปฏิเสธคำสั่งของผู้ใช้ → 400 พร้อมข้อความของ Postgres (ผู้ใช้พิมพ์ SQL เองจึงต้องเห็น)
+    /// ไม่ log ข้อความ (อาจมีค่าจากคำสั่ง) — `QueryFailure` เขียน Debug ให้ redact ไว้แล้ว
+    #[error("query failed")]
+    QueryFailed(crate::sql_console::QueryFailure),
+
+    /// หน้า SQL: คำสั่งที่ไม่รัน (แก้ข้อมูล / หลายคำสั่ง) → 400 พร้อม `reason` + `keyword` ให้หน้าเว็บเตือนเป็นภาษาไทย
+    #[error("statement not allowed")]
+    StatementNotAllowed(crate::sql_console::Blocked),
+
     #[error("database error")]
     Database(#[from] sqlx::Error),
 
@@ -345,6 +354,30 @@ impl From<crate::registration::RepositoryError> for AppError {
     }
 }
 
+impl From<crate::sql_console::SqlConsoleError> for AppError {
+    fn from(err: crate::sql_console::SqlConsoleError) -> Self {
+        use crate::sql_console::SqlConsoleError;
+        match err {
+            SqlConsoleError::Forbidden => AppError::Forbidden,
+            err @ SqlConsoleError::NotConfigured => AppError::Unavailable(err.to_string()),
+            SqlConsoleError::Validation(msg) => AppError::Validation(msg),
+            SqlConsoleError::QueryFailed(failure) => AppError::QueryFailed(failure),
+            SqlConsoleError::Blocked(blocked) => AppError::StatementNotAllowed(blocked),
+            SqlConsoleError::Repository(e) => e.into(),
+        }
+    }
+}
+
+impl From<crate::sql_console::RepositoryError> for AppError {
+    fn from(err: crate::sql_console::RepositoryError) -> Self {
+        use crate::sql_console::RepositoryError;
+        match err {
+            RepositoryError::Database(e) => AppError::Database(e),
+            err @ RepositoryError::ConnectTimeout => AppError::Unavailable(err.to_string()),
+        }
+    }
+}
+
 impl AppError {
     fn status_code(&self) -> StatusCode {
         match self {
@@ -356,7 +389,9 @@ impl AppError {
             AppError::Forbidden | AppError::ForbiddenWithReason(_) => StatusCode::FORBIDDEN,
             AppError::NotFound => StatusCode::NOT_FOUND,
             AppError::Conflict(_) => StatusCode::CONFLICT,
-            AppError::Validation(_) => StatusCode::BAD_REQUEST,
+            AppError::Validation(_)
+            | AppError::QueryFailed(_)
+            | AppError::StatementNotAllowed(_) => StatusCode::BAD_REQUEST,
             AppError::Unavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
             AppError::Database(_) | AppError::DataIntegrity(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
@@ -374,6 +409,18 @@ struct ErrorBody {
     /// เฉพาะ login ไม่ผ่าน: เหลือโอกาสอีกกี่ครั้งก่อนล็อก
     #[serde(skip_serializing_if = "Option::is_none")]
     remaining_attempts: Option<i32>,
+    /// เฉพาะหน้า SQL: ข้อความ, SQLSTATE และตำแหน่ง (ตัวอักษรที่เท่าไรในคำสั่งที่พิมพ์) จาก Postgres
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    code: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    position: Option<usize>,
+    /// เฉพาะหน้า SQL ที่ไม่รันคำสั่ง: `read_only` / `multiple_statements` และชื่อคำสั่ง (เช่น INSERT)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reason: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    keyword: Option<String>,
 }
 
 impl IntoResponse for AppError {
@@ -393,11 +440,31 @@ impl IntoResponse for AppError {
             AppError::LoginRejected { remaining_attempts } => Some(*remaining_attempts),
             _ => None,
         };
+        let (detail, code, position) = match &self {
+            AppError::QueryFailed(failure) => (
+                Some(failure.message.clone()),
+                failure.code.clone(),
+                failure.position,
+            ),
+            _ => (None, None, None),
+        };
+        let (reason, keyword) = match &self {
+            AppError::StatementNotAllowed(blocked) => (
+                Some(blocked.reason()),
+                blocked.keyword().map(str::to_string),
+            ),
+            _ => (None, None),
+        };
         let mut response = (
             status,
             Json(ErrorBody {
                 error: message,
                 remaining_attempts,
+                message: detail,
+                code,
+                position,
+                reason,
+                keyword,
             }),
         )
             .into_response();

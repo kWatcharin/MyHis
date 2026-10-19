@@ -40,6 +40,7 @@ fn api_router() -> Router<AppState> {
         .merge(crate::prename::router())
         .merge(crate::registration::router())
         .merge(crate::audit::router())
+        .merge(crate::sql_console::router())
 }
 
 async fn health() -> &'static str {

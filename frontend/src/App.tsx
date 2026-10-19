@@ -20,6 +20,7 @@ import { LabVisitGroupsPage } from '@/features/lab-visits/LabVisitGroupsPage'
 import { LabVisitPrintPage } from '@/features/lab-visits/LabVisitPrintPage'
 import { PatientsPage } from '@/features/patients/PatientsPage'
 import { RegisterPage } from '@/features/registration/RegisterPage'
+import { SqlConsolePage } from '@/features/sql-console/SqlConsolePage'
 import { UsersPage } from '@/features/users/UsersPage'
 
 // หน้าตั้งค่า master ที่สร้างจาก MasterSettingsPage + config (ดู features/admin/master/) — เข้าหน้าได้ด้วยสิทธิ์
@@ -141,6 +142,15 @@ function App() {
           element={
             <RequireAuth permission="audit.view">
               <ActivityHistoryPage />
+            </RequireAuth>
+          }
+        />
+        {/* หน้า SQL (เพจ "SQL" ใต้กลุ่ม "ข้อมูล") — รัน SQL อ่านอย่างเดียว ทุกครั้งถูกบันทึกในประวัติการใช้งาน */}
+        <Route
+          path="/data/script"
+          element={
+            <RequireAuth permission="sql.view">
+              <SqlConsolePage />
             </RequireAuth>
           }
         />

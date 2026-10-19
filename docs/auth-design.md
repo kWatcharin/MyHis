@@ -221,9 +221,9 @@ index บน `user_id` — ลิงก์ "ใช้ได้" = `used_at` แ�
 |---|---|---|
 | id | bigserial | |
 | actor_user_id | integer | FK ไป `users.id` (on delete set null), null ได้ กรณี login ล้มเหลวที่ไม่รู้ว่าใคร |
-| action | text | เข้า/ออก: `login_succeeded`, `login_failed`, `logout`, `logout_all` — การใช้งาน: `<ชนิด>_created/_updated/_deleted` ของทุกหน้า (`patient`, `lab_visit_group`, `lab_visit`, `user`, `role`, `page`, `budget_year`, `disease`, `prename`, `nationality`, `patient_group`, `lab`), `lab_visit_group_exported`, `user_activated/deactivated/roles_replaced/password_reset`, `user_registered`, `user_password_set`, `password_changed` |
+| action | text | เข้า/ออก: `login_succeeded`, `login_failed`, `logout`, `logout_all` — การใช้งาน: `<ชนิด>_created/_updated/_deleted` ของทุกหน้า (`patient`, `lab_visit_group`, `lab_visit`, `user`, `role`, `page`, `budget_year`, `disease`, `prename`, `nationality`, `patient_group`, `lab`), `lab_visit_group_exported`, `user_activated/deactivated/roles_replaced/password_reset`, `user_registered`, `user_password_set`, `password_changed`, `sql_executed` (หน้า SQL — target_type `sql` ไม่มี target_id) |
 | target_type / target_id | text / text | สิ่งที่ถูกกระทำ — `target_id` เก็บเป็น **uuid** ไม่ใช่ id int ภายใน เพื่ออ้างอิงข้ามเวลาได้ — แถวผู้ป่วยมีแค่ uuid; เหตุการณ์ login เก็บ username ของบัญชีที่มีอยู่ หรือ **SHA-256 ของชื่อที่พิมพ์มา** ถ้าไม่มีในระบบ (อาจเป็นรหัสผ่านที่พิมพ์ผิดช่อง — แถวก่อน 2026-10-12 เป็นชื่อดิบ) API ไม่ส่งคอลัมน์นี้ออก |
-| metadata | jsonb | ข้อมูลเพิ่มเติม ห้ามใส่ความลับ/ข้อมูลผู้ป่วย — มีแค่: `{"userAgent"}` ของเหตุการณ์เข้า/ออกระบบ (ตัดไม่เกิน 512 ตัวอักษร), `{"label"}` ชื่อ role/เพจ ณ ตอนนั้น (สองตารางนี้ลบจริง), `{"document", "format"}` ของการส่งออก (`cd4`/`roster`, `excel`/`pdf`), รายละเอียดการเปลี่ยนแปลง `{"after"}` / `{"before", "after"}` / `{"changed"}` (ดูหัวข้อประวัติการใช้งาน) |
+| metadata | jsonb | ข้อมูลเพิ่มเติม ห้ามใส่ความลับ/ข้อมูลผู้ป่วย — มีแค่: `{"userAgent"}` ของเหตุการณ์เข้า/ออกระบบ (ตัดไม่เกิน 512 ตัวอักษร), `{"label"}` ชื่อ role/เพจ ณ ตอนนั้น (สองตารางนี้ลบจริง), `{"document", "format"}` ของการส่งออก (`cd4`/`roster`, `excel`/`pdf`), รายละเอียดการเปลี่ยนแปลง `{"after"}` / `{"before", "after"}` / `{"changed"}` (ดูหัวข้อประวัติการใช้งาน), การรันหน้า SQL `{"sqlSha256", "sqlLength", "status", "errorCode", "rows", "truncated", "tables", "decryptedCells", "durationMs"}` (**ไม่เก็บตัว SQL** — hash คำนวณหลังแทนตัวช่วย `:hn()` แล้วจึงไม่มี HN ดิบ) |
 | ip | inet | IP ของผู้ใช้ — มีเฉพาะเหตุการณ์เข้า/ออกระบบ (ดูด้านล่าง) |
 | created_at | timestamptz | index `(action, created_at)` (ประวัติการเข้าออก) และ `(created_at)` (ประวัติการใช้งาน) |
 
@@ -321,6 +321,8 @@ index บน `user_id` — ลิงก์ "ใช้ได้" = `used_at` แ�
 | POST | `/lab-visit-groups/{id}/visits` | `lab_visit.update` | `{ patientIds }` เพิ่มคนไข้หลายคน (ต่อท้ายตามลำดับที่ส่ง, ตัดซ้ำ) — ทั้งชุดถูกปฏิเสธถ้ามีคนไม่พบ/ปิดใช้งาน (`400`) หรืออยู่ในนัดหมายแล้ว (`409`) |
 | POST | `/lab-visit-groups/{id}/exports` | `lab_visit.export` | `{ document: cd4 \| roster, format: excel \| pdf }` → 204 บันทึกการส่งออกเอกสาร (`lab_visit_group_exported`) — หน้าเว็บเรียกก่อนสร้าง Excel/แสดงหน้าพิมพ์ทุกครั้ง ค่าอื่น = `400`, นัดหมายไม่มี/ถูกลบ = `404` |
 | PUT / DELETE | `/lab-visits/{id}` | `lab_visit.update` | แทนที่ระยะเวลากินยา (ปี 0–100, เดือน 0–11), ผล VL, สูตรยา, ลำดับ / เอาคนไข้ออกจากนัดหมาย (soft delete เพิ่มกลับได้) |
+| GET | `/sql/schema` | `sql.view` | ตาราง/คอลัมน์ที่ role อ่านอย่างเดียวของหน้า SQL อ่านได้ (ไม่มีคอลัมน์ลับ) พร้อม `encrypted` ต่อคอลัมน์, `maxRows`, `statementTimeoutMs` — ใช้ทำ auto complete (โมดูล `sql_console/` — หน้า "SQL" `/data/script`) |
+| POST | `/sql/query` | `sql.view` | `{ sql, decrypt }` รันคำสั่งเดียวแบบอ่านอย่างเดียวด้วย role ฐานข้อมูลแยก (docs/infrastructure.md หัวข้อหน้า SQL) → `{ columns: [{name, type, supported, encrypted, decrypted}], rows, rowCount, truncated, durationMs, decryptErrors }` สูงสุด 500 แถว 5 วินาที — ถอดรหัสคอลัมน์ผู้ป่วย (ตาม OID/attnum ต้นทาง ไม่ใช่ชื่อ) เฉพาะเมื่อ `decrypt` และมี `patient.view` ด้วย, ตัวช่วย `:hn('...')` / `:nap_no('...')` แทนเป็น blind index — Postgres ปฏิเสธ: `400 { error: "query failed", message, code (SQLSTATE), position }`, ไม่ใช่คำสั่งอ่าน/หลายคำสั่ง (ไม่รัน): `400 { error: "statement not allowed", reason: "read_only" | "multiple_statements", keyword }` (`keyword` = ชื่อคำสั่ง เช่น `DELETE`), ยังไม่ตั้งค่า: `503 sql console not configured` ทุกครั้งบันทึก `sql_executed` (metadata `status` = `ok` / `error` / `blocked`; บันทึกไม่ได้ = ไม่ส่งผล) |
 | GET | `/menu` | ต้อง login | คืนรายชื่อ page ที่ผู้ใช้ปัจจุบันเข้าถึงได้ เรียงตามโครงเมนู (`id`, `label`, `icon`, `route`, `refId`) — ดูหัวข้อ 11 |
 | GET | `/health` | สาธารณะ | สำหรับ healthcheck ของ container |
 
@@ -336,7 +338,9 @@ index บน `user_id` — ลิงก์ "ใช้ได้" = `used_at` แ�
 - `403` login แล้วแต่ไม่มีสิทธิ์
 - `409` ชื่อผู้ใช้ซ้ำ
 - `429` ถูกล็อกชั่วคราวจากการลองผิดหลายครั้ง พร้อม header `Retry-After`
-- `503` บริการภายนอกที่ต้องใช้ไม่ตอบ — ตอนนี้มีแค่ Cloudflare Turnstile ตอน login (`captcha unavailable`)
+- `503` บริการภายนอกที่ต้องใช้ไม่ตอบ — Cloudflare Turnstile ตอน login (`captcha unavailable`) และหน้า SQL ที่ยังไม่ตั้งค่า
+  (`sql console not configured`)
+- `400 query failed` เฉพาะหน้า SQL: body มี `message` / `code` / `position` ของ Postgres (ไม่ log ข้อความนี้)
 
 ## 6. ขั้นตอนการ login
 
@@ -452,7 +456,11 @@ Extractor อ่าน cookie แล้ว hash ค่าที่ได้ ไ�
   เด็ดขาด (กันไม่ให้มี user ที่ login ได้แต่ไม่มีสิทธิ์อะไรเลยโดยไม่ตั้งใจ) — `PUT /users/{id}/roles`
   ที่ส่ง array ว่างต้องถูกปฏิเสธด้วย `400`
 - **`Permission` แยกตามเพจ: `<resource>.<action>`** — ปิดตายใน Rust (ตาราง `PERMISSIONS` ใน
-  `backend/src/domain/mod.rs` แต่ละตัวผูกกับ authorization check จริงในโค้ด สร้างผ่าน UI ไม่ได้) มี 47 ตัว:
+  `backend/src/domain/mod.rs` แต่ละตัวผูกกับ authorization check จริงในโค้ด สร้างผ่าน UI ไม่ได้) มี 48 ตัว —
+  47 ตัวจาก migration ด้านล่าง และ `sql.view` (หน้า SQL เพิ่ม 2026-10-19 — migration `20261019100000` ให้เฉพาะ role
+  ระบบ admin เพราะกติกาห้ามให้สิทธิ์เกินตัวเองทำให้ไม่มีใครติ๊กสิทธิ์ที่ยังไม่มีใครถือได้, role อื่นติ๊กเอง ถอดรหัสข้อมูล
+  ผู้ป่วยในผลลัพธ์ต้องมี `patient.view` ด้วย และ **อ่าน `audit_log` / ตาราง `users` ได้โดยไม่ต้องมี `audit.view` /
+  `user.view`** จึงควรให้เฉพาะผู้ดูแล) ชุดเดิม:
   `patient` (ผู้ป่วย), `lab_visit` (นัดหมายแล็ป), `role`, `page` และ master 6 หน้า (`budget_year`, `disease`,
   `prename`, `nationality`, `patient_group`, `lab`) ได้ `view` / `create` / `update` / `delete` — `user` (ผู้ใช้งาน)
   ไม่มี `delete` (ปิดใช้งานแทน), `lab_visit` มี `export` เพิ่ม, `shift` มี `view` / `update` และ `audit` มี `view`

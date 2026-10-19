@@ -79,8 +79,8 @@ async fn existing_tables_have_int_id_and_unique_uuid(pool: PgPool) {
     .fetch_one(&pool)
     .await
     .unwrap();
-    // ทุก permission ราย action (20261013100000_page_action_permissions.sql)
-    assert_eq!(admin_permissions, 47);
+    // ทุก permission ราย action (20261013100000_page_action_permissions.sql) + sql.view (20261019100000)
+    assert_eq!(admin_permissions, 48);
 
     // หน้าตั้งค่าเพจ, role, ปีงบประมาณ, โรค, คำนำหน้า, สัญชาติ, กลุ่มคนไข้, แลป และผู้ใช้งาน — แต่ละหน้าต้องมีสิทธิ์
     // "ดู" ของหน้านั้นเอง (เดิมทุกหน้าใช้ user.manage ตัวเดียว)

@@ -74,6 +74,32 @@ backend รัน migration ตอนเริ่มทำงานโดยอ�
 - ซ่อน header `Server`, response ของ `/api/*` มี `Cache-Control: no-store` (มีข้อมูลคนไข้)
 - เพิ่ม script/style/รูปจากโดเมนอื่นเมื่อไร ต้องแก้ CSP ด้วย ไม่งั้นเบราว์เซอร์บล็อก (ดูได้ใน console)
 
+### หน้า SQL (`/data/script`, backend/src/sql_console/)
+
+รัน SQL ดิบจากหน้าเว็บแล้วถอดรหัสคอลัมน์ผู้ป่วยให้ (Postgres ถอด AES-GCM ของแอปเองไม่ได้) — backend ต่อ DB ด้วย superuser
+SQL ดิบผ่าน pool หลักจะ `COPY ... TO PROGRAM` (รัน shell ใน container db), `pg_read_file`, `RESET ROLE` ได้แม้อยู่ใน
+transaction READ ONLY จึงรันด้วย **role แยก `my_his_sql_reader`** เท่านั้น
+
+- เปิดด้วย `SQL_CONSOLE_DB_PASSWORD` ใน `.env` (ยาว ≥ 16 ตัว เช่น `openssl rand -hex 24`) แล้ว restart backend — ไม่ตั้ง =
+  ปิดหน้า SQL (API ตอบ 503) host/ฐานข้อมูลใช้ของ `DATABASE_URL`
+- **backend สร้าง/อัปเดต role เองตอนเริ่ม** (หลัง migration): LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT
+  NOREPLICATION NOBYPASSRLS CONNECTION LIMIT 4, ค่าเริ่มต้น read only + statement_timeout 5 วินาที, ตั้งรหัสตาม `.env`
+  ทุกครั้ง (หมุนรหัส = แก้ `.env` แล้ว restart) และ **ไม่ยอมเริ่ม** ถ้า role เป็น superuser/มีสิทธิ์เกิน/เป็นสมาชิก role อื่น
+  (เช่น `pg_read_all_data`, `pg_execute_server_program`) — ทำได้เพราะแอปยังเป็น superuser ถ้าเปลี่ยนเป็นบัญชีธรรมดาตาม
+  checklist ด้านล่าง ขั้นสร้าง role ต้องย้ายไปทำด้วยมือ (sync grant ยังทำได้เพราะแอปเป็นเจ้าของตาราง)
+- **grant ระดับคอลัมน์ sync ใหม่ทุกครั้งที่เริ่ม** ตาม allowlist ใน `sql_console/setup.rs`: อ่านได้เฉพาะ `READABLE_TABLES`
+  ยกเว้น `HIDDEN_COLUMNS` (`users.password_hash`, `registration_links.token_hash`) — `sessions`, `login_throttle`,
+  `_sqlx_migrations` และ **ตารางใหม่มองไม่เห็นจนกว่าจะเพิ่มเข้า allowlist** คอลัมน์ลับที่เพิ่มในตารางที่อ่านได้ต้องเพิ่มใน
+  `HIDDEN_COLUMNS` (ไม่งั้นถูก grant อัตโนมัติ)
+- ทุกการรัน: connection ใหม่ (ไม่ใช้ pool), READ ONLY, คำสั่งเดียว, SELECT/WITH/VALUES/TABLE ถูกครอบด้วย `LIMIT 501`
+  (EXPLAIN/SHOW รันตรง), ถอดรหัสเฉพาะเมื่อมี `patient.view`, บันทึก `audit_log` โดยไม่เก็บตัว SQL
+  และไม่ log SQL/ข้อความ error ของ DB
+- คำสั่งที่คำแรกไม่ใช่ SELECT/WITH/VALUES/TABLE/EXPLAIN/SHOW หรือมี `;` คั่นหลายคำสั่ง ไม่ส่งไป DB เลย ตอบ
+  `400 statement not allowed` ให้หน้าเว็บเตือน (ยังบันทึก audit status `blocked`) — error ของ Postgres ที่แปลว่าแก้ข้อมูล
+  (`25006` read-only, WITH ที่มี DELETE ข้างใน, `SELECT ... INTO`) แปลงเป็นคำเตือนเดียวกัน ด่านจริงยังเป็นสิทธิ์ของ role + READ ONLY
+- เทส `backend/tests/sql_console.rs` สร้าง role ชื่อ `my_his_sqlt_*` ต่อเทสแล้วลบตอนจบ — ถ้าเทสล้มกลางทาง role อาจค้างใน
+  cluster (ไม่มีสิทธิ์อะไรเหลือ) ลบได้ด้วย `drop role`
+
 ### Checklist ก่อนขึ้นเครื่องจริง (จาก security audit 2026-10-12 — ยังไม่ได้ทำ)
 
 - **แยกบัญชี DB ของแอปที่ไม่ใช่ superuser** — ตอนนี้ backend ต่อด้วย `POSTGRES_USER` ซึ่งเป็น superuser ของ image

@@ -17,6 +17,7 @@ use my_his_backend::auth::CurrentUser;
 use my_his_backend::config::{Config, TurnstileConfig};
 use my_his_backend::crypto::Crypto;
 use my_his_backend::domain::{Permission, Resource, User, UserId};
+use my_his_backend::sql_console::SqlConsole;
 use my_his_backend::state::AppState;
 use my_his_backend::turnstile::Turnstile;
 use my_his_backend::{app, password};
@@ -68,9 +69,19 @@ pub async fn run_migration_files(pool: &PgPool, include: impl Fn(i64) -> bool) {
     }
 }
 
-/// router จริงของแอปบน DB ของเทส — Config ใช้ค่าทดสอบ (ไม่อ่าน environment variable) ปิด Turnstile
+/// router จริงของแอปบน DB ของเทส — Config ใช้ค่าทดสอบ (ไม่อ่าน environment variable) ปิด Turnstile และหน้า SQL
 pub async fn test_app(pool: PgPool) -> Router {
-    build_test_app(pool, None).await
+    build_test_app(pool, None, None).await
+}
+
+/// key เข้ารหัสชุดเดียวกับที่ `test_app` ใช้ — ใส่ข้อมูลผู้ป่วยที่เข้ารหัสแล้วตรงลง DB ให้ API ถอดได้
+pub fn test_crypto() -> Crypto {
+    Crypto::from_hex_keys(TEST_DATA_KEY, TEST_INDEX_KEY).unwrap()
+}
+
+/// เหมือน `test_app` แต่เปิดหน้า SQL ด้วย role อ่านอย่างเดียวที่เทสสร้างไว้แล้ว (`sql_console::setup`)
+pub async fn test_app_with_sql_console(pool: PgPool, console: Arc<SqlConsole>) -> Router {
+    build_test_app(pool, None, Some(console)).await
 }
 
 /// site key / secret / hostname ของ `test_app_with_turnstile` (ค่าปลอม ไม่ใช่ key ของ Cloudflare)
@@ -89,10 +100,14 @@ pub async fn test_app_with_turnstile(pool: PgPool, verify_url: &str) -> Router {
         verify_url,
     )
     .unwrap();
-    build_test_app(pool, Some(Arc::new(turnstile))).await
+    build_test_app(pool, Some(Arc::new(turnstile)), None).await
 }
 
-async fn build_test_app(pool: PgPool, turnstile: Option<Arc<Turnstile>>) -> Router {
+async fn build_test_app(
+    pool: PgPool,
+    turnstile: Option<Arc<Turnstile>>,
+    sql_console: Option<Arc<SqlConsole>>,
+) -> Router {
     let config = Config {
         database_url: String::new(),
         bind_addr: "127.0.0.1:0".parse().unwrap(),
@@ -100,9 +115,10 @@ async fn build_test_app(pool: PgPool, turnstile: Option<Arc<Turnstile>>) -> Rout
         session_absolute_ttl: chrono::Duration::days(30),
         initial_admin_username: "unused".to_string(),
         initial_admin_password: "unused".to_string(),
-        crypto: Crypto::from_hex_keys(TEST_DATA_KEY, TEST_INDEX_KEY).unwrap(),
-        // Config.turnstile ใช้แค่ตอนเริ่มระบบ (main.rs สร้าง Turnstile) — router อ่านจาก AppState
+        crypto: test_crypto(),
+        // Config.turnstile / sql_console_db_password ใช้แค่ตอนเริ่มระบบ (main.rs) — router อ่านจาก AppState
         turnstile: None,
+        sql_console_db_password: None,
     };
     let dummy_password_hash = tokio::task::spawn_blocking(password::dummy_hash)
         .await
@@ -113,6 +129,7 @@ async fn build_test_app(pool: PgPool, turnstile: Option<Arc<Turnstile>>) -> Rout
         config: Arc::new(config),
         dummy_password_hash: Arc::from(dummy_password_hash),
         turnstile,
+        sql_console,
     })
 }
 

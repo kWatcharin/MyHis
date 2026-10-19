@@ -30,7 +30,13 @@ pub struct Config {
     pub crypto: Crypto,
     /// Cloudflare Turnstile ที่หน้า login — None = ปิด (ไม่ได้ตั้ง key ทั้งคู่)
     pub turnstile: Option<TurnstileConfig>,
+    /// รหัสของ role ฐานข้อมูลแยกของหน้า SQL (`SQL_CONSOLE_DB_PASSWORD`) — None = ปิดหน้า SQL
+    /// role/host/ฐานข้อมูลมาจาก sql_console::READER_ROLE + DATABASE_URL (ดู sql_console/setup.rs)
+    pub sql_console_db_password: Option<String>,
 }
+
+/// รหัสของ role หน้า SQL ต้องยาวอย่างน้อยเท่านี้ (เช่น `openssl rand -hex 24`) — role นี้ login ได้จาก network ของ compose
+const MIN_SQL_CONSOLE_PASSWORD_CHARS: usize = 16;
 
 /// key ของ widget Turnstile (Cloudflare dashboard) — site key เป็นค่าสาธารณะ (อยู่ในหน้าเว็บ) secret ห้ามหลุด
 pub struct TurnstileConfig {
@@ -63,6 +69,10 @@ impl std::fmt::Debug for Config {
             .field("initial_admin_password", &"[redacted]")
             .field("crypto", &self.crypto)
             .field("turnstile", &self.turnstile)
+            .field(
+                "sql_console_db_password",
+                &self.sql_console_db_password.as_ref().map(|_| "[redacted]"),
+            )
             .finish()
     }
 }
@@ -115,6 +125,8 @@ impl Config {
             optional("TURNSTILE_HOSTNAME"),
         )?;
 
+        let sql_console_db_password = sql_console_password(optional("SQL_CONSOLE_DB_PASSWORD"))?;
+
         Ok(Config {
             database_url,
             bind_addr,
@@ -124,7 +136,18 @@ impl Config {
             initial_admin_password,
             crypto,
             turnstile,
+            sql_console_db_password,
         })
+    }
+}
+
+/// ไม่ตั้ง = ปิดหน้า SQL, สั้นเกิน = ล้มตอนเริ่ม (ไม่แนบค่าลงใน error)
+fn sql_console_password(value: Option<String>) -> Result<Option<String>, ConfigError> {
+    match value {
+        Some(password) if password.chars().count() < MIN_SQL_CONSOLE_PASSWORD_CHARS => {
+            Err(ConfigError::InvalidSecret("SQL_CONSOLE_DB_PASSWORD"))
+        }
+        other => Ok(other),
     }
 }
 
@@ -177,12 +200,28 @@ mod tests {
                 secret_key: "turnstile-secret-789".to_string(),
                 hostname: None,
             }),
+            sql_console_db_password: Some("sql-console-secret-012".to_string()),
         };
         let printed = format!("{config:?}");
         assert!(!printed.contains("db-secret-123"), "{printed}");
         assert!(!printed.contains("admin-secret-456"), "{printed}");
         assert!(!printed.contains("turnstile-secret-789"), "{printed}");
+        assert!(!printed.contains("sql-console-secret-012"), "{printed}");
         assert!(printed.contains("[redacted]"));
+    }
+
+    #[test]
+    fn sql_console_password_is_optional_but_must_be_long() {
+        assert_eq!(sql_console_password(None).unwrap(), None);
+        let long = "0123456789abcdef".to_string();
+        assert_eq!(
+            sql_console_password(Some(long.clone())).unwrap(),
+            Some(long)
+        );
+        assert!(matches!(
+            sql_console_password(Some("short".to_string())),
+            Err(ConfigError::InvalidSecret("SQL_CONSOLE_DB_PASSWORD"))
+        ));
     }
 
     #[test]

@@ -111,6 +111,19 @@ pub async fn list_activities(
                       when 'lab' then lb.name
                       when 'lab_visit_group' then 'ปีงบ ' || gby.year || ' · ' || gpg.name
                       when 'lab_visit' then 'ปีงบ ' || gby.year || ' · ' || gpg.name
+                      -- หน้า SQL: สรุปจาก metadata (ไม่มีตัว SQL เก็บไว้) เช่น "12 แถว · patient, lab_visit"
+                      when 'sql' then
+                          case when ev.metadata ->> 'status' = 'error'
+                               then 'ล้มเหลว' || coalesce(' (' || (ev.metadata ->> 'errorCode') || ')', '')
+                               -- คำสั่งที่หน้า SQL ไม่รัน เช่น "ไม่อนุญาต (DELETE)"
+                               when ev.metadata ->> 'status' = 'blocked'
+                               then 'ไม่อนุญาต (' || coalesce(ev.metadata ->> 'keyword',
+                                    case ev.metadata ->> 'reason' when 'multiple_statements' then 'หลายคำสั่ง'
+                                         else 'แก้ข้อมูล' end) || ')'
+                               else (ev.metadata ->> 'rows') || ' แถว'
+                                    || coalesce(' · ' || (select string_agg(t, ', ')
+                                                         from jsonb_array_elements_text(ev.metadata -> 'tables') t), '')
+                          end
                       -- patient และชนิดอื่น ๆ: ไม่มีชื่อรายการ
                       else null
                   end as "target_label?",
