@@ -32,7 +32,7 @@ my-his/
 │  ├─ rust-guidelines.md       กฎการเขียน Rust ของโปรเจกต์ (อ่านก่อนเขียนโค้ด)
 │  ├─ auth-design.md           ดีไซน์ระบบ auth ฉบับละเอียด
 │  └─ infrastructure.md        การวาง container, backup, ความปลอดภัยของเครื่อง
-├─ ops/                        Caddyfile, สคริปต์ backup/restore
+├─ ops/                        Caddyfile, สคริปต์ backup/restore, patient_decrypt.py (ถอดคอลัมน์ที่เข้ารหัสนอกแอป ให้ผู้ใช้รันเอง)
 ├─ frontend/
 └─ backend/
    ├─ Cargo.toml

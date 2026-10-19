@@ -29,6 +29,10 @@ Cache และ queue ยังไม่มีในระบบ ถ้าวั
 - ข้อมูล Postgres อยู่ใน named volume
 - ข้อมูลใบรับรองของ Caddy อยู่ใน named volume (ไม่อย่างนั้นจะขอใบใหม่ทุกครั้งที่ restart จนติดลิมิต)
 - ค่าลับทั้งหมดอยู่ในไฟล์ `.env` ที่ไม่ขึ้น git โดยมี `.env.example` เป็นรายการชื่อตัวแปรพร้อมคำอธิบาย
+- ดูคอลัมน์ที่เข้ารหัส (`patient.hn`, `nap_no`, `first_name`, `last_name`) ตรงจาก DB: SQL อย่างเดียวถอดไม่ได้ เพราะ DB
+  ไม่มี key และ pgcrypto ไม่มี AES-GCM — ใช้ `ops/patient_decrypt.py` (select เป็น hex ด้วย psql แล้ว pipe เข้าสคริปต์
+  ซึ่งอ่าน key จาก `.env` เอง วิธีใช้อยู่หัวไฟล์) **ห้ามติดตั้ง pgcrypto หรือใส่ key ลงในคำสั่ง SQL แทน** (ค้างใน
+  `pg_stat_activity`/log/psql history) ทางนี้ไม่ผ่านการตรวจสิทธิ์ `patient.view` ของหน้าเว็บ ใช้เฉพาะตอนจำเป็น
 
 ## 4. ลำดับการเริ่มระบบ
 
