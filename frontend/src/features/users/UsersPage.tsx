@@ -2,6 +2,7 @@ import { KeyRound, Link2, UserCheck, UserX } from 'lucide-react'
 import { useState } from 'react'
 
 import { AddButton, EditButton } from '@/components/layout/ActionButtons'
+import { ListState } from '@/components/layout/ListState'
 import { ListToolbar } from '@/components/layout/ListToolbar'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { SearchForm } from '@/components/layout/SearchForm'
@@ -63,27 +64,27 @@ function RegistrationBadge({ user }: { user: User }) {
   if (user.registeredAt === null) {
     if (user.linkState === 'pending') {
       return (
-        <Badge variant="secondary" title={`ลิงก์ลงทะเบียนใช้ได้ถึง ${until}`}>
+        <Badge variant="warning" title={`ลิงก์ลงทะเบียนใช้ได้ถึง ${until}`}>
           รอลงทะเบียน
         </Badge>
       )
     }
     return (
-      <Badge variant="destructive" title="ยังเข้าระบบไม่ได้ — กด &quot;ออกลิงก์ใหม่&quot; แล้วส่งให้ผู้ใช้">
+      <Badge variant="danger" title="ยังเข้าระบบไม่ได้ — กด &quot;ออกลิงก์ใหม่&quot; แล้วส่งให้ผู้ใช้">
         {user.linkState === 'expired' ? 'ลิงก์ลงทะเบียนหมดอายุ' : 'ยังไม่ลงทะเบียน — ไม่มีลิงก์'}
       </Badge>
     )
   }
   if (user.linkState === 'pending') {
     return (
-      <Badge variant="secondary" title={`ลิงก์ตั้งรหัสใหม่ใช้ได้ถึง ${until}`}>
+      <Badge variant="warning" title={`ลิงก์ตั้งรหัสใหม่ใช้ได้ถึง ${until}`}>
         รอตั้งรหัสใหม่
       </Badge>
     )
   }
   if (user.linkState === 'expired') {
     return (
-      <Badge variant="destructive" title="รหัสเดิมใช้ไม่ได้แล้ว — กด &quot;รีเซ็ตรหัสผ่าน&quot; เพื่อออกลิงก์ใหม่">
+      <Badge variant="danger" title="รหัสเดิมใช้ไม่ได้แล้ว — กด &quot;รีเซ็ตรหัสผ่าน&quot; เพื่อออกลิงก์ใหม่">
         ลิงก์ตั้งรหัสหมดอายุ
       </Badge>
     )
@@ -283,14 +284,14 @@ export function UsersPage() {
 
       <Card>
         <CardContent className="flex flex-col gap-3 px-0 sm:px-2">
-          {status === 'loading' && <p className="p-4 text-sm text-muted-foreground">กำลังโหลด...</p>}
+          {status === 'loading' && <ListState kind="loading" />}
           {status === 'error' && (
-            <p className="p-4 text-sm text-destructive">โหลดข้อมูลไม่สำเร็จ ลองรีเฟรชหน้า</p>
+            <ListState kind="error">โหลดข้อมูลไม่สำเร็จ ลองรีเฟรชหน้า</ListState>
           )}
           {status === 'ready' && users.length > 0 && visibleUsers.length === 0 && (
-            <p className="p-4 text-sm text-muted-foreground">
+            <ListState kind="noMatch">
               ไม่พบผู้ใช้ที่ตรงกับเงื่อนไข — กด &quot;ล้างข้อมูล&quot; เพื่อดูทั้งหมด
-            </p>
+            </ListState>
           )}
           {status === 'ready' && visibleUsers.length > 0 && (
             <Table>
@@ -333,13 +334,13 @@ export function UsersPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
-                          <Badge variant={user.isActive ? 'default' : 'outline'}>
+                          <Badge variant={user.isActive ? 'success' : 'outline'}>
                             {user.isActive ? 'ใช้งานอยู่' : 'ปิดใช้งาน'}
                           </Badge>
                           <RegistrationBadge user={user} />
                           {user.mustChangePassword && (
                             <Badge
-                              variant="secondary"
+                              variant="warning"
                               title="บัญชีเดิมที่ยังไม่ได้เปลี่ยนรหัสผ่านชั่วคราว"
                             >
                               ยังใช้รหัสชั่วคราว
@@ -347,7 +348,7 @@ export function UsersPage() {
                           )}
                           {user.isLocked && user.lockedUntil && (
                             <Badge
-                              variant="destructive"
+                              variant="danger"
                               title="ใส่รหัสผิดหลายครั้ง — รอให้พ้นเวลา หรือรีเซ็ตรหัสผ่านเพื่อปลดล็อกทันที"
                             >
                               ล็อกถึง {formatThaiDateTime(user.lockedUntil)}

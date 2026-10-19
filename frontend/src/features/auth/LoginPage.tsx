@@ -153,11 +153,11 @@ export function LoginPage() {
       }}
     >
       <Card className="w-full max-w-sm">
-        <CardHeader className="items-center text-center">
-          <div className="mb-1 flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">
+        <CardHeader className="justify-items-center text-center">
+          <div className="mb-2 flex size-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
             <HeartPulse className="size-5" />
           </div>
-          <CardTitle>เข้าสู่ระบบ</CardTitle>
+          <CardTitle className="text-lg font-semibold">เข้าสู่ระบบ</CardTitle>
           <CardDescription>
             {navState?.registered
               ? 'ตั้งรหัสผ่านเรียบร้อย — เข้าสู่ระบบด้วยรหัสผ่านที่เพิ่งตั้งได้เลย'
@@ -235,7 +235,7 @@ export function LoginPage() {
                   remaining === 0
                     ? 'text-destructive'
                     : remaining <= 2
-                      ? 'text-warning'
+                      ? 'text-warning-ink'
                       : 'text-muted-foreground',
                 )}
               >

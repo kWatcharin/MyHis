@@ -17,6 +17,15 @@ export const KIND_LABELS: Record<ActivityKind, string> = {
   other: 'อื่น ๆ',
 }
 
+// สีป้ายการกระทำ (ตารางประวัติ + กล่องรายละเอียด) — ความหมายเดียวกับปุ่ม: เพิ่ม = เขียว, แก้ไข = ส้ม, ลบ = แดง
+export const KIND_BADGE: Record<ActivityKind, 'success' | 'warning' | 'danger' | 'info' | 'outline'> = {
+  create: 'success',
+  update: 'warning',
+  delete: 'danger',
+  export: 'info',
+  other: 'outline',
+}
+
 const SUFFIX_KINDS: [string, ActivityKind][] = [
   ['_created', 'create'],
   ['_updated', 'update'],

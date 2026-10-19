@@ -2,12 +2,15 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
+@import "@fontsource-variable/noto-sans-thai";
 
-@custom-variant dark (&:is(.dark *));
+/* ธีมมืดมี 2 แบบ (.dark, .theme-ocean) — utility `dark:` ของ component ต้องทำงานทั้งคู่ */
+@custom-variant dark (&:where(.dark, .dark *, .theme-ocean, .theme-ocean *));
 
 @theme inline {
     --font-heading: var(--font-sans);
-    --font-sans: 'Geist Variable', sans-serif;
+    /* Geist ไม่มีอักษรไทย — อังกฤษ/ตัวเลขใช้ Geist ตัวไทยตกไปที่ Noto Sans Thai (มากับเว็บ ทุกเครื่องเห็นเหมือนกัน) */
+    --font-sans: 'Geist Variable', 'Noto Sans Thai Variable', sans-serif;
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -31,6 +34,10 @@
     --color-success-foreground: var(--success-foreground);
     --color-warning: var(--warning);
     --color-warning-foreground: var(--warning-foreground);
+    --color-success-ink: var(--success-ink);
+    --color-warning-ink: var(--warning-ink);
+    --color-danger-ink: var(--danger-ink);
+    --color-info-ink: var(--info-ink);
     --color-accent-foreground: var(--accent-foreground);
     --color-accent: var(--accent);
     --color-muted-foreground: var(--muted-foreground);
@@ -54,6 +61,10 @@
     --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* ค่าตั้งต้นของทุกธีม — ธีมจริงตั้งด้วย class บน <html> เสมอ (public/theme-init.js) ค่าที่ธีมไม่ได้ตั้งตกมาที่นี่
+   สีการกระทำ (success/warning/danger) = พื้นปุ่มเพิ่ม/แก้ไข/ลบ ตัวอักษรขาว ต้องได้ contrast ≥ 4.5:1 กับตัวขาว
+   *-ink = สีตัวอักษร/ป้ายแบบโปร่งบนพื้นหน้า (≥ 4.5:1 บน background, card และบนพื้นป้ายสีเดียวกัน 15%) แยกจาก
+   สีพื้นปุ่ม เพราะในธีมมืดค่าเดียวผ่านทั้งสองแบบไม่ได้ — แก้สีเมื่อไรต้องคำนวณ contrast ทั้ง 3 ธีมใหม่ */
 :root {
     --background: oklch(1 0 0);
     --foreground: oklch(0.145 0 0);
@@ -70,13 +81,16 @@
     --accent: oklch(0.97 0 0);
     --accent-foreground: oklch(0.205 0 0);
     --destructive: oklch(0.577 0.245 27.325);
-    /* ปุ่มเพิ่ม/แก้ไข/ลบ — โทนสว่าง ตัวอักษรบนปุ่มเป็นสีขาว */
-    --success: oklch(0.58 0.13 155);
+    --success: oklch(0.535 0.12 160);
     --success-foreground: oklch(1 0 0);
-    --warning: oklch(0.63 0.15 55);
+    --warning: oklch(0.56 0.14 52);
     --warning-foreground: oklch(1 0 0);
-    --danger: oklch(0.57 0.18 26);
+    --danger: oklch(0.55 0.17 24);
     --danger-foreground: oklch(1 0 0);
+    --success-ink: oklch(0.47 0.11 160);
+    --warning-ink: oklch(0.5 0.13 50);
+    --danger-ink: oklch(0.5 0.18 25);
+    --info-ink: #2f39a9;
     --border: oklch(0.922 0 0);
     --input: oklch(0.922 0 0);
     --ring: oklch(0.708 0 0);
@@ -86,6 +100,7 @@
     --chart-4: oklch(0.371 0 0);
     --chart-5: oklch(0.269 0 0);
     --radius: 0.625rem;
+    --card-shadow: 0 0 #0000;
     --sidebar: oklch(0.985 0 0);
     --sidebar-foreground: oklch(0.145 0 0);
     --sidebar-primary: oklch(0.205 0 0);
@@ -96,50 +111,56 @@
     --sidebar-ring: oklch(0.708 0 0);
 }
 
+/* ธีมมืด (ค่าเริ่มต้น) — เทาอมน้ำเงินจาง ๆ (hue 265 ตามชุดสีโปรเจกต์) แทนเทาล้วน sidebar เข้มกว่าพื้นเนื้อหาหนึ่งชั้น
+   primary = คราม #2F39A9 ที่ยกความสว่างขึ้นให้อ่านได้บนพื้นมืด (ตัวอักษรบนปุ่มเป็นสีเข้ม) กราฟใช้ชุดสีโปรเจกต์ */
 .dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
+    --background: oklch(0.16 0.012 265);
+    --foreground: oklch(0.97 0.004 265);
+    --card: oklch(0.205 0.014 265);
+    --card-foreground: oklch(0.97 0.004 265);
+    --popover: oklch(0.225 0.015 265);
+    --popover-foreground: oklch(0.97 0.004 265);
+    --primary: oklch(0.76 0.105 272);
+    --primary-foreground: oklch(0.2 0.05 272);
+    --secondary: oklch(0.27 0.016 265);
+    --secondary-foreground: oklch(0.97 0.004 265);
+    --muted: oklch(0.26 0.014 265);
+    --muted-foreground: oklch(0.72 0.02 265);
+    --accent: oklch(0.28 0.025 270);
+    --accent-foreground: oklch(0.97 0.004 265);
     --destructive: oklch(0.704 0.191 22.216);
     /* ปุ่มเพิ่ม/แก้ไข/ลบ — ธีมมืด สีหม่นลงให้กลืนกับพื้นเทา ตัวอักษรบนปุ่มเป็นสีขาว */
-    --success: oklch(0.54 0.11 155);
+    --success: oklch(0.535 0.11 155);
     --success-foreground: oklch(1 0 0);
-    --warning: oklch(0.6 0.12 58);
+    --warning: oklch(0.56 0.125 58);
     --warning-foreground: oklch(1 0 0);
     --danger: oklch(0.55 0.15 25);
     --danger-foreground: oklch(1 0 0);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
+    --success-ink: oklch(0.8 0.13 158);
+    --warning-ink: oklch(0.82 0.12 70);
+    --danger-ink: oklch(0.76 0.14 22);
+    --info-ink: oklch(0.8 0.09 272);
+    --border: oklch(1 0 0 / 9%);
+    --input: oklch(1 0 0 / 14%);
+    --ring: oklch(0.66 0.11 272);
+    --chart-1: oklch(0.76 0.105 272);
+    --chart-2: #49a4bb;
+    --chart-3: #15d8b3;
+    --chart-4: oklch(0.62 0.1 244);
+    --chart-5: oklch(0.86 0.09 190);
+    --sidebar: oklch(0.135 0.012 265);
+    --sidebar-foreground: oklch(0.97 0.004 265);
+    --sidebar-primary: oklch(0.76 0.105 272);
+    --sidebar-primary-foreground: oklch(0.2 0.05 272);
+    --sidebar-accent: oklch(0.235 0.02 268);
+    --sidebar-accent-foreground: oklch(0.97 0.004 265);
+    --sidebar-border: oklch(1 0 0 / 8%);
+    --sidebar-ring: oklch(0.66 0.11 272);
 }
 
-/* ธีมสว่าง — พื้นหลังขาวอมฟ้าอ่อน ๆ (ไม่ขาวจ้าล้วน) การ์ดสีขาวลอยขึ้นมาจากพื้น ใช้ #2F39A9 (น้ำเงิน
+/* ธีมสว่าง — พื้นหลังขาวอมฟ้าอ่อน ๆ (ไม่ขาวจ้าล้วน) การ์ดสีขาวลอยขึ้นมาจากพื้น (เงาบาง ๆ) ใช้ #2F39A9 (น้ำเงิน
    เข้มในชุดสีโปรเจกต์) เป็น primary — ตัดกับพื้นขาวได้ชัด ส่วน #2E6FA0/#49A4BB/#15D8B3 ใช้กับกราฟ
-   (สีอ่อนเกินไปที่จะเป็นสีตัวอักษรบนพื้นขาว) ค่าที่ไม่ได้ตั้งตรงนี้ตกไปใช้ค่า :root ด้านบน */
+   (สีอ่อนเกินไปที่จะเป็นสีตัวอักษรบนพื้นขาว) ค่าที่ไม่ได้ตั้งตรงนี้ (เช่น *-ink) ตกไปใช้ค่า :root ด้านบน */
 .theme-light {
     color-scheme: light;
     --background: oklch(0.985 0.004 250);
@@ -158,9 +179,9 @@
     --accent-foreground: oklch(0.28 0.06 255);
     --destructive: oklch(0.577 0.245 27.325);
     /* ปุ่มเพิ่ม/แก้ไข/ลบ — ธีมสว่าง (พื้นอมน้ำเงิน, primary #2F39A9) เขียวเย็น ส้มอมแดงเล็กน้อย ตัวอักษรบนปุ่มเป็นสีขาว */
-    --success: oklch(0.57 0.12 160);
+    --success: oklch(0.535 0.12 160);
     --success-foreground: oklch(1 0 0);
-    --warning: oklch(0.62 0.14 52);
+    --warning: oklch(0.56 0.14 52);
     --warning-foreground: oklch(1 0 0);
     --danger: oklch(0.55 0.17 24);
     --danger-foreground: oklch(1 0 0);
@@ -172,6 +193,7 @@
     --chart-3: #49a4bb;
     --chart-4: #15d8b3;
     --chart-5: oklch(0.62 0.12 190);
+    --card-shadow: 0 1px 2px oklch(0.22 0.03 265 / 6%), 0 2px 6px -2px oklch(0.22 0.03 265 / 6%);
     --sidebar: oklch(0.965 0.01 255);
     --sidebar-foreground: oklch(0.22 0.03 265);
     --sidebar-primary: #2f39a9;
@@ -210,12 +232,16 @@
     --accent-foreground: oklch(0.16 0.04 258);
     --destructive: oklch(0.63 0.22 27);
     /* ปุ่มเพิ่ม/แก้ไข/ลบ — ธีมทะเล (พื้นกรมท่า, accent มิ้นท์) เขียวอมเทียล แดงอมคอรัล ตัวอักษรบนปุ่มเป็นสีขาว */
-    --success: oklch(0.56 0.11 170);
+    --success: oklch(0.535 0.11 170);
     --success-foreground: oklch(1 0 0);
-    --warning: oklch(0.61 0.12 62);
+    --warning: oklch(0.56 0.125 62);
     --warning-foreground: oklch(1 0 0);
     --danger: oklch(0.56 0.15 20);
     --danger-foreground: oklch(1 0 0);
+    --success-ink: oklch(0.82 0.13 168);
+    --warning-ink: oklch(0.83 0.12 70);
+    --danger-ink: oklch(0.76 0.14 18);
+    --info-ink: oklch(0.82 0.08 215);
     --border: oklch(0.32 0.05 255 / 40%);
     --input: oklch(0.32 0.05 255 / 55%);
     --ring: #49a4bb;
@@ -242,6 +268,14 @@
     @apply bg-background text-foreground;
     }
   html {
-    @apply font-sans;
+    @apply font-sans antialiased;
+    /* ส่วนที่เบราว์เซอร์วาดเอง (เคอร์เซอร์, checkbox/radio, scrollbar, ข้อความที่เลือก) ใช้สีของธีม */
+    caret-color: var(--primary);
+    accent-color: var(--primary);
+    scrollbar-color: color-mix(in oklch, var(--muted-foreground) 45%, transparent) transparent;
+    }
+  ::selection {
+    background-color: color-mix(in oklch, var(--primary) 30%, transparent);
+    color: var(--foreground);
     }
 }

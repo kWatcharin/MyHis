@@ -30,7 +30,7 @@ export function TablePagination({
   const to = Math.min(page * pageSize, total)
 
   return (
-    <div className="flex flex-col items-center gap-3 px-4 pb-1 text-sm sm:flex-row sm:justify-between sm:px-2">
+    <div className="flex flex-col items-center gap-3 px-4 pb-1 text-sm tabular-nums sm:flex-row sm:justify-between sm:px-2">
       <p className="text-muted-foreground">
         แสดง {from}–{to} จาก {total} รายการ
       </p>

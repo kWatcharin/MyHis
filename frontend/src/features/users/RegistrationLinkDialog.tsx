@@ -127,7 +127,7 @@ function RegistrationLinkBody({ value, onClose }: { value: IssuedLink; onClose: 
       </ul>
       {isLocalOrigin() && (
         <p className="flex gap-2 rounded-lg border border-warning/40 bg-warning/10 p-2.5 text-sm">
-          <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" />
+          <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning-ink" />
           <span>
             ตอนนี้เปิดระบบผ่าน localhost — ลิงก์นี้เปิดได้เฉพาะบนเครื่องนี้ จะส่งให้มือถือ/เครื่องอื่นได้เมื่อระบบเปิดผ่าน
             โดเมน HTTPS

@@ -70,7 +70,7 @@ export function UserMenu({ onChangePassword, onLogout }: UserMenuProps) {
           <span>
             เปลี่ยนรหัสผ่าน
             {shouldChangePassword && (
-              <span className="block text-xs text-warning">ยังใช้รหัสชั่วคราว ควรเปลี่ยน</span>
+              <span className="block text-xs text-warning-ink">ยังใช้รหัสชั่วคราว ควรเปลี่ยน</span>
             )}
           </span>
         </DropdownMenuItem>

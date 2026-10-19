@@ -18,7 +18,7 @@ import type { MenuItem } from '@/features/auth/AuthContext'
 import { useAuth } from '@/features/auth/AuthContext'
 import { formatThaiDateTime } from '@/lib/date'
 
-import { activityPage, describeAction, describeTarget, pageLabel } from './activities'
+import { activityPage, describeAction, describeTarget, KIND_BADGE, pageLabel } from './activities'
 import { buildDetailView } from './activityDetails'
 import type { Activity } from './auditApi'
 
@@ -62,7 +62,7 @@ function DetailBody({ activity, menu }: { activity: Activity; menu: MenuItem[] }
     <>
       <DialogHeader>
         <DialogTitle className="flex flex-wrap items-center gap-2">
-          <Badge variant={action.kind === 'delete' ? 'destructive' : 'outline'}>{action.label}</Badge>
+          <Badge variant={KIND_BADGE[action.kind]}>{action.label}</Badge>
           <span>{menuLabel}</span>
         </DialogTitle>
         <DialogDescription>{describeTarget(activity)}</DialogDescription>

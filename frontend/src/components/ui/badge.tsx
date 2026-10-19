@@ -4,11 +4,18 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
 
 const badgeVariants = cva(
-  "group/badge inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-4xl border border-transparent px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3!",
+  // ความสูงขั้นต่ำแทน h-5 ตายตัว + ไม่ตัดล้น: สระบน/วรรณยุกต์ไทยของ Noto Sans Thai สูงกว่ากรอบ 20px
+  "group/badge inline-flex min-h-5 w-fit shrink-0 items-center justify-center gap-1 rounded-4xl border border-transparent px-2 py-0.5 text-xs leading-4 font-medium whitespace-nowrap transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3!",
   {
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground [a]:hover:bg-primary/80",
+        // ป้ายสถานะแบบโปร่ง — ความหมายสีเดียวกับปุ่มการกระทำ (เพิ่ม/สำเร็จ = เขียว, แก้ไข/รอ = ส้ม,
+        // ลบ/ล้มเหลว = แดง) ส่วน info ใช้สี primary ของธีม ตัวอักษรใช้ *-ink (contrast ≥ 4.5:1 ดู index.css)
+        success: "bg-success/15 text-success-ink",
+        warning: "bg-warning/15 text-warning-ink",
+        danger: "bg-danger/15 text-danger-ink",
+        info: "bg-primary/15 text-info-ink",
         secondary:
           "bg-secondary text-secondary-foreground [a]:hover:bg-secondary/80",
         destructive:

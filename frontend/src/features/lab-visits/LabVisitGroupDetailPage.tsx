@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
 import { AddButton, DeleteButton, EditButton } from '@/components/layout/ActionButtons'
+import { ListState } from '@/components/layout/ListState'
 import { ListToolbar } from '@/components/layout/ListToolbar'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { SearchForm } from '@/components/layout/SearchForm'
@@ -297,7 +298,7 @@ export function LabVisitGroupDetailPage() {
     )
   }
   if (status === 'loading') {
-    return <p className="p-4 text-sm text-muted-foreground">กำลังโหลด...</p>
+    return <ListState kind="loading" />
   }
   if (status === 'notFound' || status === 'error' || !detail) {
     return (
@@ -351,9 +352,9 @@ export function LabVisitGroupDetailPage() {
             ['วันนัดตรวจ VL', formatThaiDate(detail.vlDate)],
             ['จำนวนคนไข้', `${detail.patientCount} คน`],
           ].map(([label, value]) => (
-            <div key={label}>
+            <div key={label} className="flex flex-col gap-0.5">
               <p className="text-xs text-muted-foreground">{label}</p>
-              <p className="font-medium">{value}</p>
+              <p className="text-base font-semibold tabular-nums">{value}</p>
             </div>
           ))}
         </CardContent>
@@ -385,14 +386,14 @@ export function LabVisitGroupDetailPage() {
       <Card>
         <CardContent className="flex flex-col gap-3 px-0 sm:px-2">
           {joined.length === 0 && (
-            <p className="p-4 text-sm text-muted-foreground">
+            <ListState kind="empty">
               ยังไม่มีคนไข้ในนัดหมายนี้{canUpdate ? ' กด "+ เพิ่มคนไข้" เพื่อเลือกจากทะเบียนผู้ป่วย' : ''}
-            </p>
+            </ListState>
           )}
           {joined.length > 0 && visibleRows.length === 0 && (
-            <p className="p-4 text-sm text-muted-foreground">
+            <ListState kind="noMatch">
               ไม่พบคนไข้ที่ตรงกับเงื่อนไข — กด &quot;ล้างข้อมูล&quot; เพื่อดูทั้งหมด
-            </p>
+            </ListState>
           )}
           {visibleRows.length > 0 && (
             <Table>

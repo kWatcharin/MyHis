@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 
 import { AddButton, DeleteButton, EditButton } from '@/components/layout/ActionButtons'
+import { ListState } from '@/components/layout/ListState'
 import { ListToolbar } from '@/components/layout/ListToolbar'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { SearchForm } from '@/components/layout/SearchForm'
@@ -146,19 +147,19 @@ export function LabVisitGroupsPage() {
 
       <Card>
         <CardContent className="flex flex-col gap-3 px-0 sm:px-2">
-          {status === 'loading' && <p className="p-4 text-sm text-muted-foreground">กำลังโหลด...</p>}
+          {status === 'loading' && <ListState kind="loading" />}
           {status === 'error' && (
-            <p className="p-4 text-sm text-destructive">โหลดข้อมูลไม่สำเร็จ ลองรีเฟรชหน้า</p>
+            <ListState kind="error">โหลดข้อมูลไม่สำเร็จ ลองรีเฟรชหน้า</ListState>
           )}
           {status === 'ready' && items.length === 0 && (
-            <p className="p-4 text-sm text-muted-foreground">
+            <ListState kind="empty">
               ยังไม่มีนัดหมาย{canCreate ? ' กด "+ สร้างนัดหมาย" เพื่อเริ่มต้น' : ''}
-            </p>
+            </ListState>
           )}
           {status === 'ready' && items.length > 0 && visibleItems.length === 0 && (
-            <p className="p-4 text-sm text-muted-foreground">
+            <ListState kind="noMatch">
               ไม่พบนัดหมายที่ตรงกับเงื่อนไข — กด &quot;ล้างข้อมูล&quot; เพื่อดูทั้งหมด
-            </p>
+            </ListState>
           )}
           {status === 'ready' && visibleItems.length > 0 && (
             <Table>

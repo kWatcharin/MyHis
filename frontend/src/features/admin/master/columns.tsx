@@ -7,7 +7,7 @@ export function statusColumn<T extends { isActive: boolean }>(): MasterColumn<T>
   return {
     header: 'สถานะ',
     cell: (item) => (
-      <Badge variant={item.isActive ? 'default' : 'outline'}>
+      <Badge variant={item.isActive ? 'success' : 'outline'}>
         {item.isActive ? 'ใช้งานอยู่' : 'ปิดใช้งาน'}
       </Badge>
     ),

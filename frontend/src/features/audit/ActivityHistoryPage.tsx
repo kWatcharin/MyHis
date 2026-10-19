@@ -2,6 +2,7 @@ import { Eye, Search } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 
+import { ListState } from '@/components/layout/ListState'
 import { ListToolbar } from '@/components/layout/ListToolbar'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { TablePagination } from '@/components/layout/TablePagination'
@@ -26,18 +27,18 @@ import { textIncludes } from '@/lib/search'
 
 import { ActivityDetailDialog } from './ActivityDetailDialog'
 import type { ActivityKind } from './activities'
-import { activityPage, describeAction, describeTarget, KIND_LABELS, pageLabel, pageOptions } from './activities'
+import {
+  activityPage,
+  describeAction,
+  describeTarget,
+  KIND_BADGE,
+  KIND_LABELS,
+  pageLabel,
+  pageOptions,
+} from './activities'
 import type { ActivitiesResult, Activity } from './auditApi'
 import { auditApi } from './auditApi'
 import { defaultRange, rangeError } from './dateRange'
-
-const KIND_BADGE: Record<ActivityKind, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-  create: 'secondary',
-  update: 'outline',
-  delete: 'destructive',
-  export: 'default',
-  other: 'outline',
-}
 
 interface Filters {
   from: string
@@ -213,19 +214,19 @@ export function ActivityHistoryPage() {
       />
 
       {status === 'ready' && result?.truncated && (
-        <p className="text-sm text-warning">
+        <p className="text-sm text-warning-ink">
           ช่วงวันที่นี้มีเกิน 5,000 รายการ แสดงเฉพาะส่วนที่ใหม่สุด — เลือกช่วงวันที่ให้แคบลง
         </p>
       )}
 
       <Card>
         <CardContent className="flex flex-col gap-3 px-0 sm:px-2">
-          {status === 'loading' && <p className="p-4 text-sm text-muted-foreground">กำลังโหลด...</p>}
+          {status === 'loading' && <ListState kind="loading" />}
           {status === 'error' && (
-            <p className="p-4 text-sm text-destructive">โหลดข้อมูลไม่สำเร็จ ลองรีเฟรชหน้า</p>
+            <ListState kind="error">โหลดข้อมูลไม่สำเร็จ ลองรีเฟรชหน้า</ListState>
           )}
           {status === 'ready' && visible.length === 0 && (
-            <p className="p-4 text-sm text-muted-foreground">ไม่มีประวัติในช่วงนี้ที่ตรงกับเงื่อนไข</p>
+            <ListState kind="noMatch">ไม่มีประวัติในช่วงนี้ที่ตรงกับเงื่อนไข</ListState>
           )}
           {status === 'ready' && visible.length > 0 && (
             <Table>

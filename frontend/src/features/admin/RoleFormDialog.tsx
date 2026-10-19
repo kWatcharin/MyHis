@@ -174,7 +174,7 @@ export function RoleFormDialog({
                               {resource.requires &&
                                 selected.has(permissionKey(resource.key, 'view')) &&
                                 !selected.has(resource.requires.permission) && (
-                                  <p className="text-xs text-warning">{resource.requires.message}</p>
+                                  <p className="text-xs text-warning-ink">{resource.requires.message}</p>
                                 )}
                             </div>
                           ))}

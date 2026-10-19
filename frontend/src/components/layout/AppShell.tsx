@@ -44,6 +44,10 @@ import { UserMenu } from './UserMenu'
 // สิทธิ์ที่กำลัง preview อยู่ผ่าน RoleSwitcher มุมขวาบนของ header — ดู RolePreviewContext.tsx)
 // ไม่ใช่ useAuth().menu ตรง ๆ จัดเป็นต้นไม้ 2 ชั้นตาม refId (เพจหลัก → เพจย่อย) ด้วย buildMenuTree
 
+// ลิงก์ที่ active (หน้าปัจจุบัน): ตัวอักษร+ไอคอนสี primary ของธีมบนพื้น accent ให้เห็นทันทีว่าอยู่หน้าไหน
+const ACTIVE_LINK =
+  'data-active:font-medium data-active:text-sidebar-primary data-active:[&>svg]:text-sidebar-primary'
+
 export function AppShell() {
   const { logout } = useAuth()
   const { effectiveMenu } = useRolePreview()
@@ -67,11 +71,11 @@ export function AppShell() {
   return (
     <SidebarProvider>
       <Sidebar>
-        <SidebarHeader className="flex-row items-center gap-2 px-3 py-3">
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <HeartPulse className="size-4" />
+        <SidebarHeader className="flex-row items-center gap-2.5 px-3 py-3">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+            <HeartPulse className="size-4.5" />
           </span>
-          <span className="text-sm font-semibold tracking-tight">my-his</span>
+          <span className="text-base font-semibold tracking-tight">my-his</span>
         </SidebarHeader>
         <SidebarContent>
           <SidebarGroup>
@@ -88,6 +92,7 @@ export function AppShell() {
                         <SidebarMenuButton
                           render={<Link to={route} />}
                           isActive={isRouteActive(location.pathname, route)}
+                          className={ACTIVE_LINK}
                         >
                           <Icon />
                           <span>{main.label}</span>
@@ -108,10 +113,14 @@ export function AppShell() {
                               isActive={children.some((item) =>
                                 isRouteActive(location.pathname, item.route),
                               )}
+                              // หัวกลุ่ม = ตัวพับ/กาง ไม่ใช่หน้า — ตัวหนาสีจาง ไม่ทาพื้นตอนเพจย่อย active (เพจย่อยทาเอง)
+                              // แค่เปลี่ยนตัวอักษรเป็นสี primary ให้รู้ว่าอยู่กลุ่มไหนแม้พับไว้
+                              className="font-semibold text-sidebar-foreground/75 data-active:bg-transparent data-active:text-sidebar-primary"
                             >
                               {MainIcon && <MainIcon />}
                               <span>{main.label}</span>
-                              <ChevronRight className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-90" />
+                              {/* Collapsible ของ base-ui ใส่ data-open ที่ตัวครอบตอนกาง (ไม่ใช่ data-state แบบ radix) */}
+                              <ChevronRight className="ml-auto transition-transform duration-200 group-data-open/collapsible:rotate-90" />
                             </SidebarMenuButton>
                           }
                         />
@@ -124,6 +133,7 @@ export function AppShell() {
                                   <SidebarMenuSubButton
                                     render={<Link to={item.route} />}
                                     isActive={isRouteActive(location.pathname, item.route)}
+                                    className={ACTIVE_LINK}
                                   >
                                     <Icon />
                                     <span>{item.label}</span>
@@ -156,7 +166,8 @@ export function AppShell() {
       <SidebarInset>
         <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger />
-          <span className="text-sm font-medium">my-his</span>
+          {/* จอกว้างมีชื่อใน sidebar อยู่แล้ว — บนมือถือ sidebar เป็น sheet ที่ซ่อนอยู่ จึงแสดงชื่อที่นี่แทน */}
+          <span className="text-sm font-semibold tracking-tight md:hidden">my-his</span>
           <div className="ml-auto">
             <RoleSwitcher />
           </div>

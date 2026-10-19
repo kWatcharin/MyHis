@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import { AddButton, DeleteButton, EditButton } from '@/components/layout/ActionButtons'
+import { ListState } from '@/components/layout/ListState'
 import { ListToolbar } from '@/components/layout/ListToolbar'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { SearchForm } from '@/components/layout/SearchForm'
@@ -141,18 +142,18 @@ export function DiseasesSettingsPage() {
       <Card>
         <CardContent className="flex flex-col gap-3 px-0 sm:px-2">
           {status === 'loading' && (
-            <p className="p-4 text-sm text-muted-foreground">กำลังโหลด...</p>
+            <ListState kind="loading" />
           )}
           {status === 'error' && (
-            <p className="p-4 text-sm text-destructive">โหลดข้อมูลไม่สำเร็จ ลองรีเฟรชหน้า</p>
+            <ListState kind="error">โหลดข้อมูลไม่สำเร็จ ลองรีเฟรชหน้า</ListState>
           )}
           {status === 'ready' && items.length === 0 && (
-            <p className="p-4 text-sm text-muted-foreground">
+            <ListState kind="empty">
               ยังไม่มีโรค กด &quot;+ เพิ่มโรค&quot; เพื่อเริ่มต้น
-            </p>
+            </ListState>
           )}
           {status === 'ready' && items.length > 0 && visibleItems.length === 0 && (
-            <p className="p-4 text-sm text-muted-foreground">ไม่พบโรคที่ตรงกับเงื่อนไข — กด &quot;ล้างข้อมูล&quot; เพื่อดูทั้งหมด</p>
+            <ListState kind="noMatch">ไม่พบโรคที่ตรงกับเงื่อนไข — กด &quot;ล้างข้อมูล&quot; เพื่อดูทั้งหมด</ListState>
           )}
           {status === 'ready' && visibleItems.length > 0 && (
             <Table>
@@ -180,7 +181,7 @@ export function DiseasesSettingsPage() {
                     <TableCell className="font-medium">{item.name}</TableCell>
                     <TableCell className="text-muted-foreground">{item.abbreviation}</TableCell>
                     <TableCell>
-                      <Badge variant={item.isActive ? 'default' : 'outline'}>
+                      <Badge variant={item.isActive ? 'success' : 'outline'}>
                         {item.isActive ? 'ใช้งานอยู่' : 'ปิดใช้งาน'}
                       </Badge>
                     </TableCell>

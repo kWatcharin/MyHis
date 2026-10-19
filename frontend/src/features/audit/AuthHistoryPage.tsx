@@ -2,6 +2,7 @@ import { Search } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 
+import { ListState } from '@/components/layout/ListState'
 import { ListToolbar } from '@/components/layout/ListToolbar'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { TablePagination } from '@/components/layout/TablePagination'
@@ -35,9 +36,10 @@ const EVENT_LABELS: Record<AuthEventKind, string> = {
   logout_all: 'ออกจากทุกอุปกรณ์',
 }
 
-const EVENT_BADGE: Record<AuthEventKind, 'secondary' | 'destructive' | 'outline'> = {
-  login_succeeded: 'secondary',
-  login_failed: 'destructive',
+// เข้าสำเร็จ = เขียว, ล้มเหลว = แดง (ความหมายสีเดียวกับป้าย/ปุ่มอื่นทั้งระบบ) ออกจากระบบ = ป้ายเส้น
+const EVENT_BADGE: Record<AuthEventKind, 'success' | 'danger' | 'outline'> = {
+  login_succeeded: 'success',
+  login_failed: 'danger',
   logout: 'outline',
   logout_all: 'outline',
 }
@@ -203,19 +205,19 @@ export function AuthHistoryPage() {
       />
 
       {status === 'ready' && result?.truncated && (
-        <p className="text-sm text-warning">
+        <p className="text-sm text-warning-ink">
           ช่วงวันที่นี้มีเกิน 5,000 รายการ แสดงเฉพาะส่วนที่ใหม่สุด — เลือกช่วงวันที่ให้แคบลง
         </p>
       )}
 
       <Card>
         <CardContent className="flex flex-col gap-3 px-0 sm:px-2">
-          {status === 'loading' && <p className="p-4 text-sm text-muted-foreground">กำลังโหลด...</p>}
+          {status === 'loading' && <ListState kind="loading" />}
           {status === 'error' && (
-            <p className="p-4 text-sm text-destructive">โหลดข้อมูลไม่สำเร็จ ลองรีเฟรชหน้า</p>
+            <ListState kind="error">โหลดข้อมูลไม่สำเร็จ ลองรีเฟรชหน้า</ListState>
           )}
           {status === 'ready' && visible.length === 0 && (
-            <p className="p-4 text-sm text-muted-foreground">ไม่มีประวัติในช่วงนี้ที่ตรงกับเงื่อนไข</p>
+            <ListState kind="noMatch">ไม่มีประวัติในช่วงนี้ที่ตรงกับเงื่อนไข</ListState>
           )}
           {status === 'ready' && visible.length > 0 && (
             <Table>

@@ -80,11 +80,11 @@ function Shell({ children }: { children: ReactNode }) {
 
 function Header({ title, description }: { title: string; description: ReactNode }) {
   return (
-    <CardHeader className="items-center text-center">
-      <div className="mb-1 flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">
+    <CardHeader className="justify-items-center text-center">
+      <div className="mb-2 flex size-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
         <HeartPulse className="size-5" />
       </div>
-      <CardTitle>{title}</CardTitle>
+      <CardTitle className="text-lg font-semibold">{title}</CardTitle>
       <CardDescription>{description}</CardDescription>
     </CardHeader>
   )
@@ -341,7 +341,7 @@ function DoneView({ info }: { info: RegistrationInfo }) {
         description="เข้าสู่ระบบด้วยชื่อผู้ใช้และรหัสผ่านที่เพิ่งตั้งได้เลย"
       />
       <CardContent className="flex flex-col items-center gap-3 text-center text-sm">
-        <CircleCheck className="size-8 text-success" />
+        <CircleCheck className="size-8 text-success-ink" />
         <p>
           ชื่อผู้ใช้: <span className="font-mono font-medium">{info.username}</span>
         </p>

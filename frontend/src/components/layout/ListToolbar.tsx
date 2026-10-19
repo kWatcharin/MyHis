@@ -15,7 +15,7 @@ interface ListToolbarProps {
 export function ListToolbar({ ready, total, shown, filtered, children }: ListToolbarProps) {
   return (
     <div className="flex items-center justify-between gap-2">
-      <p className="text-sm text-muted-foreground">
+      <p className="text-sm text-muted-foreground tabular-nums">
         {ready ? (filtered ? `พบ ${shown} จาก ${total} รายการ` : `ทั้งหมด ${total} รายการ`) : ''}
       </p>
       {children}
