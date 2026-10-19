@@ -104,6 +104,8 @@ my-his/
 - อย่า log หรือใส่ใน `audit_log.metadata`/error message ซึ่ง plaintext หรือ ciphertext ของข้อมูลผู้ป่วย
   และ key เข้ารหัส (`DATA_ENCRYPTION_KEY`, `BLIND_INDEX_KEY`)
 - **อย่า `git commit` จนกว่าผู้ใช้จะบอกให้ commit** แก้ไฟล์/`git add` ได้ตามปกติ แต่ห้ามสั่ง commit เองจนกว่าจะได้รับคำสั่งชัดเจน
+- **REA** (MCP `rea`, skill reverse-engineer-anything): อ่าน `docs/rea.md` ก่อนเรียก tool ของ REA ทุกครั้ง —
+  ใช้กับเป้าหมายนอก repo ที่ผู้ใช้สั่งเท่านั้น ห้ามชี้ไปที่ `.env`, ข้อมูลผู้ป่วย หรือระบบที่รันอยู่จริง
 
 ## ขอบเขตข้อมูล
 
@@ -152,3 +154,4 @@ session หมดอายุ, logout แล้วใช้ cookie เดิม�
 - `docs/rust-guidelines.md` — กฎการเขียน Rust: error, async, SQLx, log, เทส, สิ่งที่ยังไม่ต้องทำ
 - `docs/auth-design.md` — โมเดล session, ตารางฐานข้อมูล, API, flow, การจัดการสิทธิ์
 - `docs/infrastructure.md` — การวาง container, network, backup, การตั้งค่าเครื่อง
+- `docs/rea.md` — กฎการใช้ REA (reverse engineering MCP): เป้าหมายที่ใช้ได้/ห้าม, ติดตั้ง/ถอน
