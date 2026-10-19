@@ -32,6 +32,8 @@ pub fn router() -> Router<AppState> {
             "/pages",
             get(handlers::list_pages).post(handlers::create_page),
         )
+        // path คงที่ชนะ `/pages/{id}` เสมอ (matchit) — uuid ไม่มีทางเป็นคำว่า "order"
+        .route("/pages/order", put(handlers::reorder_pages))
         .route(
             "/pages/{id}",
             patch(handlers::update_page).delete(handlers::delete_page),

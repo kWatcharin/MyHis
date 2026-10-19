@@ -284,7 +284,7 @@ pub async fn create_page(
             label: &payload.label,
             icon: payload.icon.as_deref(),
             route: payload.route.as_deref(),
-            sort_order: payload.sort_order.unwrap_or(0),
+            sort_order: payload.sort_order,
             permissions: &payload.permissions,
             ref_id: payload.ref_id,
         },
@@ -318,6 +318,17 @@ pub async fn update_page(
         },
     )
     .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[tracing::instrument(skip(state, current_user, payload))]
+pub async fn reorder_pages(
+    State(state): State<AppState>,
+    current_user: CurrentUser,
+    Json(payload): Json<ReorderPagesRequest>,
+) -> Result<StatusCode, AppError> {
+    payload.validate().map_err(validation)?;
+    service::reorder_pages(&state.pool, &current_user, payload.ref_id, &payload.ids).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 

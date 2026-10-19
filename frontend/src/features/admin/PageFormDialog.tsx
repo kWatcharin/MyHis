@@ -28,13 +28,13 @@ import { ACTION_LABELS, ALL_PERMISSIONS, parsePermission, resourceLabel } from '
 import type { Page } from './pagesApi'
 
 // เมนู 2 ชั้น: route ว่าง = เพจหลักที่เป็นหัวข้อกลุ่ม (ไม่มีหน้าของตัวเอง) refId ว่าง = เป็นเพจหลักเอง
+// ไม่มีช่องลำดับ — จัดลำดับด้วยการลากวางในหน้ารายการ เพจใหม่/เพจที่ย้ายกลุ่มไปต่อท้ายกลุ่ม (backend ตั้งเอง)
 // เพจย่อย (เลือกเพจหลัก) ต้องมี route — backend ตรวจกฎโครงเมนูซ้ำอีกชั้นเสมอ
 const pageFormSchema = z
   .object({
     label: z.string().min(1, 'กรอกชื่อเพจ'),
     icon: z.string().optional(),
     route: z.string().trim().regex(/^(\/.*)?$/, 'route ต้องขึ้นต้นด้วย /'),
-    sortOrder: z.number().int(),
     permissions: z.array(z.string()),
     refId: z.string(),
   })
@@ -60,7 +60,6 @@ const EMPTY_VALUES: PageFormValues = {
   label: '',
   icon: '',
   route: '',
-  sortOrder: 0,
   permissions: [],
   refId: '',
 }
@@ -89,7 +88,6 @@ export function PageFormDialog({
             label: initialValue.label,
             icon: initialValue.icon ?? '',
             route: initialValue.route ?? '',
-            sortOrder: initialValue.sortOrder,
             permissions: initialValue.permissions,
             refId: initialValue.refId ?? '',
           }
@@ -214,22 +212,6 @@ export function PageFormDialog({
                   <FieldDescription>
                     เลือกได้เฉพาะเพจหลักที่เป็นหัวข้อกลุ่ม (ไม่มี route) — เมนูมี 2 ชั้น
                   </FieldDescription>
-                </Field>
-              )}
-            />
-            <Controller
-              name="sortOrder"
-              control={form.control}
-              render={({ field: { onChange, value, ...field } }) => (
-                <Field>
-                  <FieldLabel htmlFor="page-sort-order">ลำดับการแสดงผล</FieldLabel>
-                  <Input
-                    {...field}
-                    id="page-sort-order"
-                    type="number"
-                    value={value}
-                    onChange={(e) => onChange(e.target.valueAsNumber || 0)}
-                  />
                 </Field>
               )}
             />

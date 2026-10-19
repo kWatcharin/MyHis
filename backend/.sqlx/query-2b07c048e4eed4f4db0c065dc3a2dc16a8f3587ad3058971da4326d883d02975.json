@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update pages p\n           set sort_order = v.sort_order, updated_at = now()\n           from unnest($1::int4[], $2::int4[]) as v(id, sort_order)\n           where p.id = v.id and p.ref_id is not distinct from $3 and p.sort_order <> v.sort_order",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4Array",
+        "Int4Array",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2b07c048e4eed4f4db0c065dc3a2dc16a8f3587ad3058971da4326d883d02975"
+}

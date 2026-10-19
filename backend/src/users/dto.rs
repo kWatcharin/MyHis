@@ -192,6 +192,18 @@ pub struct UpdatePageRequest {
     pub ref_id: Option<Option<Uuid>>,
 }
 
+/// `PUT /pages/order` — ลำดับใหม่ของเพจทั้งระดับ (ลากวางในหน้าตั้งค่าเพจ)
+#[derive(Debug, Deserialize, Validate)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct ReorderPagesRequest {
+    /// uuid ของหัวข้อกลุ่มที่จะเรียงเพจย่อย (ไม่ส่ง/null = เรียงเพจหลักชั้นบน)
+    #[serde(default)]
+    pub ref_id: Option<Uuid>,
+    /// uuid ของเพจทุกหน้าในระดับนั้นตามลำดับใหม่ — ต้องครบชุดพอดี (service ตรวจ)
+    #[validate(length(min = 1, max = 500, message = "ids must list the pages of one level"))]
+    pub ids: Vec<Uuid>,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PageResponse {

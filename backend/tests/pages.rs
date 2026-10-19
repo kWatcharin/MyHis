@@ -392,4 +392,263 @@ async fn nurse_cannot_manage_pages(pool: PgPool) {
     )
     .await;
     assert_eq!(response.status, StatusCode::FORBIDDEN);
+
+    // จัดลำดับใช้สิทธิ์ page.update — ปฏิเสธก่อนตรวจรายการ
+    let response = send(
+        &app,
+        Method::PUT,
+        "/api/pages/order",
+        Some(&cookie),
+        Some(json!({ "refId": null, "ids": ["00000000-0000-7000-8000-000000000000"] })),
+    )
+    .await;
+    assert_eq!(response.status, StatusCode::FORBIDDEN);
+}
+
+/// เพจของระดับหนึ่งตามลำดับจาก GET /api/pages (`ref_id` null = เพจหลักชั้นบน) — (ชื่อ, uuid)
+async fn level(admin: &Admin, ref_id: &Value) -> Vec<(String, Value)> {
+    let (status, body) = admin.call(Method::GET, "/api/pages", None).await;
+    assert_eq!(status, StatusCode::OK);
+    body.as_array()
+        .unwrap()
+        .iter()
+        .filter(|page| &page["refId"] == ref_id)
+        .map(|page| {
+            (
+                page["label"].as_str().unwrap().to_string(),
+                page["id"].clone(),
+            )
+        })
+        .collect()
+}
+
+fn labels(pages: &[(String, Value)]) -> Vec<String> {
+    pages.iter().map(|(label, _)| label.clone()).collect()
+}
+
+fn ids(pages: &[(String, Value)]) -> Vec<Value> {
+    pages.iter().map(|(_, id)| id.clone()).collect()
+}
+
+fn last_label(pages: &[(String, Value)]) -> &str {
+    &pages.last().unwrap().0
+}
+
+/// แถว audit ของการจัดลำดับ (target_id, metadata) ตามลำดับที่เขียน
+async fn order_audits(pool: &PgPool) -> Vec<(Option<String>, Value)> {
+    sqlx::query_as(
+        "select target_id, metadata from audit_log where action = 'page_order_updated' order by id",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap()
+}
+
+#[sqlx::test]
+async fn reorder_pages_rewrites_one_level(pool: PgPool) {
+    let admin = Admin::new(&pool).await;
+
+    // เพจหลักชั้นบน: กลับลำดับทั้งหมด — path คงที่ /pages/order ต้องไม่ถูก /pages/{id} แย่งไป
+    let top = level(&admin, &Value::Null).await;
+    let mut reversed = top.clone();
+    reversed.reverse();
+    let (status, _) = admin
+        .call(
+            Method::PUT,
+            "/api/pages/order",
+            Some(json!({ "refId": null, "ids": ids(&reversed) })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert_eq!(
+        labels(&level(&admin, &Value::Null).await),
+        labels(&reversed)
+    );
+    let menu_top: Vec<String> = menu_labels(&admin.app, &admin.cookie)
+        .await
+        .into_iter()
+        .filter(|(_, _, ref_id)| ref_id.is_null())
+        .map(|(label, _, _)| label)
+        .collect();
+    assert_eq!(menu_top, labels(&reversed));
+    let (_, pages) = admin.call(Method::GET, "/api/pages", None).await;
+    let sort_orders: Vec<i64> = pages
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|page| page["refId"].is_null())
+        .map(|page| page["sortOrder"].as_i64().unwrap())
+        .collect();
+    let expected: Vec<i64> = (1..=sort_orders.len() as i64).map(|n| n * 10).collect();
+    assert_eq!(sort_orders, expected);
+
+    // เพจย่อยในกลุ่ม: ย้ายตัวสุดท้ายขึ้นบนสุด
+    let group = admin.page("การตั้งค่า").await["id"].clone();
+    let subs = level(&admin, &group).await;
+    let mut moved = subs.clone();
+    moved.rotate_right(1);
+    let (status, _) = admin
+        .call(
+            Method::PUT,
+            "/api/pages/order",
+            Some(json!({ "refId": group, "ids": ids(&moved) })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert_eq!(labels(&level(&admin, &group).await), labels(&moved));
+
+    // audit แถวเดียวต่อการจัดลำดับหนึ่งครั้ง เก็บชื่อตามลำดับเดิม→ใหม่ (ชั้นบนไม่มี target_id)
+    let audits = order_audits(&pool).await;
+    assert_eq!(audits.len(), 2);
+    assert_eq!(audits[0].0, None);
+    assert_eq!(audits[0].1["label"], "เมนูชั้นบน");
+    assert_eq!(audits[0].1["before"]["order"], json!(labels(&top)));
+    assert_eq!(audits[0].1["after"]["order"], json!(labels(&reversed)));
+    assert_eq!(audits[1].0.as_deref(), group.as_str());
+    assert_eq!(audits[1].1["label"], "การตั้งค่า");
+    assert_eq!(audits[1].1["after"]["order"], json!(labels(&moved)));
+
+    // ลำดับเท่าเดิม (ไม่ส่ง refId = ชั้นบน) ไม่เขียนอะไร
+    let (status, _) = admin
+        .call(
+            Method::PUT,
+            "/api/pages/order",
+            Some(json!({ "ids": ids(&reversed) })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert_eq!(order_audits(&pool).await.len(), 2);
+}
+
+#[sqlx::test]
+async fn reorder_pages_rejects_stale_or_mixed_lists(pool: PgPool) {
+    let admin = Admin::new(&pool).await;
+    let top = level(&admin, &Value::Null).await;
+    let top_ids = ids(&top);
+    let group = admin.page("การตั้งค่า").await["id"].clone();
+    let sub_ids = ids(&level(&admin, &group).await);
+
+    let missing = top_ids[..top_ids.len() - 1].to_vec();
+    let extra = [top_ids.clone(), vec![sub_ids[0].clone()]].concat();
+    let mut duplicate = top_ids.clone();
+    *duplicate.last_mut().unwrap() = top_ids[0].clone();
+    let stale = "page order out of date";
+    let not_group = "main page must be a top-level page without a route";
+    let cases = [
+        (
+            json!({ "refId": null, "ids": missing }),
+            StatusCode::CONFLICT,
+            stale,
+        ),
+        (
+            json!({ "refId": null, "ids": extra }),
+            StatusCode::CONFLICT,
+            stale,
+        ),
+        (
+            json!({ "refId": null, "ids": duplicate }),
+            StatusCode::CONFLICT,
+            stale,
+        ),
+        // เพจย่อยของกลุ่มส่งมาเป็นชั้นบน (และกลับกัน) = ลากข้ามระดับ
+        (
+            json!({ "refId": null, "ids": sub_ids }),
+            StatusCode::CONFLICT,
+            stale,
+        ),
+        (
+            json!({ "refId": group, "ids": top_ids }),
+            StatusCode::CONFLICT,
+            stale,
+        ),
+        (
+            json!({ "refId": admin.page_id("Dashboard").await, "ids": top_ids }),
+            StatusCode::BAD_REQUEST,
+            not_group,
+        ),
+        (
+            json!({ "refId": admin.page_id("ตั้งค่าโรค").await, "ids": top_ids }),
+            StatusCode::BAD_REQUEST,
+            not_group,
+        ),
+        (
+            json!({ "refId": "00000000-0000-7000-8000-000000000000", "ids": top_ids }),
+            StatusCode::BAD_REQUEST,
+            "main page not found",
+        ),
+    ];
+    for (body, expected_status, expected_error) in cases {
+        let (status, response) = admin
+            .call(Method::PUT, "/api/pages/order", Some(body.clone()))
+            .await;
+        assert_eq!(status, expected_status, "{body}");
+        assert_eq!(error_of(&response), expected_error, "{body}");
+    }
+    let (status, _) = admin
+        .call(
+            Method::PUT,
+            "/api/pages/order",
+            Some(json!({ "refId": null, "ids": [] })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    assert_eq!(labels(&level(&admin, &Value::Null).await), labels(&top));
+    assert!(order_audits(&pool).await.is_empty());
+}
+
+#[sqlx::test]
+async fn new_and_moved_pages_go_to_the_end_of_their_level(pool: PgPool) {
+    let admin = Admin::new(&pool).await;
+    let create = |body: Value| {
+        let admin = &admin;
+        async move {
+            let (status, _) = admin.call(Method::POST, "/api/pages", Some(body)).await;
+            assert_eq!(status, StatusCode::CREATED);
+        }
+    };
+
+    // ไม่ส่ง sortOrder = ต่อท้ายระดับของมัน (เดิมเป็น 0 = ขึ้นบนสุด)
+    create(json!({ "label": "รายงาน", "permissions": [] })).await;
+    assert_eq!(last_label(&level(&admin, &Value::Null).await), "รายงาน");
+    let settings = admin.page("การตั้งค่า").await["id"].clone();
+    create(json!({
+        "label": "ตั้งค่าใหม่", "route": "/settings/new", "permissions": [], "refId": settings,
+    }))
+    .await;
+    assert_eq!(last_label(&level(&admin, &settings).await), "ตั้งค่าใหม่");
+
+    // บันทึกฟอร์มโดยส่ง refId เดิม (หน้าเว็บส่งทุกครั้ง) ต้องไม่ย้ายตำแหน่ง
+    let before = labels(&level(&admin, &settings).await);
+    let disease = admin.page_id("ตั้งค่าโรค").await;
+    let path = format!("/api/pages/{disease}");
+    let (status, _) = admin
+        .call(
+            Method::PATCH,
+            &path,
+            Some(json!({ "label": "ตั้งค่าโรค", "refId": settings })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert_eq!(labels(&level(&admin, &settings).await), before);
+
+    // ย้ายกลุ่ม = ต่อท้ายกลุ่มใหม่, ย้ายขึ้นเป็นเพจหลัก = ต่อท้ายชั้นบน
+    let reports = admin.page("รายงาน").await["id"].clone();
+    create(json!({
+        "label": "รายงานประจำเดือน", "route": "/reports/monthly", "permissions": [], "refId": reports,
+    }))
+    .await;
+    let (status, _) = admin
+        .call(Method::PATCH, &path, Some(json!({ "refId": reports })))
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert_eq!(
+        labels(&level(&admin, &reports).await),
+        ["รายงานประจำเดือน", "ตั้งค่าโรค"]
+    );
+    let (status, _) = admin
+        .call(Method::PATCH, &path, Some(json!({ "refId": null })))
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert_eq!(last_label(&level(&admin, &Value::Null).await), "ตั้งค่าโรค");
 }

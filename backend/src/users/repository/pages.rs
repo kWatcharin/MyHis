@@ -1,4 +1,4 @@
-use serde_json::Value;
+use serde_json::{json, Value};
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
@@ -218,6 +218,85 @@ pub async fn update_page(
 
     tx.commit().await?;
     Ok(())
+}
+
+/// ชื่อใน audit ของการเรียงเพจหลักชั้นบน (ไม่มีแถวเพจให้อ้าง target_id จึงเป็น null)
+const TOP_LEVEL_LABEL: &str = "เมนูชั้นบน";
+
+/// ลำดับใหม่ของเพจทั้งระดับ — service ตรวจแล้วว่า `ids` คือเพจของระดับนั้นครบชุด
+pub struct PageOrder<'a> {
+    /// หัวข้อกลุ่มที่เรียงเพจย่อย (id, uuid, ชื่อ) — None = เพจหลักชั้นบน
+    pub parent: Option<(PageId, Uuid, &'a str)>,
+    pub ids: &'a [PageId],
+    /// ระยะห่างของเลขลำดับใหม่ (step, 2×step, …)
+    pub step: i32,
+}
+
+/// เขียน sort_order ใหม่ทั้งระดับ + audit แถวเดียว (ชื่อเพจตามลำดับเดิม→ใหม่) ในทรานแซกชันเดียว
+/// แก้เฉพาะแถวที่ยังอยู่ในระดับนี้ (กันเพจที่ถูกย้ายกลุ่มไประหว่างนั้น) และค่าเปลี่ยนจริง
+pub async fn reorder_pages(
+    pool: &PgPool,
+    actor: UserId,
+    order: PageOrder<'_>,
+) -> Result<(), RepositoryError> {
+    let parent_id = order.parent.map(|(id, _, _)| id.0);
+    let ids: Vec<i32> = order.ids.iter().map(|id| id.0).collect();
+    let sort_orders: Vec<i32> = (1..=ids.len())
+        .map(|n| {
+            i32::try_from(n)
+                .unwrap_or(i32::MAX)
+                .saturating_mul(order.step)
+        })
+        .collect();
+
+    let mut tx = pool.begin().await?;
+    let before = level_labels(&mut tx, parent_id).await?;
+    sqlx::query!(
+        r#"update pages p
+           set sort_order = v.sort_order, updated_at = now()
+           from unnest($1::int4[], $2::int4[]) as v(id, sort_order)
+           where p.id = v.id and p.ref_id is not distinct from $3 and p.sort_order <> v.sort_order"#,
+        &ids,
+        &sort_orders,
+        parent_id
+    )
+    .execute(&mut *tx)
+    .await?;
+    let after = level_labels(&mut tx, parent_id).await?;
+
+    if before != after {
+        let (target_id, label) = match order.parent {
+            Some((_, public_id, label)) => (Some(public_id.to_string()), label),
+            None => (None, TOP_LEVEL_LABEL),
+        };
+        let details = changes::updated(&json!({ "order": before }), &json!({ "order": after }));
+        sqlx::query!(
+            "insert into audit_log (actor_user_id, action, target_type, target_id, metadata)
+             values ($1, 'page_order_updated', 'page', $2, jsonb_build_object('label', $3::text) || $4::jsonb)",
+            actor.0,
+            target_id,
+            label,
+            details
+        )
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    tx.commit().await?;
+    Ok(())
+}
+
+/// ชื่อเพจของระดับหนึ่งตามลำดับที่แสดงในเมนู (parent None = ชั้นบน) — ล็อกแถวไว้จนจบทรานแซกชัน
+async fn level_labels(
+    tx: &mut Transaction<'_, Postgres>,
+    parent_id: Option<i32>,
+) -> Result<Vec<String>, RepositoryError> {
+    Ok(sqlx::query_scalar!(
+        "select label from pages where ref_id is not distinct from $1 order by sort_order, id for update",
+        parent_id
+    )
+    .fetch_all(&mut **tx)
+    .await?)
 }
 
 /// ลบจริง (เพจไม่มี soft delete) — audit เก็บชื่อไว้ใน label ให้ประวัติยังแสดงชื่อได้หลังลบ

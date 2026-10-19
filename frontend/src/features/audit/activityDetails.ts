@@ -26,6 +26,8 @@ const FIELD_LABELS: Record<string, string> = {
   icon: 'ไอคอน',
   route: 'ที่อยู่หน้า (route)',
   main_page: 'เพจหลัก',
+  // ลากจัดลำดับ (page_order_updated) — ชื่อเพจทั้งระดับตามลำดับ
+  order: 'ลำดับในเมนู',
   // นัดหมายแล็ป
   budget_year: 'ปีงบประมาณ',
   patient_group: 'กลุ่มคนไข้',

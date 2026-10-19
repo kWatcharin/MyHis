@@ -199,11 +199,11 @@ async fn role_and_page_details(pool: PgPool) {
         page_created[0]["after"]["permissions"],
         json!(["patient.view"])
     );
-    // เพจหลักเป็นชื่อ ไม่ใช่ id
-    assert_eq!(
-        details_of(&body, "page_updated")[0],
-        json!({ "before": { "main_page": null }, "after": { "main_page": "กลุ่มทดสอบ" } })
-    );
+    // เพจหลักเป็นชื่อ ไม่ใช่ id — ย้ายกลุ่มแล้วไปต่อท้ายกลุ่มใหม่ (กลุ่มว่าง = ลำดับ 10) ลำดับจึงเปลี่ยนด้วย
+    let page_updated = &details_of(&body, "page_updated")[0];
+    assert_eq!(page_updated["before"]["main_page"], Value::Null);
+    assert_eq!(page_updated["after"]["main_page"], "กลุ่มทดสอบ");
+    assert_eq!(page_updated["after"]["sort_order"], 10);
     // ชื่อรายการ (label) ยังอยู่
     let labels: Vec<&str> = body["events"]
         .as_array()

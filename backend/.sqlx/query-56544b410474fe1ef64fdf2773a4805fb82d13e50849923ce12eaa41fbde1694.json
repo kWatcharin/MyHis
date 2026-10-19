@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select label from pages where ref_id is not distinct from $1 order by sort_order, id for update",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "label",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "56544b410474fe1ef64fdf2773a4805fb82d13e50849923ce12eaa41fbde1694"
+}

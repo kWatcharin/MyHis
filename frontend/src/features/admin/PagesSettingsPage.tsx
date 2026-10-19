@@ -1,14 +1,11 @@
 import { useState } from 'react'
+import { GripVertical } from 'lucide-react'
 
 import { AddButton, DeleteButton, EditButton } from '@/components/layout/ActionButtons'
 import { ListState } from '@/components/layout/ListState'
 import { ListToolbar } from '@/components/layout/ListToolbar'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { SearchForm } from '@/components/layout/SearchForm'
-import { SortableTableHead } from '@/components/layout/SortableTableHead'
-import { TablePagination } from '@/components/layout/TablePagination'
-import { usePagination } from '@/components/layout/usePagination'
-import { useSort } from '@/components/layout/useSort'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,28 +16,20 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { usePagePermissions } from '@/features/role-preview/usePagePermissions'
 import { useAuth } from '@/features/auth/AuthContext'
 import { useRolePreview } from '@/features/role-preview/RolePreviewContext'
-import { resolveIcon } from '@/lib/icons'
 import { ApiError } from '@/lib/api'
 import { notify } from '@/lib/notify'
 import { hasCriteria, textIncludes } from '@/lib/search'
 import type { SearchValues } from '@/lib/search'
-import { cn } from '@/lib/utils'
 
 import type { PageFormValues } from './PageFormDialog'
 import { PageFormDialog } from './PageFormDialog'
+import { PageTree } from './PageTree'
+import { buildTree, reorderLevel } from './pageNodes'
+import type { PageNode } from './pageNodes'
 import type { CreatePageInput, Page, UpdatePageInput } from './pagesApi'
 import { pagesApi } from './pagesApi'
 import { useAdminList } from './useAdminList'
@@ -67,14 +56,23 @@ function pageErrorMessage(err: unknown, action: 'save' | 'delete'): string {
   return 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง'
 }
 
+const STALE_ORDER = 'page order out of date'
+
+// จัดลำดับไม่สำเร็จ — 409 = รายการบนจอเก่ากว่าใน DB (มีคนแก้เพจจากที่อื่น)
+function reorderErrorMessage(err: unknown): string {
+  if (err instanceof ApiError && err.message === STALE_ORDER) {
+    return 'รายการเพจถูกแก้จากที่อื่น โหลดรายการล่าสุดให้แล้ว ลองลากอีกครั้ง'
+  }
+  return 'บันทึกลำดับไม่สำเร็จ คืนลำดับเดิมให้แล้ว ลองอีกครั้ง'
+}
+
 // ค่าในฟอร์ม → body ของ POST/PATCH /pages: route ว่างไม่ส่ง (สร้าง = หัวข้อกลุ่ม, แก้ = ไม่แตะ) และ
-// refId ว่างส่ง null (= เพจหลัก) ทั้งตอนสร้างและแก้ ย้ายเพจย่อยขึ้นเป็นเพจหลักได้
+// refId ว่างส่ง null (= เพจหลัก) ทั้งตอนสร้างและแก้ ย้ายเพจย่อยขึ้นเป็นเพจหลักได้ — ไม่ส่งลำดับ (จัดด้วยการลากวาง)
 function toPageInput(values: PageFormValues): CreatePageInput & UpdatePageInput {
   return {
     label: values.label,
     icon: values.icon,
     route: values.route === '' ? undefined : values.route,
-    sortOrder: values.sortOrder,
     permissions: values.permissions,
     refId: values.refId === '' ? null : values.refId,
   }
@@ -86,7 +84,7 @@ type FormState = { mode: 'create' } | { mode: 'edit'; page: Page } | null
 // ไม่มี body เลย refetch() ทั้ง list ของหน้านี้เองและ catalog ของ RoleSwitcher หลังทุก mutation
 export function PagesSettingsPage() {
   const { canCreate, canUpdate, canDelete } = usePagePermissions('page')
-  const { items: pages, status, refetch } = useAdminList(pagesApi.list)
+  const { items: fetchedPages, status, refetch } = useAdminList(pagesApi.list)
   const { refetchCatalog } = useRolePreview()
   // หลังแก้ role/เพจ ต้องโหลดสิทธิ์ของผู้ใช้เองและเมนูซ้ายใหม่ด้วย (ไม่ใช่แค่ตารางในหน้านี้)
   const { refresh: refreshAuth } = useAuth()
@@ -94,24 +92,58 @@ export function PagesSettingsPage() {
   const [formState, setFormState] = useState<FormState>(null)
   const [pendingDelete, setPendingDelete] = useState<Page | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  // ลำดับที่เพิ่งลากวาง — แสดงทันทีระหว่างบันทึก (optimistic) แล้วล้างเมื่อโหลดรายการใหม่เสร็จหรือบันทึกไม่สำเร็จ
+  const [reordered, setReordered] = useState<Page[] | null>(null)
+  const [isSavingOrder, setIsSavingOrder] = useState(false)
+  const pages = reordered ?? fetchedPages
   // เงื่อนไขค้นหาที่ใช้กรองจริง (เปลี่ยนเมื่อกดปุ่ม "ค้นหา") — ช่องที่กรอกต้องตรงทุกช่อง
   const [criteria, setCriteria] = useState<SearchValues>({})
+  const filtered = hasCriteria(criteria)
   const labelById = new Map(pages.map((page) => [page.id, page.label]))
   // ชื่อกลุ่มของแถว: เพจย่อย = ชื่อเพจหลักของมัน, เพจหลัก = ชื่อตัวเอง (ค้น "Lab" ได้ทั้งหัวข้อและเพจในกลุ่ม)
   const groupName = (page: Page) => (page.refId ? labelById.get(page.refId) : page.label)
-  const visiblePages = pages.filter(
-    (page) =>
-      textIncludes(page.label, criteria.label ?? '') &&
-      textIncludes(groupName(page), criteria.mainPage ?? '') &&
-      textIncludes(page.route, criteria.route ?? ''),
-  )
+  const matches = (page: Page) =>
+    textIncludes(page.label, criteria.label ?? '') &&
+    textIncludes(groupName(page), criteria.mainPage ?? '') &&
+    textIncludes(page.route, criteria.route ?? '')
+  const visiblePages = pages.filter(matches)
+
+  // ต้นไม้ที่แสดง: ตอนค้นหา เพจหลักโผล่ถ้าตัวมันหรือเพจย่อยอย่างน้อยหนึ่งหน้าตรง และแสดงเฉพาะเพจย่อยที่ตรง
+  const nodes: PageNode[] = buildTree(pages).flatMap((node) => {
+    if (!filtered) return [node]
+    const children = node.children.filter(matches)
+    return matches(node.page) || children.length > 0 ? [{ ...node, children }] : []
+  })
+  // ลากได้เมื่อเห็นรายการครบ (ตอนค้นหาที่เห็นไม่ใช่ทั้งระดับ) และไม่มีการบันทึกลำดับค้างอยู่
+  const reorderable = canUpdate && !filtered && !isSavingOrder
 
   // ตัวเลือก "เพจหลัก" ในฟอร์ม = เพจหลักที่เป็นหัวข้อกลุ่ม (เมนู 2 ชั้น)
   const groupPages = pages.filter((page) => page.refId === null && page.route === null)
 
-  // เรียงตามคอลัมน์ "ลำดับ" เมื่อกดหัวตาราง (หลังกรอง ก่อนแบ่งหน้า)
-  const sort = useSort(visiblePages, (row) => row.sortOrder)
-  const pagination = usePagination(sort.sorted)
+  // ลากวางแล้วบันทึกทันที: แสดงลำดับใหม่ก่อน → PUT /pages/order → โหลดรายการ/เมนูซ้าย/สิทธิ์ใหม่เหมือน mutation อื่น
+  // (โหลดแบบ silent ไม่ให้ list กระพริบเป็น loading) ไม่สำเร็จ = คืนลำดับเดิม, 409 = โหลดรายการล่าสุดให้
+  // ข้อความ "ไม่สำเร็จ" ผูกกับ PUT เท่านั้น — โหลดซ้ำทีหลังพลาดไม่ได้แปลว่าลำดับไม่ถูกบันทึก
+  const handleReorder = async (refId: string | null, ids: string[]) => {
+    setReordered(reorderLevel(pages, refId, ids))
+    setIsSavingOrder(true)
+    try {
+      await pagesApi.reorder(refId, ids)
+    } catch (err) {
+      setReordered(null)
+      setIsSavingOrder(false)
+      notify.error(reorderErrorMessage(err))
+      if (err instanceof ApiError && err.message === STALE_ORDER) {
+        await refetch({ silent: true })
+      }
+      return
+    }
+    notify.updated('บันทึกลำดับเพจแล้ว')
+    await refetch({ silent: true })
+    setReordered(null)
+    setIsSavingOrder(false)
+    refetchCatalog()
+    await refreshAuth()
+  }
 
   const handleFormSubmit = async (values: PageFormValues) => {
     try {
@@ -161,10 +193,7 @@ export function PagesSettingsPage() {
           { name: 'mainPage', label: 'เพจหลัก' },
           { name: 'route', label: 'route', placeholder: 'เช่น /settings' },
         ]}
-        onSearch={(values) => {
-          setCriteria(values)
-          pagination.reset()
-        }}
+        onSearch={setCriteria}
       />
 
       <ListToolbar
@@ -176,92 +205,48 @@ export function PagesSettingsPage() {
         {canCreate && <AddButton onClick={() => setFormState({ mode: 'create' })}>เพิ่มเพจ</AddButton>}
       </ListToolbar>
 
+      {status === 'ready' && canUpdate && pages.length > 0 && (
+        <p className="text-sm text-muted-foreground" aria-live="polite">
+          {isSavingOrder ? (
+            'กำลังบันทึกลำดับ...'
+          ) : filtered ? (
+            'กด "ล้างข้อมูล" ในช่องค้นหาก่อน ถึงจะลากจัดลำดับได้'
+          ) : (
+            <>
+              ลาก <GripVertical aria-hidden className="inline size-4 align-[-0.2em]" /> เพื่อจัดลำดับเมนู — เพจย่อยเรียงได้ในกลุ่มของตัวเอง
+              ย้ายไปกลุ่มอื่นที่ปุ่มแก้ไข
+            </>
+          )}
+        </p>
+      )}
+
       <Card>
-        <CardContent className="px-0 sm:px-2">
+        <CardContent className="px-2 sm:px-4">
           {status === 'loading' && (
             <ListState kind="loading" />
           )}
           {status === 'error' && (
             <ListState kind="error">โหลดข้อมูลไม่สำเร็จ ลองรีเฟรชหน้า</ListState>
           )}
-          {status === 'ready' && pages.length > 0 && visiblePages.length === 0 && (
+          {status === 'ready' && pages.length > 0 && nodes.length === 0 && (
             <ListState kind="noMatch">
               ไม่พบเพจที่ตรงกับเงื่อนไข — กด &quot;ล้างข้อมูล&quot; เพื่อดูทั้งหมด
             </ListState>
           )}
-          {status === 'ready' && visiblePages.length > 0 && (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <SortableTableHead
-                    direction={sort.direction}
-                    onSort={() => {
-                      sort.toggle()
-                      pagination.reset()
-                    }}
-                  >
-                    ลำดับ
-                  </SortableTableHead>
-                  <TableHead>เพจ</TableHead>
-                  <TableHead>เพจหลัก</TableHead>
-                  <TableHead>route</TableHead>
-                  <TableHead>สิทธิ์ที่ต้องมี</TableHead>
-                  {(canUpdate || canDelete) && <TableHead className="text-right">จัดการ</TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pagination.pagedItems.map((page) => {
-                  const Icon = resolveIcon(page.icon)
-                  return (
-                    <TableRow key={page.id}>
-                      <TableCell className="text-muted-foreground">{page.sortOrder}</TableCell>
-                      {/* เพจย่อยเยื้องเข้าไปใต้เพจหลัก (ลำดับเริ่มต้นจาก backend = โครงเมนู) */}
-                      <TableCell
-                        className={cn('flex items-center gap-2 font-medium', page.refId && 'pl-6')}
-                      >
-                        <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                          <Icon className="size-3.5" />
-                        </span>
-                        {page.label}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {page.refId ? (
-                          labelById.get(page.refId)
-                        ) : (
-                          <Badge variant="secondary">
-                            {page.route === null ? 'เพจหลัก (หัวข้อกลุ่ม)' : 'เพจหลัก'}
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="font-mono text-sm text-muted-foreground">
-                        {page.route ?? '—'}
-                      </TableCell>
-                      <TableCell>
-                        {page.permissions.length === 0 ? (
-                          <span className="text-sm text-muted-foreground">สาธารณะ</span>
-                        ) : (
-                          <div className="flex flex-wrap gap-1">
-                            {page.permissions.map((permission) => (
-                              <Badge key={permission} variant="outline">
-                                {permission}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
-                      </TableCell>
-                      {(canUpdate || canDelete) && (
-                        <TableCell className="text-right">
-                          {canUpdate && <EditButton onClick={() => setFormState({ mode: 'edit', page })} />}
-                          {canDelete && <DeleteButton onClick={() => setPendingDelete(page)} />}
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
+          {status === 'ready' && nodes.length > 0 && (
+            <PageTree
+              nodes={nodes}
+              showHandles={canUpdate}
+              reorderable={reorderable}
+              onReorder={(refId, ids) => void handleReorder(refId, ids)}
+              renderActions={(page) => (
+                <>
+                  {canUpdate && <EditButton onClick={() => setFormState({ mode: 'edit', page })} />}
+                  {canDelete && <DeleteButton onClick={() => setPendingDelete(page)} />}
+                </>
+              )}
+            />
           )}
-          {status === 'ready' && visiblePages.length > 0 && <TablePagination {...pagination.props} />}
         </CardContent>
       </Card>
 

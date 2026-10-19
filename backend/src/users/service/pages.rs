@@ -12,7 +12,12 @@ use uuid::Uuid;
 use super::{map_unique_violation, parse_permissions, require, UsersError};
 use crate::auth::CurrentUser;
 use crate::domain::{Action, PageId, Resource};
-use crate::users::repository::{self, NewPageFields, PageWithPermissions, UpdatePageFields};
+use crate::users::repository::{
+    self, NewPageFields, PageOrder, PageWithPermissions, UpdatePageFields,
+};
+
+/// ระยะห่างของ sort_order — เพจที่ต่อท้ายกลุ่ม = ค่ามากสุด + 10, เรียงใหม่ทั้งระดับ = 10, 20, 30…
+const SORT_STEP: i32 = 10;
 
 pub async fn list_pages(
     pool: &PgPool,
@@ -29,6 +34,16 @@ fn resolve_ref(pages: &[PageWithPermissions], ref_id: Uuid) -> Result<PageId, Us
         .find(|p| p.public_id == ref_id)
         .map(|p| p.id)
         .ok_or_else(|| UsersError::Validation("main page not found".to_string()))
+}
+
+/// sort_order ที่ต่อท้ายเพจในระดับ `ref_id` (None = เพจหลักชั้นบน) — ใช้กับเพจใหม่และเพจที่ย้ายกลุ่ม
+fn end_of_level(pages: &[PageWithPermissions], ref_id: Option<PageId>) -> i32 {
+    pages
+        .iter()
+        .filter(|p| p.ref_id == ref_id)
+        .map(|p| p.sort_order)
+        .max()
+        .map_or(SORT_STEP, |max| max.saturating_add(SORT_STEP))
 }
 
 /// ตรวจโครงเมนูของเพจหนึ่งหน้าหลังบันทึก (`page` = None ตอนสร้างใหม่) — `ref_id`/`has_route` คือค่าสุดท้าย
@@ -79,7 +94,8 @@ pub struct CreatePageInput<'a> {
     pub icon: Option<&'a str>,
     /// None = เพจหลักที่เป็นหัวข้อกลุ่มเมนู
     pub route: Option<&'a str>,
-    pub sort_order: i32,
+    /// None = ต่อท้ายกลุ่มของมัน
+    pub sort_order: Option<i32>,
     pub permissions: &'a [String],
     /// uuid ของเพจหลัก (None = เป็นเพจหลักเอง)
     pub ref_id: Option<Uuid>,
@@ -104,7 +120,9 @@ pub async fn create_page(
             label: input.label,
             icon: input.icon,
             route: input.route,
-            sort_order: input.sort_order,
+            sort_order: input
+                .sort_order
+                .unwrap_or_else(|| end_of_level(&pages, ref_id)),
             permissions: &permissions,
             ref_id,
         },
@@ -142,12 +160,18 @@ pub async fn update_page(
         .ref_id
         .map(|r| r.map(|id| resolve_ref(&pages, id)).transpose())
         .transpose()?;
+    let new_ref_id = ref_id.unwrap_or(page.ref_id);
     check_menu_shape(
         &pages,
         Some(page.id),
-        ref_id.unwrap_or(page.ref_id),
+        new_ref_id,
         input.route.is_some() || page.route.is_some(),
     )?;
+    // ย้ายกลุ่มจริงและไม่ได้ระบุลำดับเอง = ไปต่อท้ายกลุ่มใหม่ — หน้าเว็บส่ง refId มาทุกครั้งที่บันทึก จึงต้องเทียบกับค่าเดิม
+    // ไม่งั้นแค่แก้ชื่อก็เด้งไปท้ายกลุ่ม
+    let sort_order = input
+        .sort_order
+        .or_else(|| (new_ref_id != page.ref_id).then(|| end_of_level(&pages, new_ref_id)));
 
     repository::update_page(
         pool,
@@ -157,13 +181,79 @@ pub async fn update_page(
             label: input.label,
             icon: input.icon,
             route: input.route,
-            sort_order: input.sort_order,
+            sort_order,
             permissions: permissions.as_deref(),
             ref_id,
         },
     )
     .await
     .map_err(|e| map_unique_violation(e, "route already taken"))?;
+    Ok(())
+}
+
+/// เรียงเพจทั้งระดับใหม่ตาม `ids` (ลากวางในหน้าตั้งค่าเพจ) — `ref_id` None = เพจหลักชั้นบน, Some = เพจย่อยของหัวข้อกลุ่มนั้น
+///
+/// `ids` ต้องเป็นเพจของระดับนั้นครบชุดพอดี (ไม่ซ้ำ ไม่ขาด ไม่เกิน) ไม่งั้นรายการที่หน้าเว็บถืออยู่เก่าแล้ว → 409 ให้โหลดใหม่
+/// ย้ายข้ามกลุ่มผ่านทางนี้ไม่ได้โดยตั้งใจ: สิทธิ์ของเพจหลักคุมทั้งกลุ่ม ย้ายกลุ่มจึงเปลี่ยนว่าใครเห็นเพจ ต้องทำผ่าน PATCH
+pub async fn reorder_pages(
+    pool: &PgPool,
+    actor: &CurrentUser,
+    ref_id: Option<Uuid>,
+    ids: &[Uuid],
+) -> Result<(), UsersError> {
+    require(actor, Resource::Page, Action::Update)?;
+    let pages = repository::list_pages(pool).await?;
+
+    let parent = match ref_id {
+        Some(id) => {
+            let parent_id = resolve_ref(&pages, id)?;
+            let parent = pages.iter().find(|p| p.id == parent_id);
+            match parent {
+                Some(p) if p.ref_id.is_none() && p.route.is_none() => Some(p),
+                _ => {
+                    return Err(UsersError::Validation(
+                        "main page must be a top-level page without a route".to_string(),
+                    ))
+                }
+            }
+        }
+        None => None,
+    };
+    let parent_id = parent.map(|p| p.id);
+
+    // list_pages เรียงตามโครงเมนูอยู่แล้ว = ลำดับปัจจุบันของระดับนี้
+    let current: Vec<&PageWithPermissions> =
+        pages.iter().filter(|p| p.ref_id == parent_id).collect();
+    let requested: Vec<&PageWithPermissions> = ids
+        .iter()
+        .filter_map(|id| current.iter().find(|p| p.public_id == *id).copied())
+        .collect();
+    let distinct: HashSet<&Uuid> = ids.iter().collect();
+    if requested.len() != ids.len()
+        || distinct.len() != ids.len()
+        || requested.len() != current.len()
+    {
+        return Err(UsersError::Conflict("page order out of date".to_string()));
+    }
+    if requested
+        .iter()
+        .map(|p| p.id)
+        .eq(current.iter().map(|p| p.id))
+    {
+        return Ok(());
+    }
+
+    let order: Vec<PageId> = requested.iter().map(|p| p.id).collect();
+    repository::reorder_pages(
+        pool,
+        actor.user.id,
+        PageOrder {
+            parent: parent.map(|p| (p.id, p.public_id, p.label.as_str())),
+            ids: &order,
+            step: SORT_STEP,
+        },
+    )
+    .await?;
     Ok(())
 }
 
