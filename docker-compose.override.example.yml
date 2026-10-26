@@ -1,0 +1,31 @@
+# ตัวอย่างไฟล์ override สำหรับเครื่อง DEV เท่านั้น — คัดลอกเป็น docker-compose.override.yml (ชื่อนั้น .gitignore กันไว้แล้ว):
+#   cp docker-compose.override.example.yml docker-compose.override.yml
+# ห้ามวางไฟล์ docker-compose.override.yml บนเครื่องจริง: Compose merge ไฟล์นี้ให้อัตโนมัติ แล้ว publish พอร์ตของ db/backend/frontend
+# (ขัดกับ docs/infrastructure.md ข้อ 2) ops/check-deploy.sh เตือน WARN เมื่อเจอพอร์ตที่ publish ที่ loopback
+#
+# ทุกพอร์ตผูก 127.0.0.1 เท่านั้น (ไม่ใช่ 0.0.0.0) ปรับเลขพอร์ตฝั่ง host ให้ไม่ชนกับสิ่งที่รันอยู่บนเครื่องคุณ:
+#   db       55432 → tool บน host เช่น sqlx-cli, psql, GUI client (5432 มักถูก Postgres อื่นจับอยู่)
+#   frontend 3000  → เปิดหน้าเว็บตรง ๆ ในเบราว์เซอร์ระหว่างไม่รัน caddy หน้าบ้าน (80/443 ชนกับ XAMPP/IIS ได้)
+#   backend  8081  → ให้ `bun run dev` (Vite ที่ 5173) proxy /api มาหา backend จริง (ดู frontend/vite.config.ts)
+# พอร์ตฝั่ง container คงเดิม (db 5432, frontend 8080, backend 8080)
+
+services:
+  db:
+    # db อยู่วง data (internal: true) ใน docker-compose.yml — พอร์ตที่ publish ผ่านวง internal เข้าถึงไม่ได้ จึงต่อวง dev
+    # (ไม่ internal, เฉพาะ dev) เพิ่ม; เช็ก backend ใน container ให้ใช้ --network <project>_dev (ถึง db ได้และออกเน็ตได้)
+    networks:
+      - data
+      - dev
+    ports:
+      - "127.0.0.1:55432:5432"
+
+  frontend:
+    ports:
+      - "127.0.0.1:3000:8080"
+
+  backend:
+    ports:
+      - "127.0.0.1:8081:8080"
+
+networks:
+  dev:
