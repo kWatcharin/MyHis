@@ -1,4 +1,4 @@
-import { CircleAlert, History, Play, ShieldAlert } from 'lucide-react'
+import { CircleAlert, History, PanelLeftOpen, Play, ShieldAlert } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ListState } from '@/components/layout/ListState'
@@ -8,9 +8,10 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useRolePreview } from '@/features/role-preview/RolePreviewContext'
+import { cn } from '@/lib/utils'
 
 import { ResultGrid } from './ResultGrid'
-import { SchemaPanel } from './SchemaPanel'
+import { SCHEMA_HIDE_BUTTON_ID, SCHEMA_PANEL_ID, SchemaPanel } from './SchemaPanel'
 import type { SchemaState } from './SchemaPanel'
 import { SqlEditor } from './SqlEditor'
 import type { SqlEditorHandle } from './SqlEditor'
@@ -44,6 +45,18 @@ const HISTORY_LIMIT = 15
 // ค่าตั้งต้นก่อนโหลดขีดจำกัดจริงจาก backend
 const DEFAULT_LIMITS = { maxRows: 500, statementTimeoutMs: 5000 }
 
+// แผงรายการตาราง (ซ้าย) เปิด/ปิดได้ จำไว้ในเบราว์เซอร์นี้ — เก็บแค่ค่าเปิด/ปิด ปิดแล้ว editor/ผลลัพธ์กว้างเต็มหน้า
+const SCHEMA_PANEL_KEY = 'my-his-sql-schema-panel'
+const SCHEMA_SHOW_BUTTON_ID = 'sql-schema-show'
+
+function readSchemaOpen(): boolean {
+  try {
+    return localStorage.getItem(SCHEMA_PANEL_KEY) !== 'closed'
+  } catch {
+    return true
+  }
+}
+
 const TIME_FORMAT = new Intl.DateTimeFormat('th-TH', {
   hour: '2-digit',
   minute: '2-digit',
@@ -52,7 +65,7 @@ const TIME_FORMAT = new Intl.DateTimeFormat('th-TH', {
 
 // หน้า SQL (/data/script, สิทธิ์ sql.view): เขียน SQL พร้อม auto complete แล้วรันแบบอ่านอย่างเดียว ถอดรหัสคอลัมน์ผู้ป่วย
 // ในผลลัพธ์ได้เมื่อมี patient.view และติ๊กเอง (ค่าเริ่มต้นไม่ถอด) — ผลลัพธ์/SQL/ประวัติอยู่ใน state ของหน้าเท่านั้น
-// ไม่ลง localStorage, URL หรือ console ทุกการรันถูกบันทึกในประวัติการใช้งานฝั่ง backend
+// ไม่ลง localStorage (มีแค่ค่าเปิด/ปิดแผงตาราง), URL หรือ console ทุกการรันถูกบันทึกในประวัติการใช้งานฝั่ง backend
 export function SqlConsolePage() {
   const { hasEffectivePermission } = useRolePreview()
   const canDecrypt = hasEffectivePermission('patient.view')
@@ -65,6 +78,25 @@ export function SqlConsolePage() {
   const [decrypt, setDecrypt] = useState(false)
   const [run, setRun] = useState<RunState>({ status: 'idle' })
   const [history, setHistory] = useState<HistoryEntry[]>([])
+  const [schemaOpen, setSchemaOpen] = useState(readSchemaOpen)
+  // ปุ่มที่กดหายไปพร้อมแผง — ย้ายโฟกัสไปปุ่มคู่ของมันหลังสลับ (ไม่ทำตอนโหลดหน้า)
+  const focusToggle = useRef(false)
+
+  const toggleSchema = (open: boolean) => {
+    focusToggle.current = true
+    setSchemaOpen(open)
+    try {
+      localStorage.setItem(SCHEMA_PANEL_KEY, open ? 'open' : 'closed')
+    } catch {
+      // localStorage ใช้ไม่ได้ (private mode ฯลฯ) — ยังสลับได้ปกติ แค่ไม่จำข้ามรีเฟรช
+    }
+  }
+
+  useEffect(() => {
+    if (!focusToggle.current) return
+    focusToggle.current = false
+    document.getElementById(schemaOpen ? SCHEMA_HIDE_BUTTON_ID : SCHEMA_SHOW_BUTTON_ID)?.focus()
+  }, [schemaOpen])
 
   useEffect(() => {
     let cancelled = false
@@ -143,8 +175,13 @@ export function SqlConsolePage() {
         description="รันคำสั่ง SQL แบบอ่านอย่างเดียว — ทุกครั้งถูกบันทึกในประวัติการใช้งาน"
       />
 
-      <div className="grid items-start gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
-        <SchemaPanel state={schemaState} onPick={(text) => editor.current?.insert(text)} />
+      <div className={cn('grid items-start gap-4', schemaOpen && 'lg:grid-cols-[16rem_minmax(0,1fr)]')}>
+        <SchemaPanel
+          state={schemaState}
+          onPick={(text) => editor.current?.insert(text)}
+          open={schemaOpen}
+          onHide={() => toggleSchema(false)}
+        />
 
         <div className="flex min-w-0 flex-col gap-4">
           <Card className="gap-0 py-0">
@@ -158,6 +195,18 @@ export function SqlConsolePage() {
               />
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2.5">
+              {!schemaOpen && (
+                <Button
+                  id={SCHEMA_SHOW_BUTTON_ID}
+                  variant="outline"
+                  onClick={() => toggleSchema(true)}
+                  aria-controls={SCHEMA_PANEL_ID}
+                  aria-expanded={false}
+                >
+                  <PanelLeftOpen />
+                  แสดงตาราง
+                </Button>
+              )}
               <Button onClick={() => void handleRun()} disabled={run.status === 'running'}>
                 <Play />
                 {run.status === 'running' ? 'กำลังรัน...' : 'รัน'}

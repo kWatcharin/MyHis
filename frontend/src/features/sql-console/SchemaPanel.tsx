@@ -1,6 +1,7 @@
-import { ChevronRight, Lock, Table2 } from 'lucide-react'
+import { ChevronRight, Lock, PanelLeftClose, Table2 } from 'lucide-react'
 
 import { ListState } from '@/components/layout/ListState'
+import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 
 import type { SchemaTable } from './sqlConsoleApi'
@@ -10,21 +11,44 @@ export type SchemaState =
   | { status: 'error'; message: string }
   | { status: 'ready'; tables: SchemaTable[] }
 
+// id ของแผงและปุ่มซ่อน — ปุ่ม "แสดงตาราง" ในหน้าอ้าง aria-controls และย้ายโฟกัสกลับมาที่ปุ่มซ่อนตอนเปิด
+export const SCHEMA_PANEL_ID = 'sql-schema-panel'
+export const SCHEMA_HIDE_BUTTON_ID = 'sql-schema-hide'
+
 interface SchemaPanelProps {
   state: SchemaState
   // แทรกชื่อตาราง/คอลัมน์ลงตำแหน่งเคอร์เซอร์ใน editor
   onPick: (text: string) => void
+  // false = ซ่อน (ยังอยู่ใน DOM ตารางที่กางไว้จึงไม่พับเองตอนเปิดกลับ)
+  open: boolean
+  onHide: () => void
 }
 
 // รายการตาราง → คอลัมน์ ที่ role ของหน้า SQL อ่านได้ (คอลัมน์ลับไม่มีอยู่ในรายการ) กดชื่อเพื่อแทรกลง editor
-export function SchemaPanel({ state, onPick }: SchemaPanelProps) {
+export function SchemaPanel({ state, onPick, open, onHide }: SchemaPanelProps) {
   return (
-    <Card className="gap-0 py-0 lg:sticky lg:top-4 lg:max-h-[calc(100svh-6rem)]">
-      <div className="flex items-center justify-between border-b px-3 py-2.5">
+    <Card
+      id={SCHEMA_PANEL_ID}
+      hidden={!open}
+      className="gap-0 py-0 lg:sticky lg:top-4 lg:max-h-[calc(100svh-6rem)]"
+    >
+      <div className="flex items-center gap-2 border-b py-1.5 pr-1.5 pl-3">
         <h2 className="text-sm font-semibold">ตาราง</h2>
         {state.status === 'ready' && (
           <span className="text-xs text-muted-foreground tabular-nums">{state.tables.length}</span>
         )}
+        <Button
+          id={SCHEMA_HIDE_BUTTON_ID}
+          variant="ghost"
+          size="sm"
+          className="ml-auto text-muted-foreground"
+          onClick={onHide}
+          aria-controls={SCHEMA_PANEL_ID}
+          aria-expanded={open}
+        >
+          <PanelLeftClose />
+          ซ่อน
+        </Button>
       </div>
       <div className="max-h-72 overflow-auto py-1 lg:max-h-none lg:min-h-0 lg:flex-1">
         {state.status === 'loading' && <ListState kind="loading" />}
