@@ -27,6 +27,7 @@ Cache และ message queue **ยังไม่ใช้** อย่าเพ
 my-his/
 ├─ CLAUDE.md                   ไฟล์นี้
 ├─ docker-compose.yml
+├─ docker-compose.override.example.yml  ตัวอย่างสำหรับเครื่อง dev (คัดลอกเป็น docker-compose.override.yml ที่ git-ignore)
 ├─ .env.example
 ├─ docs/
 │  ├─ rust-guidelines.md       กฎการเขียน Rust ของโปรเจกต์ (อ่านก่อนเขียนโค้ด)
@@ -34,6 +35,7 @@ my-his/
 │  ├─ infrastructure.md        การวาง container, backup, ความปลอดภัยของเครื่อง
 │  └─ security-audit.md        สรุปผล security audit (2026-10-21): สิ่งที่แก้แล้ว, ที่เหลือ, สิ่งที่ต้องทำตอน deploy
 ├─ ops/                        Caddyfile, สคริปต์ backup/restore, patient_decrypt.py (ถอดคอลัมน์ที่เข้ารหัสนอกแอป ให้ผู้ใช้รันเอง)
+│                              check-deploy.sh (ตรวจ stack ที่รันอยู่), check-cloudflare-ips.sh (เทียบช่วง IP Cloudflare ใน Caddyfile) — อ่านอย่างเดียว
 ├─ frontend/
 └─ backend/
    ├─ Cargo.toml

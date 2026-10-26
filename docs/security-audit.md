@@ -90,7 +90,8 @@
    - firewall เปิด 80/443 เฉพาะช่วง IP ของ Cloudflare (หรือ Authenticated Origin Pulls), SSL/TLS = Full (strict)
    - ล็อกอิน 1 ครั้งผ่านโดเมนจริงทั้ง IPv4 และ IPv6 แล้วดูหน้าประวัติ login ว่าได้ IP ของ client จริง ไม่ใช่ IP ของ Cloudflare/container
      (backend เตือนใน log หนึ่งครั้งถ้าเห็นที่อยู่ที่ไม่ใช่ public) — รายละเอียดในหัวข้อ Cloudflare ของ `docs/infrastructure.md`
-   - ตรวจรายการช่วง IP ของ Cloudflare ใน `ops/Caddyfile` ปีละครั้ง (ดึงเมื่อ 2026-10-23 จาก `cloudflare.com/ips-v4`, `/ips-v6`)
+   - ตรวจรายการช่วง IP ของ Cloudflare ใน `ops/Caddyfile` ปีละครั้ง (ดึงเมื่อ 2026-10-23 จาก `cloudflare.com/ips-v4`, `/ips-v6`) —
+     `sh ops/check-cloudflare-ips.sh` เทียบให้; ข้อ 1–3 ที่ตรวจจากเครื่องได้ส่วนหนึ่ง (healthy, พอร์ต, network, ตัวแปรลับ, limit, header) รัน `sh ops/check-deploy.sh` ได้
 4. (ทางเลือก) Configuration Rule ‘request body buffering = Full’ ของ Cloudflare — ลดผลของ request ที่ body ค้างอีกชั้น (N4; ยังไม่ได้ทดสอบ)
 
 ทางเลือกเสริม (ไม่บังคับ):
@@ -100,13 +101,14 @@
 
 ## 6. ตอน deploy ครั้งถัดไป
 
-- migration ใหม่ 7 ไฟล์ รันเองตอน backend เริ่ม (ผ่าน dry-run บน `my_his_migtest` แล้ว ยังไม่เคยรันบน `my_his`):
+- migration ใหม่ 7 ไฟล์ รันเองตอน backend เริ่ม (ผ่าน dry-run บน `my_his_migtest`; รันบน `my_his` ของ dev แล้ว 2026-10-26 — เครื่องจริงยังไม่เคย):
   `20261021100000_session_password_checks`, `20261021100100_audit_target_id_null_for_unknown_names`,
   `20261021100200_login_throttle_updated_at_index`, `20261021100300_clear_unknown_name_login_failed_target_ids`,
   `20261024100000_sessions_expiry_indexes` (index 2 ตัวบน `sessions`), `20261024100100_registration_link_purpose` (คอลัมน์ `registration_links.purpose` +
   backfill ลิงก์ที่ค้างอยู่), `20261024100200_pages_text_limits` (CHECK label/icon แบบ `NOT VALID` — ไม่ตรวจแถวเดิม)
 - migration `…100300` ตั้ง `audit_log.target_id = NULL` ของ `login_failed` ที่ไม่มีผู้กระทำ — ตรวจบน dev ก่อนแล้ว **23 แถว**
-  (เจ้าของอนุมัติ 2026-10-21; เป็นข้อยกเว้นครั้งเดียวของกฎ ‘audit_log เขียนอย่างเดียว’) ยังไม่มีเทสที่รันกับแถวรูปแบบเก่าจริง (เทสใช้ตารางว่าง)
+  (เจ้าของอนุมัติ 2026-10-21; เป็นข้อยกเว้นครั้งเดียวของกฎ ‘audit_log เขียนอย่างเดียว’) เทสถาวร `tests/audit_cleanup_migration.rs` รัน migration นี้กับแถวรูปแบบเก่า (ชื่อดิบ, SHA-256) แล้วยืนยันว่าแตะเฉพาะ `login_failed` ที่ไม่มีผู้กระทำ และรันซ้ำได้ผลเท่าเดิม
+  (หมายเหตุ: คอมเมนต์หัวไฟล์ `…100100` ยังเขียนว่าการล้าง ‘รอเจ้าของอนุมัติ’ — ล้าสมัยแล้วเพราะทำใน `…100300` แต่ไม่แก้ไฟล์เพราะ sqlx เทียบ checksum ของไฟล์ที่ apply ไปแล้ว)
 - `.sqlx/` สร้างใหม่แล้ว (174 ไฟล์) และ build แบบ offline ผ่าน
 - **`docker compose up -d` ต้องสร้าง container ใหม่** (ไม่ใช่แค่ restart): `restart: unless-stopped`, network 3 วง (`edge`/`app`/`data`), `db` ได้ environment
   เฉพาะ 3 ตัว, limit/healthcheck/log rotation ใหม่ล้วนมีผลตอนสร้างใหม่ — network ใหม่ทำให้ network `my-his_default` เดิมไม่ถูกใช้แล้ว
@@ -132,7 +134,19 @@
 - compose ใหม่ (โปรเจกต์ทดลองค่า dummy ชื่อ `satrial` ลบทิ้งแล้ว): backend `healthy`, `caddy` ไม่เห็น `db`/`backend` (resolve ไม่ได้), `frontend`→`backend` ใช้ได้,
   backend ออกเน็ตได้ / `db` ออกเน็ตไม่ได้ (`data` internal), `db` environment มีแค่ `POSTGRES_*` + ตัวแปรของ image, login ผ่าน Caddy จริงเห็นคำเตือน ‘non-public client address’
   ใน log ที่ระดับ `info` (ปริยาย)
-- ยังไม่ได้ทดสอบ: โดเมน/TLS จริง, Cloudflare จริง (IPv4/IPv6), ผลของ `Configuration Rule` ฝั่ง Cloudflare, migration `…100300` กับแถว audit เก่า, memory/โหลดจริงของ host
+- ยังไม่ได้ทดสอบ: โดเมน/TLS จริง, Cloudflare จริง (IPv4/IPv6), ผลของ `Configuration Rule` ฝั่ง Cloudflare, memory/โหลดจริงของ host
+
+รอบ 5 (2026-10-26, ตรวจซ้ำก่อน commit และใช้กับ dev stack):
+- ตรวจซ้ำ: fmt/clippy สะอาด, build offline ผ่าน, เทสครบ (unit 122 + 24 ไฟล์ integration); เทส 3 ตัวที่ไวต่อเวลาล้มตอนเครื่องโหลดหนัก (Retry-After ช่วง 590–600 ใน
+  `login_ip_limit`/`login_success_limit`, idle 200 ms ใน `conn_guard`) จึงผ่อนช่วงให้กว้างขึ้น; frontend build + lint (14 warnings เท่า baseline) ผ่านทั้ง working tree
+  และบนสำเนา checkout ของ commit ที่ไม่มีไฟล์ UI
+- migration `…100300` มีเทสถาวร `tests/audit_cleanup_migration.rs` (แถวรูปแบบเก่า → ล้างเฉพาะกลุ่มเป้าหมาย, ไม่แตะ metadata/ip, รันซ้ำได้ผลเท่าเดิม)
+- **ใช้กับ dev stack แล้ว (`my_his` ของ dev, 2026-10-26)**: สำรอง `pg_dump -Fc` (นอก repo) และทดลอง restore ลง DB ชั่วคราวได้จำนวนแถวตรงกัน → ติดป้าย image เดิม `:pre-round4` →
+  `docker compose up -d --build db backend frontend` (ไม่รวม caddy: 80/443 ชนกับ XAMPP) → migration 22 → 29 ไฟล์สำเร็จทั้งหมด, `audit_log` ที่ `login_failed` ไม่มีผู้กระทำแต่มี `target_id`
+  จาก 23 เหลือ 0 (จำนวนแถวอื่น users/patient เท่าเดิม), `registration_links.purpose` และ index หมดอายุของ `sessions` มี, CHECK ของ `pages` เป็น `NOT VALID` ตามที่ออกแบบ,
+  `db`/`backend` healthy, `frontend`/`/api/auth/login-config`/`/health` ตอบ 200 (`Cache-Control: no-store`, CSP ครบ), `ops/check-deploy.sh` FAIL 0 (WARN 6 ข้อเป็นของ dev ทั้งหมด:
+  พอร์ต loopback ตาม override, `db` ต่อ network `dev`, backend เห็น IP ของ gateway Docker, Turnstile ยังเป็น test key)
+- ล้างของค้างจาก audit รอบแรก: container `sa-audit-pg` (Postgres ทดลองข้อมูลหลอก) และ network `sa-audit-net`; ลบ network `my-his_default` เดิมที่ไม่ถูกใช้แล้ว
 
 ## 8. audit รอบที่สอง (scoped, 2026-10-23) และการแก้ (2026-10-24)
 

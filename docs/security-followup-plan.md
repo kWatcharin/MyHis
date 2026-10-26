@@ -1,8 +1,12 @@
 # แผน: ปิด ‘ข้อควรรู้’ หลังแก้ผล security audit รอบที่ 2
 
-> **สถานะ:** ข้อ 1–3 ยังไม่เริ่มทำ — รอเจ้าของสั่ง; ข้อ 3 แตะ DB `my_his` จริง (สำรองก่อนเสมอ)
-> **ข้อ 5 (2026-10-26):** commit 1–4 ทำแล้วตามตาราง (backend, compose/Caddy, SPA security, docs) ยังไม่ push;
-> commit 5 (UI วันที่ไทย/ค้นหาสถานะ) และ `docs/inventory-design.md` ยังไม่ commit — รอเจ้าของสั่ง
+> **สถานะ (2026-10-26):** ข้อ 1–3 ทำแล้ว (ข้อ 3 ใช้กับ dev stack: migration 29 ไฟล์ครบ, ผลละเอียดใน `docs/security-audit.md` §7 รอบ 5)
+> เว้นการแก้คอมเมนต์ใน migration `…100100` (ไม่แก้: `my_his_migtest` และ dev apply ไปแล้ว checksum จะไม่ตรง — บันทึกไว้ใน `docs/security-audit.md` §6)
+> สำเนา `pg_dump` ก่อน apply อยู่นอก repo ที่ `C:\Users\PHP012025\backups\my_his-2026-10-26.dump` (มีข้อมูลผู้ป่วยที่เข้ารหัส + audit จริง ห้าม commit/ส่งต่อ ลบเองเมื่อมั่นใจ);
+> image เดิมติดป้าย `my-his-backend:pre-round4` / `my-his-frontend:pre-round4` ไว้ย้อนกลับ
+> **ข้อ 5 (2026-10-26):** commit ครบแล้ว ยังไม่ push — commit 1–4 ตามตาราง (backend, compose/Caddy, SPA security, docs),
+> ตามด้วยเทสของ migration `…100300`, เครื่องมือตรวจ + override ตัวอย่าง, เอกสารของรอบนี้, งาน UI (แยกเป็น 3 commit: ช่องวันที่ พ.ศ., ค้นหาด้วยช่วงวันที่/สถานะ,
+> ปุ่มซ่อนแผงตารางหน้า SQL) และ `docs/inventory-design.md` (ร่างดีไซน์คลัง — ไม่เกี่ยวกับงาน security)
 > ผล audit และสถานะการแก้อยู่ใน `docs/security-audit.md`
 
 ## Context

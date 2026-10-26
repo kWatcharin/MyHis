@@ -49,8 +49,9 @@ Cache และ queue ยังไม่มีในระบบ ถ้าวั
 | `data` | `backend`, `db` | `internal: true` — ไม่มีทางออกนอกเครื่อง และ publish พอร์ตผ่านวงนี้ไม่ได้ |
 
 `caddy` ต้องไม่เห็น `db` (และไม่เห็น `backend`) และ `db` ต้องไม่ publish พอร์ต 5432 ออกจากเครื่อง
-ถ้าต้องต่อฐานข้อมูลจากเครื่องส่วนตัว ให้ใช้ SSH tunnel (dev: `docker-compose.override.yml` ที่ git-ignore ต่อ `db` เข้า network `default`
-เพิ่มเพื่อ publish `127.0.0.1:55432` — ไฟล์นี้ไม่ขึ้น production)
+ถ้าต้องต่อฐานข้อมูลจากเครื่องส่วนตัว ให้ใช้ SSH tunnel (dev: `docker-compose.override.yml` ที่ git-ignore ต่อ `db` เข้า network `dev`
+เพิ่มเพื่อ publish `127.0.0.1:55432` — ไฟล์นี้ไม่ขึ้น production; เครื่อง dev ใหม่คัดลอกจาก `docker-compose.override.example.yml`
+(`cp docker-compose.override.example.yml docker-compose.override.yml`) ซึ่ง publish db 55432 / frontend 3000 / backend 8081 ที่ `127.0.0.1` เท่านั้น)
 
 `db` ได้ environment เฉพาะ `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` (ไม่ใช้ `env_file: .env`) — `.env` มีคีย์เข้ารหัสข้อมูลผู้ป่วย
 และ entrypoint ของ image postgres ลบเฉพาะตัวแปร `POSTGRES_*` ก่อนรัน server ตัวแปรอื่นจึงค้างอยู่ใน environment ของ process ที่ SQL ระดับ
@@ -172,6 +173,13 @@ transaction READ ONLY จึงรันด้วย **role แยก `my_his_sq
 
 ### Checklist ก่อนขึ้นเครื่องจริง (จาก security audit 2026-10-12 — ยังไม่ได้ทำ)
 
+- **รันสคริปต์ตรวจ (อ่านอย่างเดียว ไม่แก้อะไร ไม่พิมพ์ค่าใน `.env`)** — ตรวจได้เฉพาะสิ่งที่เห็นจากเครื่อง ไม่แทนขั้นตอนมือด้านล่าง:
+  - `sh ops/check-cloudflare-ips.sh` — เทียบรายการหลัง `trusted_proxies static` ใน `ops/Caddyfile` กับ `cloudflare.com/ips-v4`/`ips-v6`
+    (`OK` ตรงกัน / `FAIL` แสดงรายการที่ต้องเพิ่ม-เอาออก / `SKIP` ดึงไม่ได้) รันก่อน deploy และปีละครั้ง
+  - `sh ops/check-deploy.sh [ชื่อ compose project]` — หลัง `docker compose up -d`: `db`/`backend` healthy, publish เฉพาะ caddy 80/443,
+    caddy ไม่อยู่ network เดียวกับ backend/db, `db`/`caddy`/`frontend` ไม่เห็นตัวแปรลับ (ดูเฉพาะชื่อ), mem/pids limit ครบ, log ของ backend ไม่มี
+    ‘non-public client address’ (FAIL) / Turnstile test key (WARN), และถ้าตั้ง `DOMAIN` จริง: AAAA, `cf-ray`, `Cache-Control: no-store` ของ
+    `/api/auth/login-config`, CSP — บน dev จะ SKIP caddy และ WARN พอร์ต loopback ตาม override (ไม่ใช่ความผิด) ท้ายผลพิมพ์ขั้นตอนมือที่เหลือ
 - **แยกบัญชี DB ของแอปที่ไม่ใช่ superuser** — ตอนนี้ backend ต่อด้วย `POSTGRES_USER` ซึ่งเป็น superuser ของ image
   postgres (ทำอะไรบนเครื่อง DB ก็ได้ถ้าวันหนึ่งมีช่องโหว่) วิธีทำ: สร้าง role `my_his_app` แบบ `LOGIN NOSUPERUSER
   NOCREATEDB NOCREATEROLE` เป็นเจ้าของ schema/ตารางของแอป (`ALTER ... OWNER TO`, แอปรัน migration เองตอนเริ่มจึงต้องเป็น
