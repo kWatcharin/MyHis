@@ -41,6 +41,7 @@ const SPECIAL_ACTIONS: Record<string, { label: string; kind: ActivityKind }> = {
   user_registered: { label: 'ลงทะเบียน', kind: 'other' },
   user_password_set: { label: 'ตั้งรหัสผ่านใหม่', kind: 'other' },
   password_changed: { label: 'เปลี่ยนรหัสผ่านของตัวเอง', kind: 'other' },
+  password_change_failed: { label: 'ใส่รหัสผ่านปัจจุบันผิดตอนเปลี่ยนรหัส', kind: 'other' },
   // หน้า SQL — รายการสรุปจาก backend เช่น "12 แถว · patient" (ไม่มีตัว SQL)
   sql_executed: { label: 'รัน SQL', kind: 'other' },
 }
@@ -71,7 +72,7 @@ const READ_ONLY_RESOURCES = new Set(['shift', 'audit'])
 
 // คีย์หน้าของแถว (ใช้กรอง) — resource key หรือ account/registration/other
 export function activityPage(activity: Activity): string {
-  if (activity.action === 'password_changed') return ACCOUNT_PAGE
+  if (activity.action === 'password_changed' || activity.action === 'password_change_failed') return ACCOUNT_PAGE
   if (activity.action === 'user_registered' || activity.action === 'user_password_set') return REGISTRATION_PAGE
   const type = activity.targetType ?? ''
   const key = RESOURCE_OF_TARGET[type] ?? type

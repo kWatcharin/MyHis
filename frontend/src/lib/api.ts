@@ -23,6 +23,15 @@ export class ApiError extends Error {
   }
 }
 
+// ค่าที่ต่อเข้า path ของ API ต้องผ่านฟังก์ชันนี้เสมอ — id ที่มาจาก URL ของหน้าเว็บ (useParams) ผู้อื่นกำหนดได้ และ react-router
+// ถอดรหัส %2F / %3F ให้ จึงมี '/', '..', '?' ได้ ถ้าต่อตรง ๆ คำขอจะหลุดไป endpoint อื่นของ API ด้วยคุกกี้ของผู้ใช้
+// '.' / '..' encode แล้วก็ไม่รอด (encodeURIComponent ไม่แตะจุด และเบราว์เซอร์ถือ %2e เป็น dot segment ด้วย) จึงปฏิเสธทั้งหมด —
+// หน้าที่รับ id จาก URL ตรวจ isUuid (lib/uuid.ts) ก่อนเรียก API อยู่แล้ว นี่คือด่านสุดท้ายถ้าหลุดมา
+export const seg = (value: string): string => {
+  if (value === '' || value === '.' || value === '..') throw new Error('invalid path segment')
+  return encodeURIComponent(value)
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${BASE}${path}`, {
     credentials: 'include',

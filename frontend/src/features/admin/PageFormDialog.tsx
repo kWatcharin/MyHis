@@ -22,6 +22,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { NativeSelect } from '@/components/ui/native-select'
 import { useAuth } from '@/features/auth/AuthContext'
+import { isInternalRoute } from '@/features/auth/menu'
 import { resolveIcon } from '@/lib/icons'
 
 import { ACTION_LABELS, ALL_PERMISSIONS, parsePermission, resourceLabel } from './permissions'
@@ -32,9 +33,17 @@ import type { Page } from './pagesApi'
 // เพจย่อย (เลือกเพจหลัก) ต้องมี route — backend ตรวจกฎโครงเมนูซ้ำอีกชั้นเสมอ
 const pageFormSchema = z
   .object({
-    label: z.string().min(1, 'กรอกชื่อเพจ'),
-    icon: z.string().optional(),
-    route: z.string().trim().regex(/^(\/.*)?$/, 'route ต้องขึ้นต้นด้วย /'),
+    // เพดานตรงกับ backend (users/dto.rs: label ≤ 100, icon ≤ 64 — กันข้อมูลเมนูใหญ่ผิดปกติ)
+    label: z.string().min(1, 'กรอกชื่อเพจ').max(100, 'ชื่อเพจยาวเกิน 100 ตัวอักษร'),
+    icon: z.string().max(64, 'ไอคอนยาวเกิน 64 ตัวอักษร').optional(),
+    route: z
+      .string()
+      .trim()
+      .max(200, 'route ยาวเกิน 200 ตัวอักษร')
+      .refine(
+        (v) => v === '' || isInternalRoute(v),
+        'route ต้องเป็น path ในแอป: ขึ้นต้นด้วย / ตัวเดียว ไม่มีช่องว่างหรือ \\',
+      ),
     permissions: z.array(z.string()),
     refId: z.string(),
   })

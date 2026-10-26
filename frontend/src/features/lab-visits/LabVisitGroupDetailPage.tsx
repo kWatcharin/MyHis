@@ -36,7 +36,8 @@ import type { Patient } from '@/features/patients/patientsApi'
 import { patientsApi } from '@/features/patients/patientsApi'
 import { useRolePreview } from '@/features/role-preview/RolePreviewContext'
 import { usePagePermissions } from '@/features/role-preview/usePagePermissions'
-import { ApiError } from '@/lib/api'
+import { ApiError, seg } from '@/lib/api'
+import { isUuid } from '@/lib/uuid'
 import { formatThaiDate, todayIso } from '@/lib/date'
 import { notify } from '@/lib/notify'
 import { allTokensIncluded, hasCriteria, textIncludes } from '@/lib/search'
@@ -147,9 +148,11 @@ export function LabVisitGroupDetailPage() {
     }
   }, [id])
 
+  // id ที่ไม่ใช่ uuid (ลิงก์ผิด/ถูกแก้) ไม่ยิง API เลย แสดงเป็นไม่พบ
+  const validId = isUuid(id)
   useEffect(() => {
-    if (canViewPatients) void load()
-  }, [load, canViewPatients])
+    if (canViewPatients && validId) void load()
+  }, [load, canViewPatients, validId])
 
   // เปลี่ยนไปนัดหมายอื่น (id ใน URL เปลี่ยน) → กลับไปสถานะกำลังโหลด ไม่โชว์ข้อมูลของนัดหมายเดิมค้าง
   const [shownId, setShownId] = useState(id)
@@ -269,7 +272,7 @@ export function LabVisitGroupDetailPage() {
 
   // PDF: เปิดหน้าเอกสารพร้อมพิมพ์ในแท็บใหม่ (URL มีแค่ uuid ของนัดหมาย ไม่มีข้อมูลคนไข้)
   const handlePdf = (kind: LabDocumentKind) => {
-    const printWindow = window.open(`/lab/appointments/${id}/print?doc=${kind}`, '_blank')
+    const printWindow = window.open(`/lab/appointments/${seg(id)}/print?doc=${kind}`, '_blank')
     if (!printWindow) {
       notify.error('เบราว์เซอร์บล็อกหน้าต่างใหม่ — อนุญาต pop-up ของเว็บนี้แล้วลองอีกครั้ง')
       return
@@ -297,14 +300,15 @@ export function LabVisitGroupDetailPage() {
       </div>
     )
   }
-  if (status === 'loading') {
+  const shownStatus: LoadStatus = validId ? status : 'notFound'
+  if (shownStatus === 'loading') {
     return <ListState kind="loading" />
   }
-  if (status === 'notFound' || status === 'error' || !detail) {
+  if (shownStatus === 'notFound' || shownStatus === 'error' || !detail) {
     return (
       <div className="flex flex-col items-start gap-4">
-        <p className={status === 'notFound' ? 'text-sm text-muted-foreground' : 'text-sm text-destructive'}>
-          {status === 'notFound'
+        <p className={shownStatus === 'notFound' ? 'text-sm text-muted-foreground' : 'text-sm text-destructive'}>
+          {shownStatus === 'notFound'
             ? 'ไม่พบนัดหมายนี้ (อาจถูกลบไปแล้ว)'
             : 'โหลดข้อมูลไม่สำเร็จ ลองรีเฟรชหน้า'}
         </p>

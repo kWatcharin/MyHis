@@ -1,4 +1,4 @@
-import { api } from '@/lib/api'
+import { api, seg } from '@/lib/api'
 
 // ตรงกับ UserSummary ของ backend (backend/src/users/dto.rs) — id/role id เป็น uuid ไม่มี id int ภายใน
 export interface UserRoleRef {
@@ -80,11 +80,11 @@ export const usersApi = {
     api.post<{ user: UserResponse } & RegistrationLink>('/users', input),
   // PATCH คืน 204 ไม่มี body (ใช้เปิด/ปิดใช้งาน) — ผู้เรียกต้อง refetch เอง
   update: (id: string, input: { isActive?: boolean; displayName?: string }) =>
-    api.patch<void>(`/users/${id}`, input),
+    api.patch<void>(`/users/${seg(id)}`, input),
   // ฟอร์มแก้ไข: ชื่อที่แสดง + ข้อมูลตัว + ชุด role ในทรานแซกชันเดียว
-  replace: (id: string, input: ReplaceUserInput) => api.put<void>(`/users/${id}`, input),
+  replace: (id: string, input: ReplaceUserInput) => api.put<void>(`/users/${seg(id)}`, input),
   // รหัสเดิมใช้ไม่ได้ทันที + ปลดล็อก + ออกจากระบบทุกอุปกรณ์ + ได้ลิงก์ตั้งรหัสใหม่ (แทนลิงก์เดิม)
-  resetPassword: (id: string) => api.post<RegistrationLink>(`/users/${id}/reset-password`),
+  resetPassword: (id: string) => api.post<RegistrationLink>(`/users/${seg(id)}/reset-password`),
 }
 
 // ลิงก์ที่ส่งให้ผู้ใช้ — token อยู่หลัง # (fragment ไม่ถูกส่งไป server จึงไม่ติด log)

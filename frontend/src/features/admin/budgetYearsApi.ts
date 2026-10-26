@@ -1,4 +1,4 @@
-import { api } from '@/lib/api'
+import { api, seg } from '@/lib/api'
 
 // ตรงกับ BudgetYearResponse ของ backend เป๊ะ ๆ (backend/src/budget_year/dto.rs)
 // id = uuid, วันที่เป็น "YYYY-MM-DD" (ไม่มี timezone — เป็นวันที่ล้วน ๆ)
@@ -26,6 +26,6 @@ export const budgetYearsApi = {
   // POST คืนแค่ 201 ไม่มี body เหมือน roles/pages — refetch list เองหลังสร้าง
   create: (input: CreateBudgetYearInput) => api.post<void>('/budget-years', input),
   update: (id: string, input: UpdateBudgetYearInput) =>
-    api.patch<void>(`/budget-years/${id}`, input),
-  remove: (id: string) => api.delete<void>(`/budget-years/${id}`),
+    api.patch<void>(`/budget-years/${seg(id)}`, input),
+  remove: (id: string) => api.delete<void>(`/budget-years/${seg(id)}`),
 }

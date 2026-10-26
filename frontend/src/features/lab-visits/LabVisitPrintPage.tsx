@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { patientsApi } from '@/features/patients/patientsApi'
 import { useRolePreview } from '@/features/role-preview/RolePreviewContext'
 import { todayIso } from '@/lib/date'
+import { isUuid } from '@/lib/uuid'
 
 import type { Cd4Row, LabDocumentData, LabDocumentKind, RosterRow } from './documents'
 import {
@@ -128,11 +129,13 @@ export function LabVisitPrintPage() {
   const printedRef = useRef(false)
   const { hasEffectivePermission } = useRolePreview()
   const canViewPatients = hasEffectivePermission('patient.view')
+  // id จาก URL ที่ไม่ใช่ uuid (ลิงก์ที่ถูกแก้ให้มี ../ หรือ ?) ไม่ยิง API เลย — effect ข้างล่างยิงทันทีที่เปิดหน้า ไม่ต้องรอผู้ใช้กด
+  const validId = isUuid(id)
 
   // โหลดข้อมูล + บันทึกการส่งออก PDF (ประวัติการใช้งาน, backend ตรวจ lab_visit.export) พร้อมกัน — บันทึกไม่ได้ =
   // ไม่แสดงเอกสาร เปิดหน้านี้ซ้ำ = ส่งออกอีกครั้ง
   useEffect(() => {
-    if (!canViewPatients) return
+    if (!canViewPatients || !validId) return
     let cancelled = false
     Promise.all([labVisitsApi.get(id), patientsApi.list(), labVisitsApi.recordExport(id, kind, 'pdf')])
       .then(([group, patients]) => {
@@ -146,7 +149,7 @@ export function LabVisitPrintPage() {
     return () => {
       cancelled = true
     }
-  }, [id, kind, canViewPatients])
+  }, [id, kind, canViewPatients, validId])
 
   const data = state.status === 'ready' ? state.data : null
 
@@ -192,10 +195,13 @@ export function LabVisitPrintPage() {
           เอกสารมีชื่อ/HN จากทะเบียนผู้ป่วย — ต้องมีสิทธิ์ &quot;ดู&quot; ผู้ป่วยด้วยถึงจะพิมพ์ได้
         </p>
       )}
-      {canViewPatients && state.status === 'loading' && (
+      {canViewPatients && !validId && (
+        <p className="p-6 text-sm text-neutral-600">ไม่พบนัดหมายนี้ (ลิงก์ไม่ถูกต้อง) ปิดแท็บแล้วเปิดจากหน้านัดหมายใหม่</p>
+      )}
+      {canViewPatients && validId && state.status === 'loading' && (
         <p className="p-6 text-sm text-neutral-600">กำลังเตรียมเอกสาร...</p>
       )}
-      {state.status === 'error' && (
+      {validId && state.status === 'error' && (
         <p className="p-6 text-sm text-red-700">โหลดข้อมูลหรือบันทึกการส่งออกไม่สำเร็จ (นัดหมายอาจถูกลบไปแล้ว หรือไม่มีสิทธิ์ส่งออก) ปิดแท็บแล้วลองใหม่</p>
       )}
       {data && (

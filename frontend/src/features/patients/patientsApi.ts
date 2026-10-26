@@ -1,4 +1,4 @@
-import { api } from '@/lib/api'
+import { api, seg } from '@/lib/api'
 
 // ตรงกับ PatientResponse / PatientRequest ของ backend เป๊ะ ๆ (backend/src/patient/dto.rs)
 // id ทุกตัว = uuid; วันที่เป็น "YYYY-MM-DD"; ข้อมูลระบุตัวคนไข้ (hn, napNo, firstName, lastName) ถูกถอดรหัส
@@ -64,6 +64,6 @@ export const patientsApi = {
   options: () => api.get<PatientOptions>('/patients/options'),
   // POST คืนแค่ 201 ไม่มี body — refetch list เองหลังสร้าง; PUT แทนที่ทั้งชุด (ฟิลด์ nullable ส่ง null = ล้างค่า)
   create: (input: PatientInput) => api.post<void>('/patients', input),
-  update: (id: string, input: PatientInput) => api.put<void>(`/patients/${id}`, input),
-  remove: (id: string) => api.delete<void>(`/patients/${id}`),
+  update: (id: string, input: PatientInput) => api.put<void>(`/patients/${seg(id)}`, input),
+  remove: (id: string) => api.delete<void>(`/patients/${seg(id)}`),
 }

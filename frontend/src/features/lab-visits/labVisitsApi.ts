@@ -1,4 +1,4 @@
-import { api } from '@/lib/api'
+import { api, seg } from '@/lib/api'
 
 import type { LabDocumentKind } from './documents'
 
@@ -61,18 +61,20 @@ export const labVisitsApi = {
   list: () => api.get<LabVisitGroup[]>('/lab-visit-groups'),
   // ตัวเลือกปีงบประมาณ/กลุ่มคนไข้ — ต้องมี lab_visit.view (ไม่ต้องมีสิทธิ์ดูหน้า /budget-years, /patient-groups)
   options: () => api.get<LabVisitOptions>('/lab-visit-groups/options'),
-  get: (id: string) => api.get<LabVisitGroupDetail>(`/lab-visit-groups/${id}`),
+  get: (id: string) => api.get<LabVisitGroupDetail>(`/lab-visit-groups/${seg(id)}`),
   // POST คืน uuid ของนัดหมายใหม่ (ไว้พาไปหน้ารายชื่อต่อ); PUT/DELETE คืน 204 ไม่มี body
   create: (input: LabVisitGroupInput) => api.post<{ id: string }>('/lab-visit-groups', input),
-  update: (id: string, input: LabVisitGroupInput) => api.put<void>(`/lab-visit-groups/${id}`, input),
-  remove: (id: string) => api.delete<void>(`/lab-visit-groups/${id}`),
+  update: (id: string, input: LabVisitGroupInput) =>
+    api.put<void>(`/lab-visit-groups/${seg(id)}`, input),
+  remove: (id: string) => api.delete<void>(`/lab-visit-groups/${seg(id)}`),
   // เพิ่มคนไข้หลายคนต่อท้ายตามลำดับที่ส่ง — คนใดคนหนึ่งไม่ผ่าน = ไม่เพิ่มสักคน
   addVisits: (groupId: string, patientIds: string[]) =>
-    api.post<void>(`/lab-visit-groups/${groupId}/visits`, { patientIds }),
-  updateVisit: (id: string, input: LabVisitInput) => api.put<void>(`/lab-visits/${id}`, input),
-  removeVisit: (id: string) => api.delete<void>(`/lab-visits/${id}`),
+    api.post<void>(`/lab-visit-groups/${seg(groupId)}/visits`, { patientIds }),
+  updateVisit: (id: string, input: LabVisitInput) =>
+    api.put<void>(`/lab-visits/${seg(id)}`, input),
+  removeVisit: (id: string) => api.delete<void>(`/lab-visits/${seg(id)}`),
   // บันทึกการส่งออกเอกสาร (ประวัติการใช้งาน) — เรียกก่อนสร้าง Excel/แสดงหน้าพิมพ์ทุกครั้ง ต้องมี lab_visit.export
   // ไม่สำเร็จ (403/404) = ไม่ส่งออก
   recordExport: (groupId: string, document: LabDocumentKind, format: 'excel' | 'pdf') =>
-    api.post<void>(`/lab-visit-groups/${groupId}/exports`, { document, format }),
+    api.post<void>(`/lab-visit-groups/${seg(groupId)}/exports`, { document, format }),
 }

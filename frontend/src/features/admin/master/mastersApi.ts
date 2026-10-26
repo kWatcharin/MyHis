@@ -1,4 +1,4 @@
-import { api } from '@/lib/api'
+import { api, seg } from '@/lib/api'
 
 import type { MasterApi } from './types'
 
@@ -9,7 +9,7 @@ export function createMasterApi<T>(path: string): MasterApi<T> {
   return {
     list: () => api.get<T[]>(path),
     create: (input) => api.post<void>(path, input),
-    update: (id, input) => api.patch<void>(`${path}/${id}`, input),
-    remove: (id) => api.delete<void>(`${path}/${id}`),
+    update: (id, input) => api.patch<void>(`${path}/${seg(id)}`, input),
+    remove: (id) => api.delete<void>(`${path}/${seg(id)}`),
   }
 }

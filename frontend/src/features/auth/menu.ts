@@ -33,6 +33,18 @@ export function filterMenuPages<T extends MenuPage>(pages: T[], permissions: rea
   )
 }
 
+// route ของเมนูต้องเป็น path ภายในแอป: ขึ้นต้น "/" ตัวเดียว (ไม่ใช่ "//host" หรือ "/\host" ที่เบราว์เซอร์อ่านเป็นโดเมนอื่น) และไม่มี
+// "\", ช่องว่าง, control — กฎเดียวกับ backend (users/dto.rs valid_menu_route) ใช้ทั้งตอนกรอกฟอร์มเพจและตอนสร้างเมนู เพราะ <Link>
+// ของ react-router ถือ route ที่ไม่ใช่ path ภายในเป็นลิงก์ภายนอก แล้วเรนเดอร์เป็น <a href> ธรรมดา (เมนูของทุกคนที่เห็นเพจนั้นจะพาออกนอกโดเมน)
+export function isInternalRoute(route: string): boolean {
+  if (!route.startsWith('/') || route.startsWith('//')) return false
+  for (const char of route) {
+    const code = char.codePointAt(0) ?? 0
+    if (char === '\\' || code <= 0x20 || code === 0x7f || /\s/.test(char)) return false
+  }
+  return true
+}
+
 // เมนูถือว่า active เมื่ออยู่หน้านั้นพอดีหรือหน้าย่อยของมัน (เช่น /lab/appointments/<id> ยังไฮไลต์ "นัดหมายแล็ป")
 export function isRouteActive(pathname: string, route: string): boolean {
   return pathname === route || pathname.startsWith(`${route}/`)
@@ -59,12 +71,14 @@ export interface MenuNode {
 }
 
 function isLink(item: MenuItem): item is MenuLink {
-  return item.route !== null
+  return item.route !== null && isInternalRoute(item.route)
 }
 
 // จัดรายการเมนูแบบแบน (backend เรียงตามโครงเมนูมาแล้ว) เป็นต้นไม้ 2 ชั้น คงลำดับเดิมในแต่ละชั้น
-// เพจย่อยที่หาเพจหลักไม่เจอหรือไม่มี route (ไม่ควรเกิด — backend กันไว้) ถูกตัดทิ้ง
-export function buildMenuTree(items: MenuItem[]): MenuNode[] {
+// เพจย่อยที่หาเพจหลักไม่เจอหรือไม่มี route (ไม่ควรเกิด — backend กันไว้) ถูกตัดทิ้ง และรายการที่ route ไม่ใช่ path ภายในแอป
+// (ข้อมูลเก่า/ถูกแก้ตรง) ไม่ถูกแสดงเป็นลิงก์เลย — ทั้ง sidebar จริงและโหมดดูสิทธิ์ของ role อื่นสร้างเมนูผ่านฟังก์ชันนี้
+export function buildMenuTree(rawItems: MenuItem[]): MenuNode[] {
+  const items = rawItems.filter((item) => item.route === null || isInternalRoute(item.route))
   const nodes: MenuNode[] = items
     .filter((item) => item.refId === null)
     .map((item) => ({ item, children: [] }))
