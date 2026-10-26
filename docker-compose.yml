@@ -1,34 +1,97 @@
-# โครงร่างคร่าว ๆ ตาม docs/infrastructure.md — ยังไม่ครบ ยังไม่ทดสอบรัน
+# ตาม docs/infrastructure.md — ยังไม่ได้ทดสอบรันบนเครื่องปลายทางจริง
 # 4 container: caddy (หน้าบ้าน, publish 80/443) / backend (ไม่ publish) / frontend (ไม่ publish) / db (ไม่ publish)
+# เส้นทางทราฟฟิก: อินเทอร์เน็ต → caddy (TLS) → frontend:8080 (หน้าเว็บ + security header) → /api/* → backend:8080 → db
+#
+# network 3 วง (docs/infrastructure.md ข้อ 2): caddy ต้องไม่เห็น backend และ db
+#   edge = caddy + frontend         app = frontend + backend (ไม่ internal: backend ต้องออกเน็ตไป Cloudflare Turnstile)
+#   data = backend + db (internal: ไม่มีทางออกนอกเครื่อง และ publish พอร์ตผ่านวงนี้ไม่ได้)
+
+# หมุนเวียน log ของ Docker ไม่ให้ดิสก์เต็ม (docs/infrastructure.md ข้อ 7)
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
 
 services:
   caddy:
-    image: caddy:2
+    # ปักเวอร์ชันตรง ๆ (ไม่ใช้ tag ลอย) — ให้ค่าปริยายของ timeout/limit ไม่เปลี่ยนเงียบ ๆ ตอน pull ใหม่ ขยับพร้อม frontend/Dockerfile
+    image: caddy:2.11.7
+    restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
+    # ส่งเฉพาะ DOMAIN เข้า container หน้าบ้าน (ops/Caddyfile ใช้ {$DOMAIN}) — ห้ามใช้ env_file: .env ที่นี่ เพราะ .env มี
+    # key เข้ารหัสข้อมูลผู้ป่วยและรหัสผ่านฐานข้อมูล ซึ่ง container ที่หันหน้าสู่อินเทอร์เน็ตไม่ควรเห็น
+    # ไม่ตั้ง DOMAIN = localhost (Caddy ออกใบรับรองภายในเครื่อง — ใช้งานจริงไม่ได้ ผู้ดูแลจะเห็นทันที ไม่ใช่เงียบ)
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
     volumes:
       - ./ops/Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
     depends_on:
-      - backend
       - frontend
+    networks:
+      - edge
+    logging: *default-logging
+    mem_limit: 256m
+    pids_limit: 256
 
   backend:
     build: ./backend
+    restart: unless-stopped
     env_file: .env
     depends_on:
       db:
         condition: service_healthy
-    # ไม่ publish พอร์ตออกนอกเครื่อง (caddy คุยกับ backend ผ่าน network ภายใน)
+    networks:
+      - app
+      - data
+    # image ไม่มี curl: เปิด TCP ไป 127.0.0.1:8080 ด้วย bash แล้วส่ง GET /health ตรวจบรรทัดสถานะ 200
+    # (backend ใช้ปิดได้เองเมื่อค้างจนไม่ตอบ — restart: unless-stopped กู้เฉพาะ process ที่ตาย ไม่ใช่ที่ค้าง)
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -c
+        - |
+          exec 3<>/dev/tcp/127.0.0.1/8080
+          printf 'GET /health HTTP/1.0\r\n\r\n' >&3
+          head -n 1 <&3 | grep -q ' 200 '
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging: *default-logging
+    mem_limit: 1g
+    # tokio ใช้ blocking pool ได้ถึง 512 thread (argon2, แปลงผลหน้า SQL) — ต้องเผื่อเกิน 512
+    pids_limit: 1024
+    # ไม่ publish พอร์ตออกนอกเครื่อง (frontend คุยกับ backend ผ่าน network ภายใน)
 
   frontend:
     build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - edge
+      - app
+    logging: *default-logging
+    mem_limit: 256m
+    pids_limit: 256
     # ไม่ publish พอร์ตออกนอกเครื่อง (caddy คุยกับ frontend ผ่าน network ภายใน เหมือน backend)
 
   db:
     image: postgres:16
-    env_file: .env
+    restart: unless-stopped
+    # ส่งเฉพาะ 3 ตัวแปรที่ postgres ใช้ (ค่ามาจาก .env ตอน compose แทนค่า ${…}) — ห้ามใช้ env_file: .env ที่นี่: .env มี key เข้ารหัสข้อมูลผู้ป่วย
+    # และ entrypoint ของ image ลบเฉพาะตัวแปร POSTGRES_* ก่อนรัน server ตัวแปรอื่นจะค้างใน environment ที่ SQL ระดับ superuser อ่านได้
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    networks:
+      - data
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
@@ -36,7 +99,14 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    logging: *default-logging
     # ห้าม publish พอร์ต 5432 ออกนอกเครื่อง (docs/infrastructure.md ข้อ 2)
+
+networks:
+  edge:
+  app:
+  data:
+    internal: true
 
 volumes:
   pg_data:

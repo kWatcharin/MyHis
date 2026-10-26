@@ -9,6 +9,18 @@
 {
 	# ไม่ใช้ admin API ของ Caddy (config คงที่จากไฟล์นี้) — ไม่เปิดพอร์ต 2019 ใน container
 	admin off
+
+	servers {
+		# ขีดจำกัดระดับการเชื่อมต่อ ชุดเดียวกับ Caddy หน้าบ้าน (ops/Caddyfile) ยกเว้น idle ที่ยาวกว่า keep-alive ของฝั่งหน้าบ้าน
+		# (2 นาที) เพื่อไม่ให้ชั้นนี้ปิด connection ที่ชั้นหน้ากำลังจะนำกลับมาใช้
+		timeouts {
+			read_header 10s
+			read_body 30s
+			write 30s
+			idle 5m
+		}
+		max_header_size 16KB
+	}
 }
 
 :8080 {
@@ -28,6 +40,16 @@
 	handle /api/* {
 		# response ของ API มีข้อมูลคนไข้ — ห้ามเบราว์เซอร์/ตัวกลาง cache
 		header Cache-Control "no-store"
+
+		# มาจาก Caddy หน้าบ้าน (ops/Caddyfile): X-Real-IP = IP ผู้ใช้จริงที่ชั้นนั้นตัดสินแล้ว ({client_ip}: CF-Connecting-IP เมื่อมาทาง
+		# Cloudflare ไม่งั้นคือ IP ของ TCP peer; ทับค่าที่ผู้ใช้ส่งมาเองแล้ว) ตั้งเป็น
+		# X-Forwarded-For ตัวเดียวให้ backend (ประวัติการเข้าออกใช้ค่าขวาสุด — auth/handlers.rs client_ip) ไม่งั้น Caddy ชั้นนี้
+		# จะเขียน XFF เป็น IP ของ Caddy หน้าบ้านซึ่งเป็นค่าเดียวกันทุกคน; พอร์ตนี้ไม่ publish ออกนอก network ภายใน
+		# (ถ้าเข้าตรงโดยไม่ผ่านหน้าบ้าน เช่นตอน dev ไม่มี X-Real-IP ก็ใช้พฤติกรรมปริยายของ Caddy)
+		@via_front header X-Real-IP *
+		reverse_proxy @via_front backend:8080 {
+			header_up X-Forwarded-For {http.request.header.X-Real-IP}
+		}
 		reverse_proxy backend:8080
 	}
 

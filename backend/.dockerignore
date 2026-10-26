@@ -1,1 +1,5 @@
 target/
+# ไฟล์ความลับห้ามเข้า build context (ไม่งั้นค้างใน layer ของ builder stage และ build cache) — .env.example เก็บไว้ได้
+.env
+.env.*
+!.env.example

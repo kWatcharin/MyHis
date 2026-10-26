@@ -1,6 +1,36 @@
-# โครงร่างคร่าว ๆ — ยังไม่ทดสอบ
-# ตั้ง reverse proxy + TLS อัตโนมัติ ตาม docs/infrastructure.md
+# Caddy หน้าบ้าน (publish 80/443, TLS อัตโนมัติ) — ทราฟฟิกทั้งหมดเข้าทางนี้ แล้วส่งต่อให้ container frontend (:8080)
+# ซึ่งเสิร์ฟหน้าเว็บ + header ความปลอดภัย (CSP ฯลฯ) และ proxy /api/* ไปที่ backend อีกชั้น (frontend/Caddyfile)
+# ห้ามชี้ตรงไป backend: backend ไม่ตั้ง security header/Cache-Control และไม่เสิร์ฟหน้าเว็บ
+# ค่า DOMAIN มาจาก environment ของ service caddy ใน docker-compose.yml (ค่าจาก .env — ไม่ใส่ .env ทั้งไฟล์เข้า container นี้)
+# ดู docs/infrastructure.md ข้อ 2 และ 6
+{
+	servers {
+		# หน้า Caddy มี Cloudflare proxy (ส้ม): TCP peer ที่เห็นคือ IP ของ Cloudflare ไม่ใช่ผู้ใช้ — IP ผู้ใช้จริงอยู่ใน CF-Connecting-IP
+		# เชื่อ header นั้นเฉพาะเมื่อ peer อยู่ในช่วง IP ของ Cloudflare (ดึงจาก https://www.cloudflare.com/ips-v4 และ /ips-v6 เมื่อ
+		# 2026-10-23 — ตรวจรายการใหม่ปีละครั้ง/เมื่อ Cloudflare ประกาศ); ส่งจากที่อื่น (ยิงตรงเข้า origin) header นี้ถูกเมิน
+		# {client_ip} จึงเป็น IP ของ peer เองเสมอเมื่อไม่ได้มาทาง Cloudflare (รวมถึงตอน dev ที่ไม่มี Cloudflare)
+		# ไม่ใช้ plugin ของ Cloudflare เพราะต้อง build image Caddy เอง (supply chain ใหม่) — ดู docs/infrastructure.md หัวข้อ Cloudflare
+		trusted_proxies static 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
+		client_ip_headers CF-Connecting-IP
+
+		# ขีดจำกัดระดับการเชื่อมต่อ (ผู้ไม่ระบุตัวตนเปิด connection แล้วเงียบ / ส่ง header ไม่ครบ / ค้าง keep-alive ไม่ให้ถือไว้ไม่จำกัด)
+		# backend มีด่านระดับ connection ของตัวเอง (conn_guard.rs: ≤ 512 connection, ตัดที่ไม่คืบหน้า 5 นาที) แต่แยก ‘ค้างกลาง header’
+		# ไม่ได้ ชั้นนี้ (read_header) จึงยังเป็นด่านหลักของการส่ง header ช้า
+		timeouts {
+			read_header 10s
+			read_body 30s
+			write 30s
+			idle 2m
+		}
+		max_header_size 16KB
+	}
+}
 
 {$DOMAIN} {
-	reverse_proxy backend:8080
+	reverse_proxy frontend:8080 {
+		# IP ผู้ใช้จริง = {client_ip} (CF-Connecting-IP เมื่อมาทาง Cloudflare, ไม่งั้น IP ของ TCP peer — ดู servers ด้านบน)
+		# Caddy ชั้นใน (frontend/Caddyfile) เอาค่านี้ไปตั้งเป็น X-Forwarded-For ที่ backend ใช้ (ขวาสุด)
+		# ค่า X-Real-IP ที่ผู้ใช้ส่งมาเองถูกทับตรงนี้เสมอ
+		header_up X-Real-IP {client_ip}
+	}
 }

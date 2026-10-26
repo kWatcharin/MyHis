@@ -6,7 +6,7 @@
 # bun version ปักตรงตามที่ install ไว้บนเครื่อง dev ตอนตั้งค่า (กันยายน 2026) — อัปเดตตรงนี้เวลา
 # จะขยับเวอร์ชัน ใช้ image เต็ม (ไม่ใช่ -alpine/-slim) เฉพาะ builder stage เพราะ tailwindcss v4
 # ใช้ lightningcss ซึ่งมี native binding ต่อแพลตฟอร์ม — บาง alpine (musl) ไม่มี prebuilt binary
-# ให้ตรง เสี่ยง build พังแบบเงียบ ๆ runtime stage ใช้ caddy:2-alpine ได้ปกติเพราะเป็น Go binary
+# ให้ตรง เสี่ยง build พังแบบเงียบ ๆ runtime stage ใช้ caddy (-alpine) ได้ปกติเพราะเป็น Go binary
 # เดี่ยว ๆ ไม่มีปัญหานี้
 
 FROM oven/bun:1.4.2 AS builder
@@ -24,7 +24,9 @@ RUN bun run build
 
 # --- Runtime: เสิร์ฟไฟล์ static ด้วย caddy (ใช้ image เดียวกับ reverse proxy หลักของโปรเจกต์
 # ไม่เพิ่มเทคโนโลยีใหม่ เช่น nginx เข้ามาในสแตกแค่เพื่องานนี้) ---
-FROM caddy:2-alpine
+# ปักเวอร์ชันตรง ๆ (ไม่ใช้ tag ลอย `2-alpine`) ให้ค่าปริยายของ timeout/limit ของ Caddy ไม่เปลี่ยนเงียบ ๆ ตอน build ใหม่ —
+# ใช้เวอร์ชันเดียวกับ docker-compose.yml (caddy หน้าบ้าน) ขยับพร้อมกัน
+FROM caddy:2.11.7-alpine
 COPY --from=builder /app/dist /usr/share/caddy
 COPY Caddyfile /etc/caddy/Caddyfile
 # ไม่รันเป็น root — Caddy ต้องเขียน /config /data (XDG ของ image) ได้ จึงยกให้ nobody ส่วนไฟล์เว็บอ่านได้ทุกคนอยู่แล้ว

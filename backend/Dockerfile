@@ -17,9 +17,10 @@ WORKDIR /app
 # package นี้มีทั้ง lib (src/lib.rs) และ bin (src/main.rs) — ต้องปลอมทั้งคู่ ไม่ใช่แค่ main.rs
 # เหมือนตัวอย่างทั่วไปที่มีแค่ bin เดียว เพราะ lib.rs ของเรามี query!/query_as! จริงที่ต้องมี
 # DATABASE_URL หรือ .sqlx ตอน compile ถ้าไม่ปลอม lib.rs ด้วย ขั้นตอนนี้จะ compile lib จริงและพังทันที
+# --locked: Cargo.lock ต้องตรงกับ Cargo.toml เสมอ — ถ้าไม่ตรง build ล้ม แทนที่จะ resolve เวอร์ชัน dependency ใหม่เงียบ ๆ ตอน build
 COPY Cargo.toml Cargo.lock ./
 RUN mkdir src && echo "fn main() {}" > src/main.rs && echo "" > src/lib.rs
-RUN cargo build --release
+RUN cargo build --release --locked
 # ลบ artifact ของทั้ง bin และ lib ปลอม (ทั้งใน deps/ และตัว link ด้านนอกของ bin) ไม่แตะ .rlib ของ
 # dependency ตัวอื่นที่ cache ไว้ — กันเคส cargo คิดว่า target ของเรายัง fresh อยู่แล้วข้าม compile
 # จริงในรอบถัดไป หมายเหตุ: cargo แปลง `-` ในชื่อ package เป็น `_` ในชื่อไฟล์ใต้ deps/
@@ -32,7 +33,7 @@ RUN rm -f target/release/deps/my_his_backend-* \
 # แทนการต่อ DB จริง (ไม่มี DB ให้ต่อตอน build อยู่แล้ว)
 COPY . .
 ENV SQLX_OFFLINE=true
-RUN cargo build --release
+RUN cargo build --release --locked
 
 # --- Runtime ---
 FROM debian:bookworm-slim
