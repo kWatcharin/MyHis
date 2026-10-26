@@ -20,6 +20,7 @@ import {
   FieldLabel,
 } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { ThaiDateInput } from '@/components/ui/thai-date-input'
 
 import type { BudgetYear } from './budgetYearsApi'
 
@@ -63,7 +64,7 @@ interface BudgetYearFormDialogProps {
   onSubmit: (values: BudgetYearFormValues) => Promise<void>
 }
 
-// ใช้ร่วมกันทั้งสร้าง/แก้ไขปีงบประมาณ — วันที่ใช้ <input type="date"> ค่าเป็น "YYYY-MM-DD"
+// ใช้ร่วมกันทั้งสร้าง/แก้ไขปีงบประมาณ — วันที่ใช้ ThaiDateInput (แสดง พ.ศ.) ค่าเป็น "YYYY-MM-DD"
 // ตรงกับที่ backend รับ/ส่ง จึงเทียบ string ตรง ๆ ได้
 export function BudgetYearFormDialog({
   open,
@@ -154,12 +155,7 @@ export function BudgetYearFormDialog({
                 render={({ field, fieldState }) => (
                   <Field data-invalid={fieldState.invalid}>
                     <FieldLabel htmlFor="budget-year-start">วันที่เริ่มต้น</FieldLabel>
-                    <Input
-                      {...field}
-                      id="budget-year-start"
-                      type="date"
-                      aria-invalid={fieldState.invalid}
-                    />
+                    <ThaiDateInput {...field} id="budget-year-start" aria-invalid={fieldState.invalid} />
                     {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
                   </Field>
                 )}
@@ -170,12 +166,7 @@ export function BudgetYearFormDialog({
                 render={({ field, fieldState }) => (
                   <Field data-invalid={fieldState.invalid}>
                     <FieldLabel htmlFor="budget-year-end">วันที่สิ้นสุด</FieldLabel>
-                    <Input
-                      {...field}
-                      id="budget-year-end"
-                      type="date"
-                      aria-invalid={fieldState.invalid}
-                    />
+                    <ThaiDateInput {...field} id="budget-year-end" aria-invalid={fieldState.invalid} />
                     {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
                   </Field>
                 )}

@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog'
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { ThaiDateInput } from '@/components/ui/thai-date-input'
 import { NativeSelect } from '@/components/ui/native-select'
 import { addMonthsClamped, formatThaiDate } from '@/lib/date'
 
@@ -220,18 +221,15 @@ export function LabVisitGroupFormDialog({
                   render={({ field, fieldState }) => (
                     <Field data-invalid={fieldState.invalid}>
                       <FieldLabel htmlFor="lab-group-cd4FirstDate">วันนัดตรวจ CD4 ครั้งที่ 1</FieldLabel>
-                      <Input
+                      <ThaiDateInput
                         {...field}
                         id="lab-group-cd4FirstDate"
-                        type="date"
                         aria-invalid={fieldState.invalid}
-                        onChange={(event) => {
-                          field.onChange(event)
+                        onChange={(value) => {
+                          field.onChange(value)
                           // ยังไม่ได้แก้ครั้งที่ 2 เอง → ตั้งเป็นครั้งที่ 1 + 6 เดือนให้อัตโนมัติ
                           if (!secondEditedRef.current) {
-                            const next = event.target.value
-                              ? addMonthsClamped(event.target.value, CD4_INTERVAL_MONTHS)
-                              : null
+                            const next = value ? addMonthsClamped(value, CD4_INTERVAL_MONTHS) : null
                             form.setValue('cd4SecondDate', next ?? '', {
                               shouldValidate: form.formState.isSubmitted,
                             })
@@ -249,14 +247,13 @@ export function LabVisitGroupFormDialog({
                   render={({ field, fieldState }) => (
                     <Field data-invalid={fieldState.invalid}>
                       <FieldLabel htmlFor="lab-group-cd4SecondDate">วันนัดตรวจ CD4 ครั้งที่ 2</FieldLabel>
-                      <Input
+                      <ThaiDateInput
                         {...field}
                         id="lab-group-cd4SecondDate"
-                        type="date"
                         aria-invalid={fieldState.invalid}
-                        onChange={(event) => {
+                        onChange={(value) => {
                           secondEditedRef.current = true
-                          field.onChange(event)
+                          field.onChange(value)
                         }}
                       />
                       {/* สูตรของค่าเริ่มต้นแสดงคู่กับผลเสมอ ให้ตรวจซ้ำด้วยตาได้ (CLAUDE.md) */}
@@ -292,7 +289,7 @@ export function LabVisitGroupFormDialog({
                   render={({ field, fieldState }) => (
                     <Field data-invalid={fieldState.invalid}>
                       <FieldLabel htmlFor="lab-group-vlDate">วันนัดตรวจ VL</FieldLabel>
-                      <Input {...field} id="lab-group-vlDate" type="date" aria-invalid={fieldState.invalid} />
+                      <ThaiDateInput {...field} id="lab-group-vlDate" aria-invalid={fieldState.invalid} />
                       {field.value && <FieldDescription>{formatThaiDate(field.value)}</FieldDescription>}
                       <div className="flex flex-wrap gap-2">
                         <Button

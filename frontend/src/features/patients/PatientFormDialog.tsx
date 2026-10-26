@@ -29,6 +29,7 @@ import {
   FieldLabel,
 } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { ThaiDateInput } from '@/components/ui/thai-date-input'
 import { NativeSelect } from '@/components/ui/native-select'
 import { todayIso } from '@/lib/date'
 import { textIncludes } from '@/lib/search'
@@ -331,7 +332,22 @@ export function PatientFormDialog({
                     </Field>
                   )}
                 />
-                <TextField control={form.control} name="birthDate" label="วันเกิด" type="date" max={todayIso()} />
+                <Controller
+                  name="birthDate"
+                  control={form.control}
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel htmlFor="patient-birthDate">วันเกิด</FieldLabel>
+                      <ThaiDateInput
+                        {...field}
+                        id="patient-birthDate"
+                        max={todayIso()}
+                        aria-invalid={fieldState.invalid}
+                      />
+                      {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                    </Field>
+                  )}
+                />
                 {birthDate ? (
                   <Field>
                     <FieldLabel htmlFor="patient-age-computed">อายุ (ปี)</FieldLabel>

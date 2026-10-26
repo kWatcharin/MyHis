@@ -16,7 +16,7 @@ const THAI_MONTHS_SHORT = [
   'ธ.ค.',
 ]
 
-const THAI_MONTHS_FULL = [
+export const THAI_MONTHS_FULL = [
   'มกราคม',
   'กุมภาพันธ์',
   'มีนาคม',
@@ -31,9 +31,9 @@ const THAI_MONTHS_FULL = [
   'ธันวาคม',
 ]
 
-const BUDDHIST_ERA_OFFSET = 543
+export const BUDDHIST_ERA_OFFSET = 543
 
-function parseIsoDate(isoDate: string): [number, number, number] | null {
+export function parseIsoDate(isoDate: string): [number, number, number] | null {
   const [year, month, day] = isoDate.split('-').map(Number)
   if (!year || !month || !day || month > 12 || day > 31) return null
   return [year, month, day]
@@ -41,7 +41,7 @@ function parseIsoDate(isoDate: string): [number, number, number] | null {
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
-function toIso(year: number, month: number, day: number): string {
+export function toIso(year: number, month: number, day: number): string {
   return `${year}-${pad(month)}-${pad(day)}`
 }
 
@@ -51,6 +51,28 @@ export function formatThaiDate(isoDate: string): string {
   if (!parts) return isoDate
   const [year, month, day] = parts
   return `${day} ${THAI_MONTHS_SHORT[month - 1]} ${year + BUDDHIST_ERA_OFFSET}`
+}
+
+// "2026-01-15" → "15/01/2569" (ค่าในช่องกรอกวันที่ — พิมพ์แก้ได้ตรง ๆ)
+export function formatThaiNumericDate(isoDate: string): string {
+  const parts = parseIsoDate(isoDate)
+  if (!parts) return ''
+  const [year, month, day] = parts
+  return `${pad(day)}/${pad(month)}/${year + BUDDHIST_ERA_OFFSET}`
+}
+
+// ข้อความที่พิมพ์ในช่องวันที่ (ปี พ.ศ. 4 หลัก) → "YYYY-MM-DD" ค.ศ. หรือ null ถ้าไม่ใช่วันที่จริง
+// รับ "15/1/2569", "15-01-2569", "15.01.2569", "15 01 2569" และตัวเลขติดกัน "15012569" — ปีต่ำกว่า 2400 ถือว่าไม่ใช่ พ.ศ.
+export function parseThaiNumericDate(text: string): string | null {
+  const trimmed = text.trim()
+  const parts = /^\d{8}$/.test(trimmed)
+    ? [trimmed.slice(0, 2), trimmed.slice(2, 4), trimmed.slice(4)]
+    : trimmed.split(/[/.\-\s]+/)
+  if (parts.length !== 3 || !parts.every((part) => /^\d+$/.test(part)) || parts[2].length !== 4) return null
+  const [day, month, buddhistYear] = parts.map(Number)
+  const year = buddhistYear - BUDDHIST_ERA_OFFSET
+  if (buddhistYear < 2400 || month < 1 || month > 12 || day < 1 || day > daysInMonth(year, month)) return null
+  return toIso(year, month, day)
 }
 
 // "2025-12-09" → "9 ธ.ค. 68" (ปี พ.ศ. 2 หลักแบบที่เขียนในเอกสารกระดาษ)
@@ -70,7 +92,7 @@ export function formatThaiMonthYear(isoDate: string): string {
   return `${THAI_MONTHS_FULL[month - 1]} ${year + BUDDHIST_ERA_OFFSET}`
 }
 
-function daysInMonth(year: number, month: number): number {
+export function daysInMonth(year: number, month: number): number {
   // วันที่ 0 ของเดือนถัดไป = วันสุดท้ายของเดือนนี้ (Date.UTC ไม่ขึ้นกับ timezone เครื่อง)
   return new Date(Date.UTC(year, month, 0)).getUTCDate()
 }

@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { ThaiDateInput } from '@/components/ui/thai-date-input'
 import { NativeSelect } from '@/components/ui/native-select'
 import {
   Table,
@@ -135,21 +136,11 @@ export function AuthHistoryPage() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
               <Field>
                 <FieldLabel htmlFor="auth-history-from">จากวันที่</FieldLabel>
-                <Input
-                  id="auth-history-from"
-                  type="date"
-                  value={draft.from}
-                  onChange={(e) => set('from')(e.target.value)}
-                />
+                <ThaiDateInput id="auth-history-from" value={draft.from} onChange={set('from')} />
               </Field>
               <Field>
                 <FieldLabel htmlFor="auth-history-to">ถึงวันที่</FieldLabel>
-                <Input
-                  id="auth-history-to"
-                  type="date"
-                  value={draft.to}
-                  onChange={(e) => set('to')(e.target.value)}
-                />
+                <ThaiDateInput id="auth-history-to" value={draft.to} onChange={set('to')} />
               </Field>
               <Field>
                 <FieldLabel htmlFor="auth-history-user">ผู้ใช้</FieldLabel>
