@@ -155,8 +155,15 @@ pub struct RoleResponse {
 #[derive(Debug, Deserialize, Validate)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct CreatePageRequest {
-    #[validate(length(min = 1, message = "label is required"))]
+    // เพดานความยาว: label/icon ถูกส่งซ้ำในเมนูของทุกคนและดึงซ้ำตามจำนวนสิทธิ์ของเพจ (list_pages) — ไม่จำกัด = ผู้ถือ page.create
+    // ทำให้ GET /menu ของทุกคนหนักได้ (security audit รอบ 2)
+    #[validate(length(
+        min = 1,
+        max = 100,
+        message = "label is required (at most 100 characters)"
+    ))]
     pub label: String,
+    #[validate(length(max = 64, message = "icon must be at most 64 characters"))]
     pub icon: Option<String>,
     // ไม่ส่ง/null = เพจหลักที่เป็นหัวข้อกลุ่มเมนู (ไม่มีหน้าของตัวเอง) — เพจย่อยต้องมี route (service ตรวจ)
     #[validate(length(min = 1, message = "route cannot be empty"))]
@@ -180,8 +187,13 @@ where
 #[derive(Debug, Deserialize, Validate)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct UpdatePageRequest {
-    #[validate(length(min = 1, message = "label cannot be empty"))]
+    #[validate(length(
+        min = 1,
+        max = 100,
+        message = "label cannot be empty (at most 100 characters)"
+    ))]
     pub label: Option<String>,
+    #[validate(length(max = 64, message = "icon must be at most 64 characters"))]
     pub icon: Option<String>,
     #[validate(length(min = 1, message = "route cannot be empty"))]
     pub route: Option<String>,

@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update registration_links l set used_at = $2\n           where l.token_hash = $1 and l.used_at is null and l.revoked_at is null and l.expires_at > $2\n             and exists (select 1 from users u where u.id = l.user_id and u.is_active)\n             and exists (select 1 from users c where c.id = l.created_by and c.is_active)\n             and exists (select 1 from user_roles cr join role_permissions cp on cp.role_id = cr.role_id\n                         where cr.user_id = l.created_by\n                           and ((l.purpose = 'reset' and cp.permission = 'user.update')\n                             or (l.purpose = 'create' and cp.permission in ('user.create', 'user.update'))))\n             and not exists (\n                 select rp.permission from user_roles ur join role_permissions rp on rp.role_id = ur.role_id\n                  where ur.user_id = l.user_id\n                 except\n                 select rp.permission from user_roles ur join role_permissions rp on rp.role_id = ur.role_id\n                  where ur.user_id = l.created_by)\n           returning l.user_id as \"user_id: UserId\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id: UserId",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "af3957d579cee7952728c69cdf74c8056f0aae2164860228c896db513066b8bc"
+}

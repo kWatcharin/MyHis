@@ -6,6 +6,7 @@
 //! ของคำสั่งที่รันจริง (หลังแทนตัวช่วยแล้ว จึงไม่มี HN ดิบ), จำนวนแถว, ชื่อตาราง, จำนวนช่องที่ถอดรหัส
 
 use std::collections::{BTreeSet, HashMap};
+use std::sync::Arc;
 use std::time::Instant;
 
 use serde_json::{json, Value};
@@ -16,15 +17,45 @@ use sqlx::{Column, PgPool, Row, TypeInfo, ValueRef};
 use crate::auth::CurrentUser;
 use crate::crypto::Crypto;
 use crate::domain::patient_crypto;
-use crate::domain::{Action, Resource};
+use crate::domain::{Action, Resource, UserId};
+use crate::sql_console::embedded;
 use crate::sql_console::repository::{self, EncryptedColumn, Executed, RepositoryError};
 use crate::sql_console::setup::SqlConsole;
 use crate::sql_console::sql_text;
 use crate::sql_console::value::{self, ValueKind};
 
 pub const MAX_SQL_CHARS: usize = 20_000;
+/// ข้อความ error (400) เมื่อใช้ตัวช่วย :hn() / :nap_no() โดยไม่มี patient.view — หน้าเว็บแปลเป็นไทย (sqlConsoleApi.ts)
+pub const HELPERS_NEED_PATIENT_VIEW: &str = "helpers need patient.view";
 /// แถวสูงสุดที่ส่งกลับ — มีมากกว่านี้ตอบ truncated (ครอบคำสั่งด้วย LIMIT MAX_ROWS + 1 เพื่อรู้ว่ามีเกิน)
 pub const MAX_ROWS: usize = 500;
+/// ขนาดผลลัพธ์สูงสุดต่อคำขอ: ทั้ง (ก) ไบต์ที่รับจาก Postgres (หยุดอ่านทันทีเมื่อเกิน — repository::execute) และ (ข) งบหน่วยความจำของ JSON
+/// ที่แปลงแล้ว (value::Budget — numeric/bytea/array ขยายใหญ่กว่าที่ส่งมา) แถวถูกจำกัดแล้ว (MAX_ROWS) แต่ความกว้างของแถวไม่ถูกจำกัด
+/// → query สั้น ๆ เช่น `select repeat('x', 67108864)` ทำให้ backend จองหน่วยความจำ ~237 MB (วัดใน security audit รอบ 2)
+pub const MAX_RESULT_BYTES: usize = 16 * 1024 * 1024;
+/// คอลัมน์สูงสุดในผลลัพธ์ (Postgres ให้ถึง 1,664) — เกินแล้วปฏิเสธหลัง prepare ก่อนรัน
+pub const MAX_COLUMNS: usize = 200;
+/// ข้อความ error (400) เมื่อผลลัพธ์ใหญ่เกินเพดาน — หน้าเว็บแปลเป็นไทย (sqlConsoleApi.ts) อย่าแก้โดยไม่แก้ตัวแปลด้วย
+pub const RESULT_TOO_LARGE: &str =
+    "result too large: select fewer columns or rows, or shorten the values (cast to ::text and use left())";
+
+/// ชื่อคำสั่งที่ยอมให้บันทึกใน audit / ส่งกลับ เมื่อคำแรกของคำสั่งไม่ใช่การอ่าน — ที่เหลือบันทึกเป็น `OTHER`
+const BLOCKED_COMMANDS: &[&str] = &[
+    "INSERT", "UPDATE", "DELETE", "MERGE", "CREATE", "ALTER", "DROP", "TRUNCATE", "COPY", "SET",
+    "RESET", "DO", "CALL", "GRANT", "REVOKE", "VACUUM", "ANALYZE", "LOCK", "BEGIN", "COMMIT",
+    "ROLLBACK", "PREPARE", "EXECUTE", "LISTEN", "NOTIFY",
+];
+
+/// คำแรกที่ผู้ใช้พิมพ์ (ตัวอักษรล้วน ยาวได้ถึง `MAX_SQL_CHARS`) → ชื่อคำสั่งจากชุดคงที่ หรือ `OTHER` — audit_log เก็บแค่ SHA-256
+/// ของคำสั่ง ไม่เก็บข้อความที่พิมพ์ (ดูหัวไฟล์) ผู้ใช้เลือกขนาด/เนื้อหาของแถว audit ผ่านคำแรกไม่ได้
+fn audit_keyword(word: &str) -> String {
+    let upper = word.to_ascii_uppercase();
+    if BLOCKED_COMMANDS.contains(&upper.as_str()) {
+        upper
+    } else {
+        "OTHER".to_string()
+    }
+}
 /// ข้อความที่ครอบหน้าคำสั่งของผู้ใช้ — ตำแหน่ง error ของ Postgres ต้องลบความยาวนี้ออกก่อนส่งให้หน้าเว็บ
 const WRAP_PREFIX: &str = "select * from (\n";
 
@@ -63,8 +94,9 @@ impl std::fmt::Debug for QueryFailure {
     }
 }
 
-/// เหตุที่หน้า SQL ไม่รันคำสั่ง — `keyword` คือชื่อคำสั่ง SQL (INSERT, DELETE, SELECT FOR UPDATE, …) ไม่ใช่ค่าที่ผู้ใช้พิมพ์
-/// จึงส่งกลับหน้าเว็บและเก็บใน audit ได้
+/// เหตุที่หน้า SQL ไม่รันคำสั่ง — `keyword` คือชื่อคำสั่ง SQL จากชุดคงที่ (INSERT, DELETE, SELECT FOR UPDATE, … หรือ `OTHER` สำหรับคำแรก
+/// ที่ไม่อยู่ในชุด — `audit_keyword`) ไม่ใช่ข้อความที่ผู้ใช้พิมพ์ จึงส่งกลับหน้าเว็บและเก็บใน audit ได้ (ก่อนมี allowlist คำแรกที่เป็นตัวอักษร
+/// ล้วนยาวถึง 20,000 ตัวถูกเก็บลง audit_log, body 400 และ label ของหน้าประวัติ — security audit รอบ 2)
 #[derive(Debug, Clone)]
 pub enum Blocked {
     /// ไม่ใช่การอ่านข้อมูล — ตรวจจากคำแรกก่อนรัน หรือ Postgres ตอบว่าแก้ข้อมูลใน read only ไม่ได้
@@ -181,7 +213,9 @@ struct Prepared {
     blocked: Option<Blocked>,
 }
 
-fn prepare(sql: &str, crypto: &Crypto) -> Result<Prepared, SqlConsoleError> {
+/// `helpers_allowed` = ผู้เรียกถือ patient.view: `:hn()` / `:nap_no()` แปลงข้อความเป็น blind index ที่คำนวณด้วย key ลับ แล้วเทียบกับ
+/// `hn_idx` / `nap_no_idx` (reader role อ่านได้) จึงเดา/ยืนยันเลขระบุตัวผู้ป่วยได้ — ต้องอยู่ใต้เกต patient.view เดียวกับการถอดรหัส
+fn prepare(sql: &str, crypto: &Crypto, helpers_allowed: bool) -> Result<Prepared, SqlConsoleError> {
     if sql.trim().is_empty() {
         return Err(SqlConsoleError::Validation("sql is required".to_string()));
     }
@@ -192,13 +226,18 @@ fn prepare(sql: &str, crypto: &Crypto) -> Result<Prepared, SqlConsoleError> {
     }
     let expanded = sql_text::expand_helpers(sql, |aad, value| crypto.blind_index(aad, value))
         .map_err(|err| SqlConsoleError::Validation(err.to_string()))?;
+    if expanded.replaced > 0 && !helpers_allowed {
+        return Err(SqlConsoleError::Validation(
+            HELPERS_NEED_PATIENT_VIEW.to_string(),
+        ));
+    }
     let body = sql_text::trim_trailing_semicolons(&expanded.sql);
     let body_chars = body.chars().count();
     let keyword = sql_text::leading_keyword(body);
     // ตรวจก่อนส่ง: ปล่อยไปถึง Postgres ก็ถูกตัดอยู่ดี แต่หลังครอบ LIMIT จะกลายเป็น syntax error ที่อ่านไม่รู้เรื่อง
     let blocked = if !sql_text::is_read_keyword(&keyword) {
         Some(Blocked::ReadOnly {
-            keyword: Some(keyword.to_ascii_uppercase()),
+            keyword: Some(audit_keyword(&keyword)),
         })
     } else if sql_text::has_multiple_statements(body) {
         Some(Blocked::MultipleStatements)
@@ -229,23 +268,76 @@ struct Outcome {
 }
 
 /// รัน SQL ของผู้ใช้ด้วย role อ่านอย่างเดียว แล้วบันทึก audit_log (ทั้งสำเร็จและล้มเหลว) — บันทึกไม่ได้ = ไม่ส่งผลให้
+///
+/// ส่วน ‘รัน + บันทึก audit’ ทำใน `tokio::spawn` แล้ว handler แค่รอผล: ถ้า handler ถูกยกเลิก (client ปิดแท็บ/ตัด connection หรือครบ
+/// 10 วินาทีของ TimeoutLayer) task ยังทำต่อจนบันทึก audit — ไม่งั้นคำสั่งที่ Postgres ยังรันต่ออยู่ไม่มีแถว audit เลย (security audit
+/// รอบ 2) ผู้ที่ถูกยกเลิกไม่ได้ข้อมูลกลับ จึงยังไม่มีผลลัพธ์ที่ส่งโดยไม่มี audit; ไม่ครอบคลุมกรณี process ตายกลางทาง
+/// รับค่าที่ own เอง (`PgPool`/`Arc`/`Crypto` โคลนถูก) เพราะ task ต้องอยู่ได้นานกว่า request
 pub async fn run(
-    pool: &PgPool,
-    console: Option<&SqlConsole>,
-    crypto: &Crypto,
+    pool: PgPool,
+    console: Option<Arc<SqlConsole>>,
+    crypto: Crypto,
     actor: &CurrentUser,
     sql: &str,
     decrypt: bool,
 ) -> Result<QueryResult, SqlConsoleError> {
-    let console = authorize(console, actor)?;
-    let prepared = prepare(sql, crypto)?;
-    // ถอดรหัสได้เฉพาะผู้ที่ดูข้อมูลผู้ป่วยได้อยู่แล้ว — ไม่มีสิทธิ์ = เห็นเป็น hex เหมือนไม่ได้ขอถอด
-    let may_decrypt = decrypt && actor.can(Resource::Patient, Action::View);
+    authorize(console.as_deref(), actor)?;
+    let Some(console) = console else {
+        return Err(SqlConsoleError::NotConfigured);
+    };
+    // ถอดรหัสและตัวช่วย :hn()/:nap_no() ใช้ได้เฉพาะผู้ที่ดูข้อมูลผู้ป่วยได้อยู่แล้ว (ถอดรหัสไม่มีสิทธิ์ = เห็นเป็น hex
+    // เหมือนไม่ได้ขอถอด; ตัวช่วยไม่มีสิทธิ์ = 400)
+    let may_view_patients = actor.can(Resource::Patient, Action::View);
+    let prepared = prepare(sql, &crypto, may_view_patients)?;
+    let may_decrypt = decrypt && may_view_patients;
+
+    let job = Job {
+        pool,
+        console,
+        crypto,
+        actor: actor.user.id,
+        sql_chars: sql.chars().count(),
+        prepared,
+        may_decrypt,
+    };
+    match tokio::spawn(run_and_audit(job)).await {
+        Ok(result) => result,
+        // task ล้ม (panic ที่ไม่ใช่ในงานแปลงผลซึ่งมี JoinError ของตัวเอง) — error ธรรมดา ไม่ใช่การข้ามการตอบ
+        Err(_) => Err(SqlConsoleError::QueryFailed(QueryFailure {
+            message: "the query could not be completed".to_string(),
+            code: None,
+            position: None,
+        })),
+    }
+}
+
+/// ทุกอย่างที่ task ‘รัน + บันทึก audit’ ต้องใช้ (own ทั้งหมด)
+struct Job {
+    pool: PgPool,
+    console: Arc<SqlConsole>,
+    crypto: Crypto,
+    actor: UserId,
+    /// ความยาวของ SQL ที่ผู้ใช้พิมพ์ (ตัวอักษร) — เก็บใน audit
+    sql_chars: usize,
+    prepared: Prepared,
+    may_decrypt: bool,
+}
+
+async fn run_and_audit(job: Job) -> Result<QueryResult, SqlConsoleError> {
+    let Job {
+        pool,
+        console,
+        crypto,
+        actor,
+        sql_chars,
+        prepared,
+        may_decrypt,
+    } = job;
 
     let started = Instant::now();
     let outcome = match &prepared.blocked {
         Some(blocked) => Err(SqlConsoleError::Blocked(blocked.clone())),
-        None => execute(console, crypto, &prepared, may_decrypt).await,
+        None => execute(&console, &crypto, &prepared, may_decrypt).await,
     };
     let duration_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
 
@@ -256,7 +348,7 @@ pub async fn run(
     let metadata = match &outcome {
         Ok(outcome) => json!({
             "sqlSha256": sql_sha256,
-            "sqlLength": sql.chars().count(),
+            "sqlLength": sql_chars,
             "status": "ok",
             "rows": outcome.result.rows.len(),
             "truncated": outcome.result.truncated,
@@ -266,7 +358,7 @@ pub async fn run(
         }),
         Err(SqlConsoleError::Blocked(blocked)) => json!({
             "sqlSha256": sql_sha256,
-            "sqlLength": sql.chars().count(),
+            "sqlLength": sql_chars,
             "status": "blocked",
             "reason": blocked.reason(),
             "keyword": blocked.keyword(),
@@ -283,7 +375,7 @@ pub async fn run(
             }
             json!({
                 "sqlSha256": sql_sha256,
-                "sqlLength": sql.chars().count(),
+                "sqlLength": sql_chars,
                 "status": "error",
                 "errorCode": code,
                 "rows": 0,
@@ -291,7 +383,7 @@ pub async fn run(
             })
         }
     };
-    repository::insert_audit(pool, actor.user.id, metadata).await?;
+    repository::insert_audit(&pool, actor, metadata).await?;
 
     let mut outcome = outcome?;
     outcome.result.duration_ms = duration_ms;
@@ -324,7 +416,11 @@ async fn execute_on(
         .map(|(name, _)| name.to_string())
         .collect();
     let encrypted = repository::encrypted_columns(conn, patient_crypto::TABLE, &names).await?;
-    let executed = repository::execute(conn, &prepared.sql, console.statement_timeout())
+    let limits = repository::ResultLimits {
+        max_bytes: MAX_RESULT_BYTES,
+        max_columns: MAX_COLUMNS,
+    };
+    let executed = repository::execute(conn, &prepared.sql, console.statement_timeout(), limits)
         .await
         .map_err(|err| to_failure(err, prepared))?;
 
@@ -338,7 +434,21 @@ async fn execute_on(
         .collect();
     let tables = repository::table_names(conn, &oids).await?;
 
-    let (result, decrypted_cells) = convert(executed, &encrypted, crypto, may_decrypt)?;
+    // แปลงผลลัพธ์/ถอดรหัสเป็นงาน CPU ต่อเนื่อง (ไม่มี await) — รันบน blocking thread ไม่ยึด async worker ที่ใช้ร่วมกัน
+    // และถ้า panic (JoinError) ก็เป็น error ธรรมดาที่ยังถูกบันทึก audit ไม่ใช่ข้ามการบันทึก
+    let crypto = crypto.clone();
+    let decrypt_attempts = console.decrypt_attempts();
+    let (result, decrypted_cells) = tokio::task::spawn_blocking(move || {
+        convert(executed, &encrypted, &crypto, may_decrypt, decrypt_attempts)
+    })
+    .await
+    .map_err(|_| {
+        SqlConsoleError::QueryFailed(QueryFailure {
+            message: "cannot read the result — cast the columns to ::text".to_string(),
+            code: None,
+            position: None,
+        })
+    })??;
     Ok(Outcome {
         result,
         tables,
@@ -346,13 +456,16 @@ async fn execute_on(
     })
 }
 
-/// แปลงแถวเป็น JSON และถอดรหัสช่องที่มาจากคอลัมน์เข้ารหัสจริง (จับคู่ OID ของตาราง + attnum — alias ไม่มีผล
-/// ส่วน expression/union ไม่มีต้นทาง จึงแสดงเป็น hex ตามเดิม) คืนผลลัพธ์ + จำนวนช่องที่ถอดได้
+/// แปลงแถวเป็น JSON และถอดรหัส (เมื่อ `may_decrypt`) คืนผลลัพธ์ + จำนวนช่องที่ถอดได้
+/// - คอลัมน์ที่มาจากคอลัมน์เข้ารหัสจริง: จับคู่ OID ของตาราง + attnum (alias ไม่มีผล) ถอดด้วย AAD ของคอลัมน์นั้น
+///   ถอดไม่ได้ = null + นับใน decrypt_errors
+/// - ค่าอื่น (expression เช่น concat/cast/coalesce/union/json ที่ไม่มีต้นทาง): หา ciphertext ที่ฝังอยู่ (embedded.rs)
 fn convert(
     executed: Executed,
     encrypted: &[EncryptedColumn],
     crypto: &Crypto,
     may_decrypt: bool,
+    decrypt_attempts: usize,
 ) -> Result<(QueryResult, usize), SqlConsoleError> {
     let aad_by_origin: HashMap<(u32, i16), &'static str> = encrypted
         .iter()
@@ -394,6 +507,17 @@ fn convert(
     let truncated = rows.len() > MAX_ROWS;
     rows.truncate(MAX_ROWS);
 
+    // ลอง AAD ของทุกคอลัมน์ผู้ป่วย — ใช้กับค่าที่ไม่มีต้นทาง (GCM ตรวจ AAD ถอดผิดคอลัมน์ไม่ผ่านอยู่แล้ว)
+    let decrypt_any = |blob: &[u8]| {
+        patient_crypto::ENCRYPTED_COLUMNS
+            .iter()
+            .find_map(|(_, aad)| crypto.decrypt(aad, blob).ok())
+    };
+    // งบการลองถอดของทั้งคำขอ (ทุกเซลล์ใช้ร่วมกัน; ค่าปริยาย embedded::MAX_DECRYPT_ATTEMPTS ตั้งใหม่ได้ที่ SqlConsole)
+    let budget = embedded::Budget::new(decrypt_attempts);
+    // งบหน่วยความจำของ JSON ทั้งคำขอ — ช่องที่ขยายใหญ่ (numeric/bytea/array) จ่ายก่อนจอง
+    let mut json_budget = value::Budget::new(MAX_RESULT_BYTES);
+    let mut embedded_columns = vec![false; plans.len()];
     let mut decrypted_cells = 0;
     let mut decrypt_errors = 0;
     let mut out = Vec::with_capacity(rows.len());
@@ -415,22 +539,36 @@ fn convert(
                         }
                     }
                 }
-                _ => value::to_json(raw, plan.kind).map_err(|_| {
-                    let column = columns.get(index);
-                    SqlConsoleError::QueryFailed(QueryFailure {
-                        message: format!(
-                            "cannot read column \"{}\" of type {} — cast it to ::text",
-                            column.map_or("", |c| c.name.as_str()),
-                            column.map_or("", |c| c.type_name.as_str())
-                        ),
-                        code: None,
-                        position: None,
-                    })
-                })?,
+                _ => {
+                    let mut cell =
+                        value::to_json(raw, plan.kind, &mut json_budget).map_err(|err| {
+                            if err.downcast_ref::<value::ResultTooLarge>().is_some() {
+                                return result_too_large();
+                            }
+                            let column = columns.get(index);
+                            SqlConsoleError::QueryFailed(QueryFailure {
+                                message: format!(
+                                    "cannot read column \"{}\" of type {} — cast it to ::text",
+                                    column.map_or("", |c| c.name.as_str()),
+                                    column.map_or("", |c| c.type_name.as_str())
+                                ),
+                                code: None,
+                                position: None,
+                            })
+                        })?;
+                    if may_decrypt && embedded::decrypt_in_value(&mut cell, &decrypt_any, &budget) {
+                        decrypted_cells += 1;
+                        embedded_columns[index] = true;
+                    }
+                    cell
+                }
             };
             cells.push(cell);
         }
         out.push(cells);
+    }
+    for (column, found) in columns.iter_mut().zip(embedded_columns) {
+        column.decrypted |= found;
     }
 
     Ok((
@@ -445,8 +583,20 @@ fn convert(
     ))
 }
 
+/// ผลลัพธ์ใหญ่เกินเพดาน (400 พร้อมข้อความคงที่ — ไม่มีค่าจากผลลัพธ์ปน; ยังบันทึก audit status `error`)
+fn result_too_large() -> SqlConsoleError {
+    SqlConsoleError::QueryFailed(QueryFailure {
+        message: RESULT_TOO_LARGE.to_string(),
+        code: None,
+        position: None,
+    })
+}
+
 /// error จาก Postgres (คำสั่งผิด, ไม่มีสิทธิ์, หมดเวลา, connection เต็ม) → ส่งข้อความให้ผู้ใช้ — อื่น ๆ เป็นปัญหาของระบบ
 fn to_failure(err: RepositoryError, prepared: &Prepared) -> SqlConsoleError {
+    if matches!(err, RepositoryError::ResultTooLarge) {
+        return result_too_large();
+    }
     let RepositoryError::Database(sqlx::Error::Database(db)) = err else {
         return SqlConsoleError::Repository(err);
     };
@@ -516,11 +666,11 @@ mod tests {
 
     #[test]
     fn queries_are_wrapped_with_a_row_limit_but_explain_is_not() {
-        let prepared = prepare("select 1;\n", &crypto()).unwrap();
+        let prepared = prepare("select 1;\n", &crypto(), true).unwrap();
         assert_eq!(prepared.sql, "select * from (\nselect 1\n) as q limit 501");
         assert_eq!(prepared.prefix_chars, 16);
 
-        let explain = prepare("explain select 1", &crypto()).unwrap();
+        let explain = prepare("explain select 1", &crypto(), true).unwrap();
         assert_eq!(explain.sql, "explain select 1");
         assert_eq!(explain.prefix_chars, 0);
     }
@@ -528,24 +678,24 @@ mod tests {
     #[test]
     fn empty_or_oversized_sql_is_rejected() {
         assert!(matches!(
-            prepare("  \n", &crypto()),
+            prepare("  \n", &crypto(), true),
             Err(SqlConsoleError::Validation(_))
         ));
         let long = format!("select '{}'", "x".repeat(MAX_SQL_CHARS));
         assert!(matches!(
-            prepare(&long, &crypto()),
+            prepare(&long, &crypto(), true),
             Err(SqlConsoleError::Validation(_))
         ));
     }
 
     #[test]
     fn error_positions_map_back_to_the_typed_text() {
-        let prepared = prepare("select nope", &crypto()).unwrap();
+        let prepared = prepare("select nope", &crypto(), true).unwrap();
         // Postgres นับจากคำสั่งที่ครอบแล้ว: "select * from (\n" 16 ตัว + ตำแหน่งในข้อความเดิม
         assert_eq!(user_position(16 + 8, &prepared), Some(8));
         assert_eq!(user_position(3, &prepared), None);
 
-        let with_helper = prepare("select :hn('1') x", &crypto()).unwrap();
+        let with_helper = prepare("select :hn('1') x", &crypto(), true).unwrap();
         assert_eq!(user_position(20, &with_helper), None);
     }
 
@@ -558,7 +708,7 @@ mod tests {
 
     #[test]
     fn write_statements_are_blocked_before_running() {
-        let blocked = |sql: &str| prepare(sql, &crypto()).unwrap().blocked;
+        let blocked = |sql: &str| prepare(sql, &crypto(), true).unwrap().blocked;
         assert!(matches!(
             blocked("  insert into x values (1);"),
             Some(Blocked::ReadOnly { keyword: Some(k) }) if k == "INSERT"

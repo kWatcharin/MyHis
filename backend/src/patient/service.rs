@@ -8,7 +8,7 @@
 //! **ข้อมูลระบุตัวคนไข้ (HN, เลขประจำตัวคนไข้, ชื่อ, สกุล)** เข้ารหัสด้วย `Crypto` ก่อนส่งลง repository เสมอ
 //! และถอดตอนอ่าน — ชนิดที่ถือค่าจริงในไฟล์นี้เขียน `Debug` เองให้ redact และข้อความ error ไม่แนบค่า
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use chrono::{Datelike, NaiveDate};
 use sqlx::PgPool;
@@ -26,6 +26,8 @@ use crate::patient::repository::{
 const MAX_ID_CHARS: usize = 50; // hn, nap_no
 const MAX_NAME_CHARS: usize = 100; // first_name, last_name — นับเป็นตัวอักษร ไม่ใช่ byte (ชื่อไทย)
 const MAX_AGE: i32 = 150;
+/// โรคประจำตัวต่อผู้ป่วย — เพดานก่อนตัดซ้ำ (ไม่ให้ลูปโตตามความยาวอาร์เรย์ที่ผู้ใช้ส่ง)
+const MAX_DISEASES_PER_PATIENT: usize = 100;
 const MAX_WEIGHT_KG: f64 = 500.0;
 const MAX_HEIGHT_CM: f64 = 300.0;
 
@@ -209,12 +211,16 @@ async fn prepare(
     };
 
     // โรคประจำตัว: ตัดซ้ำโดยรักษาลำดับ, ต้องมีอยู่จริง, โรค inactive ผูกใหม่ไม่ได้ (ที่ผูกอยู่แล้วคงไว้ได้)
-    let mut disease_public_ids: Vec<Uuid> = Vec::with_capacity(input.disease_ids.len());
-    for id in input.disease_ids {
-        if !disease_public_ids.contains(id) {
-            disease_public_ids.push(*id);
-        }
+    if input.disease_ids.len() > MAX_DISEASES_PER_PATIENT {
+        return Err(validation("too many diseases"));
     }
+    let mut seen = HashSet::with_capacity(input.disease_ids.len());
+    let disease_public_ids: Vec<Uuid> = input
+        .disease_ids
+        .iter()
+        .copied()
+        .filter(|id| seen.insert(*id))
+        .collect();
     let found = repository::find_diseases(pool, &disease_public_ids).await?;
     let already_linked = match patient_id {
         Some(id) => repository::linked_disease_public_ids(pool, id).await?,
@@ -322,6 +328,9 @@ pub async fn create(
     today: NaiveDate,
 ) -> Result<(), PatientError> {
     require(actor, Action::Create)?;
+    // 409 ‘hn already registered’ บอกว่ามี HN นี้ในทะเบียนอยู่ — ผู้ที่อ่านทะเบียนไม่ได้ต้องไม่เข้าถึงเส้นทางนี้
+    // (แก้ไม่ได้หมายถึงดูได้ จึงตรวจ view ซ้ำ: หน้าเว็บก็ต้องใช้ patient.view อยู่แล้วเพื่อเปิดฟอร์ม)
+    require(actor, Action::View)?;
     let write = prepare(pool, crypto, &input, today, None).await?;
     repository::insert_patient(pool, actor.user.id, &write)
         .await
@@ -339,6 +348,8 @@ pub async fn replace(
     today: NaiveDate,
 ) -> Result<(), PatientError> {
     require(actor, Action::Update)?;
+    // prepare() และ unique ของ HN ตอบต่างกันตามโรคที่ผูกอยู่และทะเบียน HN — ผู้ที่อ่านข้อมูลนั้นไม่ได้ต้องไม่ได้คำตอบ
+    require(actor, Action::View)?;
     let id = repository::find_patient_id(pool, public_id)
         .await?
         .ok_or(PatientError::NotFound)?;

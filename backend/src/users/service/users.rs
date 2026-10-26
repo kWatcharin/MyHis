@@ -10,6 +10,8 @@
 //! **กันแอดมินล็อกตัวเองออก:** ปิดบัญชีตัวเอง, รีเซ็ตรหัสของตัวเอง และแทน role ของตัวเองด้วยชุดที่ไม่ให้สิทธิ์
 //! จัดการ role (`role.view` + `role.update`) ถูกปฏิเสธ — คนที่ยังจัดการ role ได้แก้สิทธิ์คืนให้ตัวเองได้เสมอ
 
+use std::collections::HashSet;
+
 use chrono::{DateTime, Duration, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -19,16 +21,15 @@ use super::{
     GRANT_BEYOND_OWN, STRONGER_USER,
 };
 use crate::auth::CurrentUser;
-use crate::domain::{Action, PrenameId, Resource, RoleId, UserId};
-use crate::users::repository::{self, NewRegistrationLink, UserDetailsWrite};
+use crate::domain::{username, Action, PrenameId, Resource, RoleId, UserId};
+use crate::users::repository::{self, LinkPurpose, NewRegistrationLink, UserDetailsWrite};
 use crate::{password, token};
 
 /// อายุของลิงก์ลงทะเบียน/ตั้งรหัสผ่านใหม่ (เจ้าของระบบเลือก 3 วัน)
 const REGISTRATION_LINK_TTL_DAYS: i64 = 3;
+/// role ต่อผู้ใช้ — เพดานก่อนตัดซ้ำ (ไม่ให้ลูปโตตามความยาวอาร์เรย์ที่ผู้ใช้ส่ง)
+const MAX_ROLES_PER_USER: usize = 100;
 
-/// username หลัง trim + ตัวพิมพ์เล็ก: ยาว 3–32 ตัว เฉพาะ a-z 0-9 . _ - (พิมพ์บนมือถือได้ง่าย ไม่มีช่องว่าง)
-const USERNAME_MIN_CHARS: usize = 3;
-const USERNAME_MAX_CHARS: usize = 32;
 const DISPLAY_NAME_MAX_CHARS: usize = 100;
 /// ชื่อ/นามสกุล/ตำแหน่ง ต่อช่อง
 const PROFILE_TEXT_MAX_CHARS: usize = 100;
@@ -84,14 +85,11 @@ async fn unusable_password_hash() -> Result<String, UsersError> {
     password::hash_async(secret).await.map_err(UsersError::from)
 }
 
-/// username ที่เก็บจริง = trim + ตัวพิมพ์เล็ก (login normalize แบบเดียวกัน — auth::service::login)
+/// username ที่เก็บจริง = trim + ตัวพิมพ์เล็ก (login normalize แบบเดียวกัน — auth::service::login) ตรงรูปแบบของ
+/// `domain::username` (ยาว 3–32 ตัว เฉพาะ a-z 0-9 . _ -)
 fn normalize_username(raw: &str) -> Result<String, UsersError> {
     let username = raw.trim().to_lowercase();
-    let length = username.chars().count();
-    let allowed = username
-        .chars()
-        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '.' | '_' | '-'));
-    if !(USERNAME_MIN_CHARS..=USERNAME_MAX_CHARS).contains(&length) || !allowed {
+    if !username::is_well_formed(&username) {
         return Err(UsersError::Validation("invalid username".to_string()));
     }
     Ok(username)
@@ -146,12 +144,15 @@ async fn resolve_prename(
 
 /// ตัด uuid ซ้ำ (คงลำดับเดิม) + บังคับอย่างน้อย 1 role — ตรวจก่อนหาผู้ใช้/role
 fn dedupe_role_ids(role_public_ids: &[Uuid]) -> Result<Vec<Uuid>, UsersError> {
-    let mut unique_role_ids: Vec<Uuid> = Vec::with_capacity(role_public_ids.len());
-    for role_public_id in role_public_ids {
-        if !unique_role_ids.contains(role_public_id) {
-            unique_role_ids.push(*role_public_id);
-        }
+    if role_public_ids.len() > MAX_ROLES_PER_USER {
+        return Err(UsersError::Validation("too many roles".to_string()));
     }
+    let mut seen = HashSet::with_capacity(role_public_ids.len());
+    let unique_role_ids: Vec<Uuid> = role_public_ids
+        .iter()
+        .copied()
+        .filter(|id| seen.insert(*id))
+        .collect();
     if unique_role_ids.is_empty() {
         return Err(UsersError::Validation(
             "a user must have at least one role".to_string(),
@@ -236,6 +237,7 @@ pub async fn create_user(
         &NewRegistrationLink {
             token_hash: &token_hash,
             expires_at: link.expires_at,
+            purpose: LinkPurpose::Create,
         },
     )
     .await
@@ -353,6 +355,7 @@ pub async fn reset_password(
         &NewRegistrationLink {
             token_hash: &token_hash,
             expires_at: link.expires_at,
+            purpose: LinkPurpose::Reset,
         },
     )
     .await?;

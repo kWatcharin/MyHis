@@ -13,7 +13,7 @@ use axum::body::Body;
 use axum::http::{header, Method, Request, StatusCode};
 use axum::Router;
 use http_body_util::BodyExt;
-use my_his_backend::auth::CurrentUser;
+use my_his_backend::auth::{AuditBudget, CurrentUser, IpBudget, UserBudget};
 use my_his_backend::config::{Config, TurnstileConfig};
 use my_his_backend::crypto::Crypto;
 use my_his_backend::domain::{Permission, Resource, User, UserId};
@@ -103,10 +103,94 @@ pub async fn test_app_with_turnstile(pool: PgPool, verify_url: &str) -> Router {
     build_test_app(pool, Some(Arc::new(turnstile)), None).await
 }
 
+/// เหมือน `test_app` แต่ตั้งเพดาน audit ของ login ชื่อที่ไม่มีในระบบเอง (`AuditBudget::new(จำนวน, หน้าต่าง)`) ให้เทสเพดานได้เร็ว
+pub async fn test_app_with_unknown_login_audit(pool: PgPool, budget: AuditBudget) -> Router {
+    build_test_app_full(
+        pool,
+        None,
+        None,
+        budget,
+        IpBudget::default(),
+        UserBudget::default(),
+    )
+    .await
+}
+
+/// เหมือน `test_app` แต่ตั้งเพดาน login ที่ไม่สำเร็จต่อ IP เอง (`IpBudget::new(จำนวน, หน้าต่าง, จำนวน IP ที่ติดตาม)`) ให้เทสเพดานได้เร็ว
+pub async fn test_app_with_login_ip_budget(pool: PgPool, budget: IpBudget) -> Router {
+    build_test_app_full(
+        pool,
+        None,
+        None,
+        AuditBudget::default(),
+        budget,
+        UserBudget::default(),
+    )
+    .await
+}
+
+/// เหมือน `test_app` แต่ตั้งเพดาน login ที่สำเร็จต่อผู้ใช้เอง (`UserBudget::new(จำนวน, หน้าต่าง, จำนวนผู้ใช้ที่ติดตาม)`) ให้เทสเพดานได้เร็ว
+pub async fn test_app_with_login_success_budget(pool: PgPool, budget: UserBudget) -> Router {
+    build_test_app_full(
+        pool,
+        None,
+        None,
+        AuditBudget::default(),
+        IpBudget::default(),
+        budget,
+    )
+    .await
+}
+
+/// เหมือน `test_app_with_login_ip_budget` แต่เปิด Turnstile (token ตรวจกับ siteverify ปลอมที่ `verify_url`)
+pub async fn test_app_with_turnstile_and_login_ip_budget(
+    pool: PgPool,
+    verify_url: &str,
+    budget: IpBudget,
+) -> Router {
+    let turnstile = Turnstile::with_verify_url(
+        &TurnstileConfig {
+            site_key: TEST_TURNSTILE_SITE_KEY.to_string(),
+            secret_key: TEST_TURNSTILE_SECRET.to_string(),
+            hostname: Some(TEST_TURNSTILE_HOSTNAME.to_string()),
+        },
+        verify_url,
+    )
+    .unwrap();
+    build_test_app_full(
+        pool,
+        Some(Arc::new(turnstile)),
+        None,
+        AuditBudget::default(),
+        budget,
+        UserBudget::default(),
+    )
+    .await
+}
+
 async fn build_test_app(
     pool: PgPool,
     turnstile: Option<Arc<Turnstile>>,
     sql_console: Option<Arc<SqlConsole>>,
+) -> Router {
+    build_test_app_full(
+        pool,
+        turnstile,
+        sql_console,
+        AuditBudget::default(),
+        IpBudget::default(),
+        UserBudget::default(),
+    )
+    .await
+}
+
+async fn build_test_app_full(
+    pool: PgPool,
+    turnstile: Option<Arc<Turnstile>>,
+    sql_console: Option<Arc<SqlConsole>>,
+    unknown_login_audit: AuditBudget,
+    login_ip_budget: IpBudget,
+    login_success_budget: UserBudget,
 ) -> Router {
     let config = Config {
         database_url: String::new(),
@@ -130,6 +214,9 @@ async fn build_test_app(
         dummy_password_hash: Arc::from(dummy_password_hash),
         turnstile,
         sql_console,
+        unknown_login_audit: Arc::new(unknown_login_audit),
+        login_ip_budget: Arc::new(login_ip_budget),
+        login_success_budget: Arc::new(login_success_budget),
     })
 }
 

@@ -70,6 +70,8 @@ pub struct SqlConsole {
     password: String,
     options: PgConnectOptions,
     statement_timeout: Duration,
+    /// งบจำนวนครั้งที่ลองถอด ciphertext ที่ฝังในผลลัพธ์ต่อคำขอ (embedded::Budget)
+    decrypt_attempts: usize,
 }
 
 /// เขียน Debug เอง — options และ password มีรหัสของ role
@@ -79,6 +81,7 @@ impl std::fmt::Debug for SqlConsole {
             .field("role", &self.role)
             .field("password", &"[redacted]")
             .field("statement_timeout", &self.statement_timeout)
+            .field("decrypt_attempts", &self.decrypt_attempts)
             .finish()
     }
 }
@@ -102,12 +105,19 @@ impl SqlConsole {
             password: password.to_string(),
             options,
             statement_timeout: DEFAULT_STATEMENT_TIMEOUT,
+            decrypt_attempts: crate::sql_console::embedded::MAX_DECRYPT_ATTEMPTS,
         })
     }
 
     /// เทสย่น timeout ได้ (เทส pg_sleep ไม่ต้องรอ 5 วินาที)
     pub fn with_statement_timeout(mut self, timeout: Duration) -> Self {
         self.statement_timeout = timeout;
+        self
+    }
+
+    /// เทสย่นงบการถอด (build ของเทสไม่ optimize ช้ากว่าจริงหลายเท่า)
+    pub fn with_decrypt_attempts(mut self, attempts: usize) -> Self {
+        self.decrypt_attempts = attempts;
         self
     }
 
@@ -121,6 +131,10 @@ impl SqlConsole {
 
     pub(crate) fn statement_timeout(&self) -> Duration {
         self.statement_timeout
+    }
+
+    pub(crate) fn decrypt_attempts(&self) -> usize {
+        self.decrypt_attempts
     }
 }
 

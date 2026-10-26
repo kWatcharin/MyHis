@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update sessions set password_check_count = password_check_count + 1\n         where token_hash = $1 returning password_check_count",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "password_check_count",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "2ec73150d071230e806709b8ce1b44afa09f7b62bed9d5610b5cfdfde35b9f33"
+}

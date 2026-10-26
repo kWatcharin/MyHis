@@ -19,6 +19,11 @@ use crate::users::repository::{
 /// ระยะห่างของ sort_order — เพจที่ต่อท้ายกลุ่ม = ค่ามากสุด + 10, เรียงใหม่ทั้งระดับ = 10, 20, 30…
 const SORT_STEP: i32 = 10;
 
+/// จำนวนเพจทั้งระบบสูงสุด — ตารางนี้ถูกอ่านทั้งก้อนทุกครั้งที่ใครเปิดเมนู (`list_pages`) ต้องเล็กเสมอ; ต้องไม่เกิน 500 ซึ่งเป็นเพดานของ
+/// `ReorderPagesRequest.ids` (ไม่งั้นเรียงลำดับระดับที่ใหญ่เกินไม่ได้) นับแล้วค่อย insert จึงเป็นเพดานแบบหลวม — คำขอที่ชนกันพอดีเกินได้
+/// เล็กน้อยซึ่งไม่เป็นปัญหา (ไม่ใช่ขอบเขตความปลอดภัยที่ต้องแม่น)
+const MAX_PAGES: usize = 300;
+
 pub async fn list_pages(
     pool: &PgPool,
     actor: &CurrentUser,
@@ -44,6 +49,32 @@ fn end_of_level(pages: &[PageWithPermissions], ref_id: Option<PageId>) -> i32 {
         .map(|p| p.sort_order)
         .max()
         .map_or(SORT_STEP, |max| max.saturating_add(SORT_STEP))
+}
+
+/// route ของเมนูยาวสุด (ตัวอักษร)
+const MAX_ROUTE_CHARS: usize = 200;
+
+/// route ของเมนูต้องเป็น path ภายในแอป: ขึ้นต้น `/` ตัวเดียว (ไม่ใช่ `//host` หรือ `/\host` ที่เบราว์เซอร์อ่านเป็นโดเมนอื่น,
+/// ไม่ใช่ `https://…` / `javascript:…`) และไม่มี `\`, ช่องว่าง, control — ค่าที่เก็บถูกส่งให้ทุกคนที่เห็นเพจ และ sidebar ทำเป็นลิงก์
+/// ผู้จัดการเพจที่ไม่ใช่ admin จึงใช้ช่องนี้เปลี่ยนลิงก์ในแถบข้างของผู้อื่นให้พาออกนอกโดเมนไม่ได้ (กฎเดียวกับฟอร์ม: PageFormDialog.tsx)
+fn is_in_app_route(route: &str) -> bool {
+    let Some(rest) = route.strip_prefix('/') else {
+        return false;
+    };
+    !rest.starts_with('/')
+        && route.chars().count() <= MAX_ROUTE_CHARS
+        && route
+            .chars()
+            .all(|c| c != '\\' && !c.is_whitespace() && !c.is_control())
+}
+
+fn check_route(route: Option<&str>) -> Result<(), UsersError> {
+    match route {
+        Some(route) if !is_in_app_route(route) => Err(UsersError::Validation(
+            "route must be a path inside the app".to_string(),
+        )),
+        _ => Ok(()),
+    }
 }
 
 /// ตรวจโครงเมนูของเพจหนึ่งหน้าหลังบันทึก (`page` = None ตอนสร้างใหม่) — `ref_id`/`has_route` คือค่าสุดท้าย
@@ -107,9 +138,13 @@ pub async fn create_page(
     input: CreatePageInput<'_>,
 ) -> Result<PageId, UsersError> {
     require(actor, Resource::Page, Action::Create)?;
+    check_route(input.route)?;
     let permissions = parse_permissions(input.permissions)?;
 
     let pages = repository::list_pages(pool).await?;
+    if pages.len() >= MAX_PAGES {
+        return Err(UsersError::Conflict("too many pages".to_string()));
+    }
     let ref_id = input.ref_id.map(|id| resolve_ref(&pages, id)).transpose()?;
     check_menu_shape(&pages, None, ref_id, input.route.is_some())?;
 
@@ -149,6 +184,7 @@ pub async fn update_page(
     input: UpdatePageInput<'_>,
 ) -> Result<(), UsersError> {
     require(actor, Resource::Page, Action::Update)?;
+    check_route(input.route)?;
 
     let pages = repository::list_pages(pool).await?;
     let page = pages
@@ -332,4 +368,59 @@ pub async fn menu_for(pool: &PgPool, actor: &CurrentUser) -> Result<Vec<MenuItem
             ref_id: page.ref_public_id,
         })
         .collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn in_app_routes_are_accepted() {
+        for route in [
+            "/",
+            "/dashboard",
+            "/settings/pages",
+            "/lab/appointments",
+            "/a?b=1#c",
+        ] {
+            assert!(is_in_app_route(route), "{route}");
+        }
+    }
+
+    #[test]
+    fn anything_that_can_leave_the_app_or_hide_a_target_is_rejected() {
+        let long = format!("/{}", "a".repeat(MAX_ROUTE_CHARS));
+        for route in [
+            "",
+            "dashboard",
+            "//attacker.invalid/x",
+            r"/\attacker.invalid/x",
+            "https://attacker.invalid/x",
+            "javascript:alert(1)",
+            " /x",
+            "/a b",
+            "/a\tb",
+            "/a\nb",
+            "/a\u{a0}b",
+            "/a\u{7f}b",
+            r"/a\b",
+            long.as_str(),
+        ] {
+            assert!(!is_in_app_route(route), "{route:?}");
+        }
+        assert!(is_in_app_route(&format!(
+            "/{}",
+            "a".repeat(MAX_ROUTE_CHARS - 1)
+        )));
+    }
+
+    #[test]
+    fn a_missing_route_is_not_a_route_error() {
+        assert!(check_route(None).is_ok());
+        assert!(check_route(Some("/ok")).is_ok());
+        assert!(matches!(
+            check_route(Some("//bad")),
+            Err(UsersError::Validation(_))
+        ));
+    }
 }

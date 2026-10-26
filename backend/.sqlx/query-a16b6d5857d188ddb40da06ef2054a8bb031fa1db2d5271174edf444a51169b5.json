@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update sessions set password_check_count = 0 where token_hash = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a16b6d5857d188ddb40da06ef2054a8bb031fa1db2d5271174edf444a51169b5"
+}

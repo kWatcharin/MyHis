@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update users\n           set failed_attempts = case when locked_until <= $2 then 1\n                                      else least(failed_attempts + 1, $3::int4 + 1) end,\n               locked_until = case when locked_until <= $2 then null\n                                   when failed_attempts + 1 > $3::int4 then $4::timestamptz\n                                   else locked_until end,\n               updated_at = now()\n           where id = $1 and (locked_until is null or locked_until <= $2)\n           returning failed_attempts, locked_until",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "failed_attempts",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "locked_until",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Timestamptz",
+        "Int4",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "f68694cd45774eeb7da34b75a79208c99d65ac60a9a64e0cf8bd35c0d096f345"
+}

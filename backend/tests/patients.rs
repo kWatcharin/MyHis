@@ -781,7 +781,35 @@ async fn read_and_write_permissions_are_checked_separately(pool: PgPool) {
         service::options(&pool, &write_only).await,
         Err(PatientError::Forbidden)
     ));
-    service::create(&pool, &crypto(), &write_only, input(&f, "HN-002"), today())
+    // เขียนอย่างเดียวก็เขียนไม่ได้ด้วย: 409 ‘hn already registered’ และ 400 ‘disease is inactive’ ตอบต่างกันตามข้อมูลในทะเบียน
+    // ที่ผู้ถือสิทธิ์นี้อ่านไม่ได้ (รั่วว่า HN/โรคนั้นมีอยู่ไหม) จึงต้องมี patient.view ด้วย
+    assert!(matches!(
+        service::create(&pool, &crypto(), &write_only, input(&f, "HN-002"), today()).await,
+        Err(PatientError::Forbidden)
+    ));
+    assert!(matches!(
+        service::create(&pool, &crypto(), &write_only, input(&f, "HN-001"), today()).await,
+        Err(PatientError::Forbidden)
+    ));
+    assert!(matches!(
+        service::replace(
+            &pool,
+            &crypto(),
+            &write_only,
+            id,
+            input(&f, "HN-001"),
+            today()
+        )
+        .await,
+        Err(PatientError::Forbidden)
+    ));
+    // สิทธิ์เขียน + ดู ยังใช้ได้ตามปกติ
+    let writer = actor_with(
+        &pool,
+        vec![common::perm("patient.view"), common::perm("patient.create")],
+    )
+    .await;
+    service::create(&pool, &crypto(), &writer, input(&f, "HN-002"), today())
         .await
         .unwrap();
 
@@ -935,4 +963,38 @@ async fn migration_seeds_menu_page_and_grants_permissions_to_system_roles(pool: 
             "{role}"
         );
     }
+}
+
+/// อาร์เรย์โรคที่ยาวเกินเพดานถูกปฏิเสธก่อนวนลูปหรือค้นฐานข้อมูลใด ๆ (กันงาน O(n²) ที่โตตามความยาวที่ผู้ใช้ส่ง)
+/// และ uuid ซ้ำยังถูกตัดโดยคงลำดับเดิม
+#[sqlx::test]
+async fn disease_ids_are_capped_and_deduplicated_linearly(pool: PgPool) {
+    let f = setup(&pool).await;
+    let many: Vec<Uuid> = (0..101).map(|_| Uuid::new_v4()).collect();
+    let result = create(
+        &pool,
+        &f,
+        PatientInput {
+            disease_ids: &many,
+            ..input(&f, "HN-CAP")
+        },
+    )
+    .await;
+    assert!(
+        matches!(&result, Err(PatientError::Validation(m)) if m == "too many diseases"),
+        "{result:?}"
+    );
+
+    // ซ้ำกันทั้งหมดไม่เป็นปัญหา (คงโรคเดียว) และไม่ถูกนับเป็นเกินเพดาน
+    let repeated = vec![f.diseases[0]; 100];
+    create(
+        &pool,
+        &f,
+        PatientInput {
+            disease_ids: &repeated,
+            ..input(&f, "HN-DUP")
+        },
+    )
+    .await
+    .unwrap();
 }

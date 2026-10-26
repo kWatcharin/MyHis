@@ -9,12 +9,17 @@ use my_his_backend::config::Config;
 use my_his_backend::sql_console::{self, SqlConsole};
 use my_his_backend::state::AppState;
 use my_his_backend::turnstile::Turnstile;
-use my_his_backend::{app, db, password};
+use my_his_backend::{app, conn_guard, db, password};
 
 #[tokio::main]
 async fn main() {
+    // ปริยาย info (ไม่ใช่ error ของ EnvFilter::from_default_env) — บรรทัด warn ที่เจ้าของพึ่ง (Turnstile test key, IP ชนเพดาน login,
+    // ตาราง IP เต็ม, ที่อยู่ที่ไม่ใช่ public) ต้องโผล่โดยไม่ต้องตั้ง RUST_LOG; ตั้ง RUST_LOG ทับได้เสมอ
     tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
         .init();
 
     let config = Config::from_env().expect("invalid configuration");
@@ -81,6 +86,9 @@ async fn main() {
         dummy_password_hash,
         turnstile,
         sql_console,
+        unknown_login_audit: Arc::new(auth::AuditBudget::default()),
+        login_ip_budget: Arc::new(auth::IpBudget::default()),
+        login_success_budget: Arc::new(auth::UserBudget::default()),
     };
 
     let listener = tokio::net::TcpListener::bind(bind_addr)
@@ -88,6 +96,13 @@ async fn main() {
         .expect("failed to bind address");
 
     tracing::info!(%bind_addr, "starting server");
+
+    // ด่านระดับ connection: cap จำนวน + ตัด connection ที่เงียบ (axum::serve เปล่าไม่มี timeout — conn_guard.rs)
+    let listener = conn_guard::GuardedListener::new(
+        listener,
+        conn_guard::MAX_CONNECTIONS,
+        conn_guard::IDLE_TIMEOUT,
+    );
 
     axum::serve(listener, app::router(state))
         .with_graceful_shutdown(shutdown_signal())

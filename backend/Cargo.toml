@@ -9,7 +9,7 @@ edition = "2021"
 [dependencies]
 # --- Web / async (docs/auth-design.md ข้อ 3) ---
 axum = "0.8"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "sync"] } # sync: semaphore จำกัด argon2 พร้อมกัน (password.rs)
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "sync", "net", "time"] } # sync: semaphore จำกัด argon2 พร้อมกัน (password.rs); net/time: TcpListener + timer ของ conn_guard.rs (เปิด feature ที่ใช้อยู่จริงให้ชัด ไม่ใช่ dependency ใหม่)
 tower-http = { version = "0.6", features = ["trace", "request-id", "timeout"] }
 
 # --- Database (docs/rust-guidelines.md ข้อ 11) ---

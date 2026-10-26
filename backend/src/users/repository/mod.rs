@@ -17,7 +17,7 @@ mod roles;
 mod users;
 
 pub(crate) use pages::*;
-pub(crate) use registration_links::NewRegistrationLink;
+pub(crate) use registration_links::{LinkPurpose, NewRegistrationLink};
 pub(crate) use roles::*;
 pub(crate) use users::*;
 

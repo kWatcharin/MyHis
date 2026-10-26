@@ -6,6 +6,7 @@ pub mod audit;
 pub mod auth;
 pub mod budget_year;
 pub mod config;
+pub mod conn_guard;
 pub mod crypto;
 pub mod db;
 pub mod disease;

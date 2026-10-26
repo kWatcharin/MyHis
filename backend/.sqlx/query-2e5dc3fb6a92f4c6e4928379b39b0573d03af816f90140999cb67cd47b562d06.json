@@ -1,0 +1,65 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select u.username, u.display_name, u.registered_at, l.expires_at,\n                  p.uuid as \"prename_public_id?\",\n                  u.first_name, u.last_name, u.position\n           from registration_links l\n           join users u on u.id = l.user_id\n           left join prename p on p.id = u.prename_id\n           where l.token_hash = $1 and l.used_at is null and l.revoked_at is null\n             and l.expires_at > $2 and u.is_active\n             and exists (select 1 from users c where c.id = l.created_by and c.is_active)\n             and exists (select 1 from user_roles cr join role_permissions cp on cp.role_id = cr.role_id\n                         where cr.user_id = l.created_by\n                           and ((l.purpose = 'reset' and cp.permission = 'user.update')\n                             or (l.purpose = 'create' and cp.permission in ('user.create', 'user.update'))))\n             and not exists (\n                 select rp.permission from user_roles ur join role_permissions rp on rp.role_id = ur.role_id\n                  where ur.user_id = l.user_id\n                 except\n                 select rp.permission from user_roles ur join role_permissions rp on rp.role_id = ur.role_id\n                  where ur.user_id = l.created_by)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "username",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "display_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "registered_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 3,
+        "name": "expires_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "prename_public_id?",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "first_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "last_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "position",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "2e5dc3fb6a92f4c6e4928379b39b0573d03af816f90140999cb67cd47b562d06"
+}

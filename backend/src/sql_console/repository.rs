@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use serde_json::Value;
 use sqlx::postgres::{PgColumn, PgConnection, PgRow};
-use sqlx::{Connection, Executor, PgPool, Statement};
+use sqlx::{Connection, Executor, PgPool, Row, Statement};
 
 use crate::domain::UserId;
 use crate::sql_console::setup::SqlConsole;
@@ -25,6 +25,17 @@ pub enum RepositoryError {
     Database(#[from] sqlx::Error),
     #[error("could not connect to the database in time")]
     ConnectTimeout,
+    /// ผลลัพธ์ใหญ่เกินเพดาน (จำนวนคอลัมน์ หรือไบต์ที่รับจาก Postgres) — หยุดอ่านทันที ไม่ buffer ต่อ
+    #[error("result is larger than the console allows")]
+    ResultTooLarge,
+}
+
+/// เพดานขนาดผลลัพธ์ที่ยอมรับจาก Postgres (แถวถูกจำกัดแล้วด้วย LIMIT; เพดานนี้คุมความกว้าง/ขนาดของค่า)
+#[derive(Debug, Clone, Copy)]
+pub struct ResultLimits {
+    /// ไบต์รวมของค่าทุกช่องที่รับมา (ขนาดบนสายของ DataRow)
+    pub max_bytes: usize,
+    pub max_columns: usize,
 }
 
 /// ผลที่ได้จาก Postgres ก่อนแปลงค่า — `columns` มาจาก prepare (มีแม้ไม่มีแถว) รวม OID/attnum ต้นทางของคอลัมน์
@@ -61,12 +72,27 @@ pub async fn close(conn: PgConnection) {
     let _ = conn.close().await;
 }
 
+/// ไบต์ของค่าในหนึ่งแถวตามที่ Postgres ส่งมา (ช่อง NULL ไม่นับ)
+fn wire_bytes(row: &PgRow) -> usize {
+    (0..row.len())
+        .filter_map(|index| row.try_get_raw(index).ok())
+        .filter_map(|value| value.as_bytes().ok().map(<[u8]>::len))
+        .sum()
+}
+
 /// รันคำสั่งเดียว (extended protocol ปฏิเสธข้อความที่มีหลายคำสั่งเอง) ใน transaction READ ONLY แล้ว rollback
-/// ผู้เรียกจำกัดจำนวนแถวด้วยการครอบ LIMIT ไว้แล้ว (sql_text.rs)
+/// ผู้เรียกจำกัดจำนวนแถวด้วยการครอบ LIMIT ไว้แล้ว (sql_text.rs) ส่วน **ขนาดของแถว** คุมที่นี่: อ่านทีละแถวแล้วนับไบต์ เกิน
+/// `limits.max_bytes` หยุดทันทีด้วย `ResultTooLarge` (ไม่ buffer ผลทั้งก้อนของหลายแถวแล้วค่อยตัดสินเหมือน `fetch_all`)
+/// จำนวนคอลัมน์เกิน `limits.max_columns` ปฏิเสธหลัง prepare ก่อนรันจริง
+///
+/// **ขีดจำกัดที่เหลือ:** sqlx อ่าน DataRow ทั้งแถวเข้าหน่วยความจำก่อนคืนให้เรา แถวเดียวที่ใหญ่ (เซลล์เดียวได้ถึง 1 GB ในทางทฤษฎี เช่น
+/// `repeat('x', 1e9)` ภายใน statement_timeout) จึงถูก buffer ได้หนึ่งครั้งก่อนถูกปฏิเสธ — ต้นทุนเท่าขนาดที่ส่งมา ไม่ขยาย 3–17,000 เท่าเหมือนเดิม
+/// ขอบเขตสุดท้ายคือ `mem_limit` ของ container backend (docker-compose.yml) และผู้ถือ `sql.view` มีเฉพาะ admin
 pub async fn execute(
     conn: &mut PgConnection,
     sql: &str,
     statement_timeout: Duration,
+    limits: ResultLimits,
 ) -> Result<Executed, RepositoryError> {
     let mut tx = conn.begin().await?;
     sqlx::query!("set transaction read only")
@@ -85,10 +111,23 @@ pub async fn execute(
 
     let statement = (&mut *tx).prepare(sql).await?;
     let columns = statement.columns().to_vec();
-    let rows = sqlx::query(sql)
-        .persistent(false)
-        .fetch_all(&mut *tx)
-        .await?;
+    if columns.len() > limits.max_columns {
+        return Err(RepositoryError::ResultTooLarge);
+    }
+    let mut rows = Vec::new();
+    let mut bytes = 0usize;
+    {
+        let mut stream = sqlx::query(sql).persistent(false).fetch(&mut *tx);
+        while let Some(row) = std::future::poll_fn(|cx| stream.as_mut().poll_next(cx)).await {
+            let row = row?;
+            bytes = bytes.saturating_add(wire_bytes(&row));
+            if bytes > limits.max_bytes {
+                // ทิ้ง stream + transaction ตรงนี้: ผู้เรียกปิด connection ต่อ จึงไม่ต้องอ่านแถวที่เหลือ
+                return Err(RepositoryError::ResultTooLarge);
+            }
+            rows.push(row);
+        }
+    }
 
     // อ่านอย่างเดียว ไม่มีอะไรต้องเก็บ — rollback ไม่สำเร็จ (เช่น ผู้ใช้สั่ง COMMIT เอง) ไม่ทำให้ผลเปลี่ยน
     let _ = tx.rollback().await;

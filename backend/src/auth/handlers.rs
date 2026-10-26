@@ -30,6 +30,11 @@ pub async fn login(
         &state.dummy_password_hash,
         &state.config,
         state.turnstile.as_deref(),
+        service::LoginBudgets {
+            unknown_name_audit: &state.unknown_login_audit,
+            ip: &state.login_ip_budget,
+            success: &state.login_success_budget,
+        },
         service::LoginParams {
             username: &payload.username,
             password: &payload.password,
@@ -102,9 +107,10 @@ fn client_info(headers: &HeaderMap) -> service::ClientInfo<'_> {
     }
 }
 
-/// IP ของผู้ใช้ = ค่าขวาสุดของ X-Forwarded-For คือค่าที่ Caddy (proxy ชั้นเดียวหน้า backend) เติมจากการเชื่อมต่อจริง
-/// ค่าทางซ้ายผู้ใช้ส่งมาเองได้จึงไม่เชื่อ — ถ้าวันหน้ามี proxy ซ้อนสองชั้น ตัวในต้องตั้ง trusted_proxies
-/// ไม่มี header/แปลงไม่ได้ = None (เช่น เรียก backend ตรงไม่ผ่าน proxy)
+/// IP ของผู้ใช้ = ค่าขวาสุดของ X-Forwarded-For ซึ่งเป็นค่าที่ Caddy ชั้นใน (frontend) เติมให้ — ชั้นนอก (ops/Caddyfile) ตั้ง
+/// `X-Real-IP` จากการเชื่อมต่อจริง (ทับค่าที่ผู้ใช้ส่งมา) ชั้นในเอาค่านั้นไปตั้งเป็น X-Forwarded-For (docs/infrastructure.md ข้อ 6)
+/// ค่าทางซ้ายผู้ใช้ส่งมาเองได้จึงไม่เชื่อ ไม่มี header/แปลงไม่ได้ = None (เช่น เรียก backend ตรงไม่ผ่าน proxy)
+/// ค่านี้ใช้ทั้งเป็น IP ใน audit และเป็นกุญแจของเพดาน login ต่อ IP — จึงห้ามเปิด backend ให้เข้าตรงโดยไม่ผ่าน Caddy
 fn client_ip(headers: &HeaderMap) -> Option<IpAddr> {
     headers
         .get_all("x-forwarded-for")

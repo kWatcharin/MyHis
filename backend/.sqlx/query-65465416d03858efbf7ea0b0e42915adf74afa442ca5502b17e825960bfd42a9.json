@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select locked_until from users where id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "locked_until",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "65465416d03858efbf7ea0b0e42915adf74afa442ca5502b17e825960bfd42a9"
+}

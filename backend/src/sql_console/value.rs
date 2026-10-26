@@ -3,11 +3,11 @@
 //!
 //! numeric ถอดเองจากรูปแบบ binary (ไม่เพิ่ม crate ชนิด decimal) — ได้ข้อความตรงตามที่ Postgres แสดง ไม่ผ่าน float
 
-use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, SecondsFormat, Utc};
+use chrono::{NaiveDate, NaiveDateTime, NaiveTime, SecondsFormat, TimeDelta};
 use serde_json::Value;
 use sqlx::error::BoxDynError;
 use sqlx::postgres::types::{Oid, PgInterval};
-use sqlx::postgres::{PgTypeInfo, PgTypeKind, PgValueRef, Postgres};
+use sqlx::postgres::{PgTypeInfo, PgTypeKind, PgValueFormat, PgValueRef, Postgres};
 use sqlx::{Decode, TypeInfo, ValueRef};
 use uuid::Uuid;
 
@@ -98,11 +98,73 @@ fn decode<'r, T: Decode<'r, Postgres>>(value: PgValueRef<'r>) -> Result<T, BoxDy
     T::decode(value)
 }
 
-/// ค่าหนึ่งช่องเป็น JSON — ชนิดที่ไม่รองรับคืน null (คอลัมน์ถูกทำเครื่องหมายไว้แล้ว)
-pub fn to_json(value: PgValueRef<'_>, kind: ValueKind) -> Result<Value, BoxDynError> {
+/// ผลลัพธ์ที่แปลงเป็น JSON แล้วใหญ่เกินงบ (`Budget`) — ผู้เรียกแยกจาก error ถอดค่าธรรมดาด้วย `downcast_ref`
+#[derive(Debug)]
+pub struct ResultTooLarge;
+
+impl std::fmt::Display for ResultTooLarge {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("result too large")
+    }
+}
+
+impl std::error::Error for ResultTooLarge {}
+
+/// งบหน่วยความจำของ JSON ที่สร้างจากผลลัพธ์ทั้งคำขอ (ไบต์โดยประมาณ) — แต่ละช่อง "จ่าย" **ก่อน** จองหน่วยความจำ
+/// เพราะบางชนิดขยายใหญ่กว่าที่ส่งมามาก: numeric 10 ไบต์ → ข้อความ 131,001 ตัวอักษร, bytea ×2 (hex), array ทุก element กลายเป็น `Value`
+/// (หลายสิบไบต์ต่อ element แม้ element ละ 1 ไบต์)
+#[derive(Debug)]
+pub struct Budget {
+    remaining: usize,
+}
+
+impl Budget {
+    pub fn new(limit: usize) -> Self {
+        Self { remaining: limit }
+    }
+
+    fn charge(&mut self, bytes: usize) -> Result<(), BoxDynError> {
+        self.remaining = self
+            .remaining
+            .checked_sub(bytes)
+            .ok_or_else(|| BoxDynError::from(ResultTooLarge))?;
+        Ok(())
+    }
+}
+
+/// ค่าใช้จ่ายคงที่ต่อช่อง (ตัวเลข/บูล/วันที่ ฯลฯ ที่เป็น `Value` เล็ก ๆ) และต่อ `String`
+const CELL_OVERHEAD: usize = 32;
+/// array ข้อความ: ทุก element เป็น `String` + `Value` (~68 ไบต์ต่อ element วัดแล้ว แม้ส่งมา ~5 ไบต์) — คิดเป็นตัวคูณของไบต์บนสาย
+const TEXT_ARRAY_FACTOR: usize = 16;
+/// array ชนิดอื่น: ทุก element เป็น `Value` (32 ไบต์) ต่อ element ที่ส่งมา ≥ 5 ไบต์
+const ARRAY_FACTOR: usize = 8;
+/// json/jsonb: โครงสร้าง `Value` ใหญ่กว่าข้อความต้นทางหลายเท่า (node เล็ก ๆ จำนวนมาก)
+const JSON_FACTOR: usize = 4;
+
+/// ค่าหนึ่งช่องเป็น JSON — ชนิดที่ไม่รองรับคืน null (คอลัมน์ถูกทำเครื่องหมายไว้แล้ว) จ่ายงบ `budget` ก่อนจองหน่วยความจำ
+/// เกินงบ = error ชนิด `ResultTooLarge`
+pub fn to_json(
+    value: PgValueRef<'_>,
+    kind: ValueKind,
+    budget: &mut Budget,
+) -> Result<Value, BoxDynError> {
     if value.is_null() {
         return Ok(Value::Null);
     }
+    let raw_len = value.as_bytes().map(<[u8]>::len).unwrap_or(0);
+    budget.charge(match kind {
+        ValueKind::Text => raw_len.saturating_add(CELL_OVERHEAD),
+        ValueKind::Bytea => raw_len.saturating_mul(2).saturating_add(CELL_OVERHEAD),
+        ValueKind::Json => raw_len.saturating_mul(JSON_FACTOR),
+        ValueKind::Numeric => numeric_text_len(value.as_bytes()?).saturating_add(CELL_OVERHEAD),
+        ValueKind::TextArray => raw_len.saturating_mul(TEXT_ARRAY_FACTOR),
+        ValueKind::Int16Array
+        | ValueKind::Int32Array
+        | ValueKind::Int64Array
+        | ValueKind::BoolArray
+        | ValueKind::UuidArray => raw_len.saturating_mul(ARRAY_FACTOR),
+        _ => CELL_OVERHEAD,
+    })?;
     Ok(match kind {
         ValueKind::Bool => Value::Bool(decode(value)?),
         ValueKind::Int16 => Value::from(decode::<i16>(value)?),
@@ -119,12 +181,10 @@ pub fn to_json(value: PgValueRef<'_>, kind: ValueKind) -> Result<Value, BoxDynEr
             Value::String(char::from(byte).to_string())
         }
         ValueKind::Uuid => Value::String(decode::<Uuid>(value)?.to_string()),
-        ValueKind::Date => Value::String(decode::<NaiveDate>(value)?.to_string()),
+        ValueKind::Date => Value::String(date_to_string(value)?),
         ValueKind::Time => Value::String(decode::<NaiveTime>(value)?.to_string()),
-        ValueKind::Timestamp => Value::String(decode::<NaiveDateTime>(value)?.to_string()),
-        ValueKind::Timestamptz => Value::String(
-            decode::<DateTime<Utc>>(value)?.to_rfc3339_opts(SecondsFormat::AutoSi, true),
-        ),
+        ValueKind::Timestamp => Value::String(timestamp_to_string(value, false)?),
+        ValueKind::Timestamptz => Value::String(timestamp_to_string(value, true)?),
         ValueKind::Interval => Value::String(interval_to_string(&decode::<PgInterval>(value)?)),
         ValueKind::Json => decode::<Value>(value)?,
         ValueKind::Bytea => Value::String(bytea_to_string(decode::<&[u8]>(value)?)),
@@ -147,6 +207,72 @@ pub fn to_json(value: PgValueRef<'_>, kind: ValueKind) -> Result<Value, BoxDynEr
         ),
         ValueKind::Void | ValueKind::Unsupported => Value::Null,
     })
+}
+
+/// ตัวถอด chrono ของ sqlx บวกค่าออฟเซ็ตของ Postgres เข้ากับ 2000-01-01 ด้วยตัวดำเนินการ + ที่ panic เมื่อล้นช่วง
+/// (`infinity`, `-infinity`, ปีเกิน ±262,142) — panic ในนี้ข้ามขั้นบันทึก audit ของหน้า SQL จึงอ่านเลขดิบเองแล้วใช้ checked_*
+/// (ล้นช่วง = error ธรรมดา "cast it to ::text" ที่ถูกบันทึก audit) `infinity` แสดงแบบที่ Postgres แสดง
+const INFINITY: &str = "infinity";
+const NEG_INFINITY: &str = "-infinity";
+
+fn pg_epoch() -> Result<NaiveDateTime, BoxDynError> {
+    NaiveDate::from_ymd_opt(2000, 1, 1)
+        .and_then(|date| date.and_hms_opt(0, 0, 0))
+        .ok_or_else(|| BoxDynError::from("invalid postgres epoch"))
+}
+
+fn date_text(days: i32) -> Result<String, BoxDynError> {
+    match days {
+        i32::MAX => Ok(INFINITY.to_string()),
+        i32::MIN => Ok(NEG_INFINITY.to_string()),
+        days => pg_epoch()?
+            .date()
+            .checked_add_signed(TimeDelta::try_days(i64::from(days)).ok_or("date out of range")?)
+            .map(|date| date.to_string())
+            .ok_or_else(|| BoxDynError::from("date out of range")),
+    }
+}
+
+fn timestamp_text(micros: i64, utc: bool) -> Result<String, BoxDynError> {
+    match micros {
+        i64::MAX => Ok(INFINITY.to_string()),
+        i64::MIN => Ok(NEG_INFINITY.to_string()),
+        micros => {
+            let timestamp = pg_epoch()?
+                .checked_add_signed(TimeDelta::microseconds(micros))
+                .ok_or("timestamp out of range")?;
+            Ok(if utc {
+                timestamp
+                    .and_utc()
+                    .to_rfc3339_opts(SecondsFormat::AutoSi, true)
+            } else {
+                timestamp.to_string()
+            })
+        }
+    }
+}
+
+fn date_to_string(value: PgValueRef<'_>) -> Result<String, BoxDynError> {
+    if value.format() == PgValueFormat::Text {
+        return Ok(decode::<NaiveDate>(value)?.to_string());
+    }
+    let bytes: [u8; 4] = value
+        .as_bytes()?
+        .try_into()
+        .map_err(|_| "invalid date value")?;
+    date_text(i32::from_be_bytes(bytes))
+}
+
+fn timestamp_to_string(value: PgValueRef<'_>, utc: bool) -> Result<String, BoxDynError> {
+    if value.format() == PgValueFormat::Text {
+        let text = decode::<&str>(value)?;
+        return Ok(text.to_string());
+    }
+    let bytes: [u8; 8] = value
+        .as_bytes()?
+        .try_into()
+        .map_err(|_| "invalid timestamp value")?;
+    timestamp_text(i64::from_be_bytes(bytes), utc)
 }
 
 fn integer(n: i64) -> Value {
@@ -176,6 +302,25 @@ pub fn bytea_to_string(bytes: &[u8]) -> String {
         out.push_str(&format!("{byte:02x}"));
     }
     out
+}
+
+/// ความยาวข้อความ (ตัวอักษร) ที่ `numeric_to_string` จะสร้าง คำนวณจาก header 8 ไบต์ **ก่อน** จองหน่วยความจำ: เลขที่เก็บ 10 ไบต์
+/// (ndigits = 1, weight = 32767) ขยายเป็น ~131,000 ตัวอักษร header ที่อ่านไม่ได้คืน 0 (ตัวถอดจะ error เอง)
+fn numeric_text_len(bytes: &[u8]) -> usize {
+    let word = |at: usize| bytes.get(at..at + 2).map(|b| [b[0], b[1]]);
+    let (Some(weight), Some(dscale)) = (word(2), word(6)) else {
+        return 0;
+    };
+    let weight = i16::from_be_bytes(weight);
+    let dscale = usize::from(u16::from_be_bytes(dscale));
+    let integer = usize::try_from(weight).map_or(1, |w| (w + 1) * 4);
+    // เครื่องหมาย + ส่วนจำนวนเต็ม + (จุด + ส่วนทศนิยมปัดขึ้นเป็นกลุ่มละ 4 หลัก)
+    1 + integer
+        + if dscale > 0 {
+            1 + dscale.div_ceil(4) * 4
+        } else {
+            0
+        }
 }
 
 /// numeric รูปแบบ binary: ndigits (i16), weight (i16), sign (u16), dscale (u16) แล้วตามด้วย ndigits หลักฐาน 10000
@@ -306,6 +451,40 @@ mod tests {
     }
 
     #[test]
+    fn numeric_text_length_is_known_before_decoding() {
+        // header 8 ไบต์ + 1 หลัก แต่ weight 32767 ขยายเป็นข้อความ ~131,000 ตัวอักษร (วัดจริงใน audit รอบ 2)
+        let huge = numeric(1, 32767, 0, 0, &[1]);
+        let expected = numeric_to_string(&huge).unwrap().len();
+        let estimate = numeric_text_len(&huge);
+        assert!(estimate >= expected, "{estimate} < {expected}");
+        assert!(estimate < expected + 16, "{estimate} vs {expected}");
+
+        // ทุกกรณีของ decoder ต้องประมาณไม่ต่ำกว่าความยาวจริง
+        for bytes in [
+            numeric(2, 0, 0, 2, &[123, 4500]),
+            numeric(1, -1, 0x4000, 3, &[10]),
+            numeric(1, 5, 0, 0, &[1]),
+            numeric(0, 0, 0, 2, &[]),
+            numeric(3, 1, 0, 1, &[12, 3456, 7000]),
+        ] {
+            let actual = numeric_to_string(&bytes).unwrap().len();
+            assert!(numeric_text_len(&bytes) >= actual, "{bytes:?}");
+        }
+        assert_eq!(numeric_text_len(&[0, 1]), 0);
+    }
+
+    #[test]
+    fn the_budget_refuses_what_it_cannot_afford() {
+        let mut budget = Budget::new(100);
+        assert!(budget.charge(60).is_ok());
+        assert!(budget.charge(40).is_ok());
+        let err = budget.charge(1).unwrap_err();
+        assert!(err.downcast_ref::<ResultTooLarge>().is_some());
+        // งบที่หมดแล้วไม่ล้นกลับ
+        assert!(budget.charge(usize::MAX).is_err());
+    }
+
+    #[test]
     fn integers_beyond_javascript_precision_become_strings() {
         assert_eq!(integer(42), Value::from(42));
         assert_eq!(integer(i64::MAX), Value::String(i64::MAX.to_string()));
@@ -331,6 +510,30 @@ mod tests {
             microseconds: 0,
         };
         assert_eq!(interval_to_string(&zero), "00:00:00");
+    }
+
+    /// infinity / ช่วงที่ chrono แทนไม่ได้ต้องไม่ panic (panic ข้ามการบันทึก audit ของหน้า SQL) — infinity แสดงแบบ Postgres
+    /// ส่วนนอกช่วงเป็น error ธรรมดา
+    #[test]
+    fn temporal_values_never_panic_on_infinity_or_out_of_range() {
+        assert_eq!(date_text(0).unwrap(), "2000-01-01");
+        assert_eq!(date_text(-1).unwrap(), "1999-12-31");
+        assert_eq!(date_text(i32::MAX).unwrap(), "infinity");
+        assert_eq!(date_text(i32::MIN).unwrap(), "-infinity");
+        // 262143-01-01 เป็นวันที่ที่ Postgres รับแต่เกินช่วงของ chrono (ปีสูงสุด 262142)
+        assert!(date_text(i32::MAX - 1).is_err());
+        assert!(date_text(i32::MIN + 1).is_err());
+
+        assert_eq!(timestamp_text(0, false).unwrap(), "2000-01-01 00:00:00");
+        assert_eq!(timestamp_text(0, true).unwrap(), "2000-01-01T00:00:00Z");
+        assert_eq!(
+            timestamp_text(1_500_000, true).unwrap(),
+            "2000-01-01T00:00:01.500Z"
+        );
+        assert_eq!(timestamp_text(i64::MAX, true).unwrap(), "infinity");
+        assert_eq!(timestamp_text(i64::MIN, false).unwrap(), "-infinity");
+        assert!(timestamp_text(i64::MAX - 1, true).is_err());
+        assert!(timestamp_text(i64::MIN + 1, false).is_err());
     }
 
     #[test]

@@ -25,7 +25,11 @@ impl std::fmt::Debug for LookupRequest {
 pub struct CompleteRequest {
     pub token: String,
     // เกณฑ์เดียวกับ POST /auth/password (docs/auth-design.md ข้อ 8)
-    #[validate(length(min = 12, message = "new password must be at least 12 characters"))]
+    #[validate(length(
+        min = 12,
+        max = 1024,
+        message = "new password must be at least 12 characters (at most 1024)"
+    ))]
     pub new_password: String,
     pub prename_id: Option<Uuid>,
     pub first_name: Option<String>,

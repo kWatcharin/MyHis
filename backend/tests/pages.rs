@@ -652,3 +652,117 @@ async fn new_and_moved_pages_go_to_the_end_of_their_level(pool: PgPool) {
     assert_eq!(status, StatusCode::NO_CONTENT);
     assert_eq!(last_label(&level(&admin, &Value::Null).await), "ตั้งค่าโรค");
 }
+
+/// route ของเมนูต้องเป็น path ภายในแอป: `//host`, `/\host`, `https://host`, `javascript:` ฯลฯ ถูกปฏิเสธทั้งตอนสร้างและตอนแก้
+/// (ผู้จัดการเพจที่ไม่ใช่ admin ใช้เปลี่ยนลิงก์ในแถบข้างของ admin ให้พาออกนอกโดเมนไม่ได้) และไม่มีอะไรถูกบันทึกเมื่อถูกปฏิเสธ
+#[sqlx::test]
+async fn page_routes_must_be_paths_inside_the_app(pool: PgPool) {
+    let admin = Admin::new(&pool).await;
+    let roles = admin.page_id("การตั้งค่า role").await;
+    let before = admin.page("การตั้งค่า role").await["route"].clone();
+
+    for route in [
+        "//attacker.invalid/settings/roles",
+        r"/\attacker.invalid/y",
+        "https://attacker.invalid/x",
+        "javascript:alert(1)",
+        " /x",
+        "/a b",
+        "relative/path",
+    ] {
+        let (status, body) = admin
+            .call(
+                Method::POST,
+                "/api/pages",
+                Some(json!({ "label": "ลิงก์ภายนอก", "route": route, "permissions": [] })),
+            )
+            .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "create {route:?}");
+        assert_eq!(error_of(&body), "route must be a path inside the app");
+
+        let (status, _) = admin
+            .call(
+                Method::PATCH,
+                &format!("/api/pages/{roles}"),
+                Some(json!({ "route": route })),
+            )
+            .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "update {route:?}");
+    }
+    assert_eq!(admin.page("การตั้งค่า role").await["route"], before);
+    let (_, all) = admin.call(Method::GET, "/api/pages", None).await;
+    assert!(all
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|page| page["label"] != "ลิงก์ภายนอก"));
+
+    // path ภายในแอปยังสร้าง/แก้ได้ตามปกติ
+    let (status, _) = admin
+        .call(
+            Method::POST,
+            "/api/pages",
+            Some(json!({ "label": "รายงานใหม่", "route": "/reports/new", "permissions": [] })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+}
+
+/// ข้อมูลเมนูที่ผู้ถือ `page.create` ใส่ได้ต้องเล็ก (security audit รอบ 2): label ≤ 100, icon ≤ 64, เพจทั้งระบบ ≤ 300 — เมนูถูกอ่านทั้งตาราง
+/// ทุกครั้งที่ใครเปิดแอป ผู้ถือสิทธิ์ย่อยจึงขับต้นทุนของ endpoint ที่ทุกคนเรียกไม่ได้
+#[sqlx::test]
+async fn page_text_and_count_are_bounded(pool: PgPool) {
+    let admin = Admin::new(&pool).await;
+    let page = |label: &str, icon: Option<&str>, route: &str| json!({ "label": label, "icon": icon, "route": route, "permissions": [] });
+
+    // label / icon ที่ยาวเกิน → 400 ทั้งตอนสร้างและแก้ไข ค่าที่พอดีผ่าน
+    let long_label = "ก".repeat(101);
+    let long_icon = "i".repeat(65);
+    for (body, what) in [
+        (page(&long_label, None, "/bound-1"), "label"),
+        (page("ปกติ", Some(&long_icon), "/bound-2"), "icon"),
+    ] {
+        let (status, response) = admin.call(Method::POST, "/api/pages", Some(body)).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{what}: {response}");
+    }
+    let exact_label = "ก".repeat(100);
+    let exact_icon = "i".repeat(64);
+    let (status, created) = admin
+        .call(
+            Method::POST,
+            "/api/pages",
+            Some(page(&exact_label, Some(&exact_icon), "/bound-3")),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{created}");
+    let id = admin.page_id(&exact_label).await;
+    for patch in [json!({ "label": long_label }), json!({ "icon": long_icon })] {
+        let (status, _) = admin
+            .call(Method::PATCH, &format!("/api/pages/{id}"), Some(patch))
+            .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+
+    // เพดานจำนวนเพจ: เติมให้ครบ 300 โดยตรงใน DB แล้วสร้างอีกหนึ่งต้องถูกปฏิเสธ
+    let existing: i64 = sqlx::query_scalar("select count(*) from pages")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    sqlx::query(
+        "insert into pages (label, route, sort_order)
+         select 'fill ' || g, '/fill-' || g, 1000 + g from generate_series(1, 300 - $1::int) g",
+    )
+    .bind(i32::try_from(existing).unwrap())
+    .execute(&pool)
+    .await
+    .unwrap();
+    let (status, body) = admin
+        .call(
+            Method::POST,
+            "/api/pages",
+            Some(page("เกินเพดาน", None, "/over")),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT, "{body}");
+    assert_eq!(error_of(&body), "too many pages");
+}

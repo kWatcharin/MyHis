@@ -405,3 +405,274 @@ async fn reset_mode_sets_password_only_and_audits_without_secrets(pool: PgPool) 
         assert!(!text.contains(secret), "secret leaked into audit_log");
     }
 }
+
+// ---- อำนาจของผู้ออกลิงก์ต้องยังอยู่ตอนใช้ลิงก์ (ไม่ใช่ตรวจแค่ตอนออก) ----
+
+/// role แบบกำหนดเอง (SQL ตรง ๆ) คืน uuid ของ role
+async fn custom_role(pool: &PgPool, name: &str, permissions: &[&str]) -> Uuid {
+    let id: i32 = sqlx::query_scalar("insert into roles (name) values ($1) returning id")
+        .bind(name)
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    for permission in permissions {
+        sqlx::query("insert into role_permissions (role_id, permission) values ($1, $2)")
+            .bind(id)
+            .bind(permission)
+            .execute(pool)
+            .await
+            .unwrap();
+    }
+    sqlx::query_scalar("select uuid from roles where id = $1")
+        .bind(id)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+async fn put_role(pool: &PgPool, user_id: i32, role: &str) {
+    sqlx::query(
+        "update user_roles set role_id = (select id from roles where name = $2) where user_id = $1",
+    )
+    .bind(user_id)
+    .bind(role)
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+struct Delegated {
+    manager_uuid: Uuid,
+    manager_cookie: String,
+    target_id: i32,
+    target_uuid: Uuid,
+}
+
+/// ผู้จัดการแบบกำหนดเอง (user.view/create/update + patient.view — ไม่ใช่ admin) กับเป้าหมายที่อยู่ในอำนาจ (patient.view อย่างเดียว)
+async fn delegated(pool: &PgPool, s: &Setup) -> Delegated {
+    custom_role(pool, "viewer-only", &["patient.view"]).await;
+    custom_role(
+        pool,
+        "user-manager",
+        &["user.view", "user.create", "user.update", "patient.view"],
+    )
+    .await;
+    let (manager_id, manager_uuid) =
+        common::insert_user_with_password(pool, "manager.one", ADMIN_PASSWORD, "nurse").await;
+    put_role(pool, manager_id, "user-manager").await;
+    let (target_id, target_uuid) =
+        common::insert_user_with_password(pool, "target.one", ADMIN_PASSWORD, "nurse").await;
+    put_role(pool, target_id, "viewer-only").await;
+    let (manager_cookie, _) = common::login(&s.app, "manager.one", ADMIN_PASSWORD).await;
+    Delegated {
+        manager_uuid,
+        manager_cookie,
+        target_id,
+        target_uuid,
+    }
+}
+
+async fn manager_reset(s: &Setup, d: &Delegated) -> String {
+    let response = common::send(
+        &s.app,
+        Method::POST,
+        &format!("/api/users/{}/reset-password", d.target_uuid),
+        Some(&d.manager_cookie),
+        None,
+    )
+    .await;
+    assert_eq!(response.status, StatusCode::OK);
+    response.body["registrationToken"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
+async fn password_hash_of(pool: &PgPool, user_id: i32) -> String {
+    sqlx::query_scalar("select password_hash from users where id = $1")
+        .bind(user_id)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+/// ลิงก์ที่ผู้จัดการออกให้เป้าหมาย ใช้ไม่ได้อีกเมื่อ admin เพิ่มสิทธิ์ให้เป้าหมายจนเกินผู้จัดการ (เปลี่ยน role หรือเพิ่มสิทธิ์ใน role)
+#[sqlx::test]
+async fn link_stops_working_when_the_target_gains_permissions_the_issuer_lacks(pool: PgPool) {
+    let s = setup(&pool).await;
+    let d = delegated(&pool, &s).await;
+    let (_, prename_uuid) = prename(&pool, s.admin_id, "นางสาว").await;
+
+    // (1) admin เปลี่ยน role ของเป้าหมายเป็น admin
+    let token = manager_reset(&s, &d).await;
+    let before = password_hash_of(&pool, d.target_id).await;
+    let admin_role: Uuid = sqlx::query_scalar("select uuid from roles where name = 'admin'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let replaced = common::send(
+        &s.app,
+        Method::PUT,
+        &format!("/api/users/{}/roles", d.target_uuid),
+        Some(&s.admin_cookie),
+        Some(json!({ "roleIds": [admin_role] })),
+    )
+    .await;
+    assert_eq!(replaced.status, StatusCode::NO_CONTENT);
+    // ผู้จัดการออกลิงก์ใหม่ให้บัญชีนี้เองก็ไม่ได้แล้ว (กฎ ณ ตอนออก) — ลิงก์เก่าต้องใช้ไม่ได้เช่นกัน
+    assert_invalid_link(&lookup(&s.app, &token).await, "lookup after promotion");
+    assert_invalid_link(
+        &complete(&s.app, register_body(&token, prename_uuid)).await,
+        "complete after promotion",
+    );
+    assert_eq!(password_hash_of(&pool, d.target_id).await, before);
+
+    // (2) เพิ่มสิทธิ์ใน role ของเป้าหมาย (เทียบเท่า PATCH /roles) หลังออกลิงก์
+    put_role(&pool, d.target_id, "viewer-only").await;
+    let token = manager_reset(&s, &d).await;
+    sqlx::query(
+        "insert into role_permissions (role_id, permission)
+         select id, 'role.update' from roles where name = 'viewer-only'",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    assert_invalid_link(
+        &complete(&s.app, register_body(&token, prename_uuid)).await,
+        "complete after role permission edit",
+    );
+
+    // (3) ลิงก์ที่ admin ออกให้ ยังใช้ได้แม้เป้าหมายมีสิทธิ์เพิ่ม (admin ถือครบทุกสิทธิ์)
+    let admin_token = reset(&s, d.target_uuid).await;
+    let done = complete(&s.app, register_body(&admin_token, prename_uuid)).await;
+    assert_eq!(done.status, StatusCode::NO_CONTENT);
+}
+
+/// ลิงก์ที่ผู้จัดการออกไว้ ใช้ไม่ได้ขณะผู้จัดการถูกปิดบัญชี (ใช้ได้อีกถ้าเปิดคืน) และใช้ไม่ได้ถ้าผู้จัดการเสียสิทธิ์ออกลิงก์
+#[sqlx::test]
+async fn link_stops_working_while_its_issuer_is_deactivated_or_loses_user_permissions(
+    pool: PgPool,
+) {
+    let s = setup(&pool).await;
+    let d = delegated(&pool, &s).await;
+    let (_, prename_uuid) = prename(&pool, s.admin_id, "นาย").await;
+    let token = manager_reset(&s, &d).await;
+
+    set_active(&s, d.manager_uuid, false).await;
+    assert_invalid_link(
+        &complete(&s.app, register_body(&token, prename_uuid)).await,
+        "issuer deactivated",
+    );
+
+    set_active(&s, d.manager_uuid, true).await;
+    sqlx::query(
+        "delete from role_permissions
+         where permission in ('user.create', 'user.update')
+           and role_id = (select id from roles where name = 'user-manager')",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    assert_invalid_link(
+        &complete(&s.app, register_body(&token, prename_uuid)).await,
+        "issuer lost user.create/user.update",
+    );
+
+    sqlx::query(
+        "insert into role_permissions (role_id, permission)
+         select id, 'user.update' from roles where name = 'user-manager'",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    let done = complete(&s.app, register_body(&token, prename_uuid)).await;
+    assert_eq!(done.status, StatusCode::NO_CONTENT);
+}
+
+/// ลิงก์ผูกกับ ‘การกระทำที่ออกลิงก์’ (security audit รอบ 2): ลิงก์รีเซ็ตที่ผู้จัดการออกไว้ ใช้ไม่ได้หลังผู้จัดการเสียเฉพาะ `user.update`
+/// แม้ยังถือ `user.create` (ผู้ถือ user.create อย่างเดียวรีเซ็ตใครไม่ได้ ออกรีเซ็ตใหม่ก็ 403) ทั้งตอนตรวจ (lookup) และตอนใช้ (complete)
+/// รหัสผ่านของเป้าหมายต้องไม่เปลี่ยน; ลิงก์สร้างบัญชีที่ผู้จัดการออกยังใช้ได้เมื่อเหลือแค่ `user.create`
+#[sqlx::test]
+async fn a_reset_link_needs_user_update_from_its_issuer_but_a_create_link_accepts_user_create(
+    pool: PgPool,
+) {
+    let s = setup(&pool).await;
+    let d = delegated(&pool, &s).await;
+    let (_, prename_uuid) = prename(&pool, s.admin_id, "นาย").await;
+
+    // ลิงก์สร้างบัญชีที่ผู้จัดการออกเอง (ใช้ user.create) กับผู้ใช้ใหม่
+    let viewer_role: Uuid = sqlx::query_scalar("select uuid from roles where name = 'viewer-only'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let created = common::send(
+        &s.app,
+        Method::POST,
+        "/api/users",
+        Some(&d.manager_cookie),
+        Some(json!({ "username": "fresh.one", "displayName": "ผู้ใช้ใหม่", "roleId": viewer_role })),
+    )
+    .await;
+    assert_eq!(created.status, StatusCode::CREATED);
+    let create_token = created.body["registrationToken"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    // ลิงก์รีเซ็ตที่ผู้จัดการออก (ใช้ user.update) ให้เป้าหมายที่ลงทะเบียนแล้ว
+    let reset_token = manager_reset(&s, &d).await;
+    let purposes: Vec<(String, String)> = sqlx::query_as(
+        "select u.username, l.purpose from registration_links l join users u on u.id = l.user_id
+         where l.used_at is null and l.revoked_at is null order by u.username",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        purposes,
+        vec![
+            ("fresh.one".to_string(), "create".to_string()),
+            ("target.one".to_string(), "reset".to_string()),
+        ]
+    );
+    let before = password_hash_of(&pool, d.target_id).await;
+
+    // ถอดเฉพาะ user.update ออกจาก role ของผู้จัดการ (ยังเหลือ user.create)
+    sqlx::query(
+        "delete from role_permissions
+         where permission = 'user.update'
+           and role_id = (select id from roles where name = 'user-manager')",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    // ออกรีเซ็ตใหม่เองไม่ได้แล้ว
+    let denied = common::send(
+        &s.app,
+        Method::POST,
+        &format!("/api/users/{}/reset-password", d.target_uuid),
+        Some(&d.manager_cookie),
+        None,
+    )
+    .await;
+    assert_eq!(denied.status, StatusCode::FORBIDDEN);
+    // ลิงก์รีเซ็ตเก่าต้องใช้ไม่ได้เช่นกัน และรหัสผ่านไม่เปลี่ยน
+    assert_invalid_link(
+        &lookup(&s.app, &reset_token).await,
+        "lookup of reset link without user.update",
+    );
+    assert_invalid_link(
+        &complete(
+            &s.app,
+            json!({ "token": reset_token, "newPassword": "new-password-67890" }),
+        )
+        .await,
+        "complete of reset link without user.update",
+    );
+    assert_eq!(password_hash_of(&pool, d.target_id).await, before);
+
+    // ลิงก์สร้างบัญชียังใช้ได้ (user.create พอ)
+    assert_eq!(lookup(&s.app, &create_token).await.status, StatusCode::OK);
+    let done = complete(&s.app, register_body(&create_token, prename_uuid)).await;
+    assert_eq!(done.status, StatusCode::NO_CONTENT);
+}

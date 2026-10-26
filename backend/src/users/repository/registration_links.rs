@@ -7,10 +7,28 @@ use sqlx::{Postgres, Transaction};
 use super::RepositoryError;
 use crate::domain::UserId;
 
+/// การกระทำที่ออกลิงก์ — ใช้ตัดสินสิทธิ์ของผู้ออกตอนใช้ลิงก์ (registration/repository.rs): `Create` = สร้างบัญชี (`user.create`),
+/// `Reset` = รีเซ็ตรหัสผ่าน (`user.update`)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LinkPurpose {
+    Create,
+    Reset,
+}
+
+impl LinkPurpose {
+    fn as_str(self) -> &'static str {
+        match self {
+            LinkPurpose::Create => "create",
+            LinkPurpose::Reset => "reset",
+        }
+    }
+}
+
 /// ลิงก์ที่จะออก — DB เก็บแค่ hash ของ token (token ดิบอยู่ใน response ครั้งเดียว)
 pub struct NewRegistrationLink<'a> {
     pub token_hash: &'a str,
     pub expires_at: DateTime<Utc>,
+    pub purpose: LinkPurpose,
 }
 
 pub(super) async fn insert_link(
@@ -20,12 +38,13 @@ pub(super) async fn insert_link(
     link: &NewRegistrationLink<'_>,
 ) -> Result<(), RepositoryError> {
     sqlx::query!(
-        "insert into registration_links (token_hash, user_id, created_by, expires_at)
-         values ($1, $2, $3, $4)",
+        "insert into registration_links (token_hash, user_id, created_by, expires_at, purpose)
+         values ($1, $2, $3, $4, $5)",
         link.token_hash,
         user_id.0,
         created_by.0,
-        link.expires_at
+        link.expires_at,
+        link.purpose.as_str()
     )
     .execute(&mut **tx)
     .await?;

@@ -10,7 +10,7 @@
 //! วันนัด CD4 ครั้งที่ 2 ค่าเริ่มต้น "ครั้งที่ 1 + 6 เดือน" เป็นแค่ค่าตั้งต้นในฟอร์ม — ที่นี่บังคับแค่ว่าครั้งที่ 2
 //! ต้องหลังครั้งที่ 1 (ผู้ใช้เลื่อนวันจริงได้)
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use chrono::NaiveDate;
 use sqlx::PgPool;
@@ -268,6 +268,11 @@ pub async fn record_export(
 
 /// เพิ่มคนไข้หลายคนเข้านัดหมาย ตามลำดับที่ส่งมา (uuid ซ้ำในคำขอตัดทิ้ง) — คนไข้ต้องมีอยู่จริง ใช้งานอยู่
 /// และยังไม่อยู่ในนัดหมายนี้ ไม่งั้นไม่เพิ่มสักคน
+///
+/// ต้องมี `patient.view` ด้วย: คำตอบ ‘unknown patient’ / ‘patient is inactive’ / ‘already in group’ ขึ้นกับสถานะในทะเบียนผู้ป่วย
+/// (โดยเฉพาะ `is_active` ซึ่งอ่านได้ผ่าน `GET /patients` ที่ต้องมี `patient.view` เท่านั้น) — กฎเดียวกับ create/replace ผู้ป่วย
+/// (patient/service.rs): ผู้เขียนที่ดูไม่ได้ต้องไม่รู้สถานะที่ตัวเองอ่านไม่ได้ (security audit รอบ 2) หน้าเว็บของนัดหมายต้องมี
+/// `patient.view` อยู่แล้ว (join ชื่อ/HN) จึงไม่กระทบการใช้งานปกติ
 pub async fn add_visits(
     pool: &PgPool,
     actor: &CurrentUser,
@@ -275,18 +280,22 @@ pub async fn add_visits(
     patient_ids: &[Uuid],
 ) -> Result<(), LabVisitError> {
     require(actor, Action::Update)?;
-
-    let mut unique_ids: Vec<Uuid> = Vec::with_capacity(patient_ids.len());
-    for id in patient_ids {
-        if !unique_ids.contains(id) {
-            unique_ids.push(*id);
-        }
+    if !actor.can(Resource::Patient, Action::View) {
+        return Err(LabVisitError::Forbidden);
     }
+
+    // เพดานก่อนวนลูปใด ๆ ที่โตตามความยาวอาร์เรย์ (คำขอ 2 MiB ใส่ได้หลายหมื่น uuid) แล้วตัดซ้ำแบบเส้นตรงด้วย HashSet
+    if patient_ids.len() > MAX_PATIENTS_PER_REQUEST {
+        return Err(validation("too many patients"));
+    }
+    let mut seen = HashSet::with_capacity(patient_ids.len());
+    let unique_ids: Vec<Uuid> = patient_ids
+        .iter()
+        .copied()
+        .filter(|id| seen.insert(*id))
+        .collect();
     if unique_ids.is_empty() {
         return Err(validation("patient ids are required"));
-    }
-    if unique_ids.len() > MAX_PATIENTS_PER_REQUEST {
-        return Err(validation("too many patients"));
     }
 
     let group = existing_group(pool, group_public_id).await?;

@@ -21,7 +21,8 @@ fn date(y: i32, m: u32, d: u32) -> NaiveDate {
 }
 
 struct Fixture {
-    /// ผู้ใช้ที่มีทุกสิทธิ์ของหน้านัดหมายแล็ป (lab_visit.*)
+    /// ผู้ใช้ที่มีทุกสิทธิ์ของหน้านัดหมายแล็ป (lab_visit.*) และ patient.view — หน้าเว็บของนัดหมาย join ชื่อ/HN จึงต้องมี
+    /// patient.view อยู่แล้ว และ `add_visits` ต้องการสิทธิ์นี้ด้วย (คำตอบขึ้นกับสถานะในทะเบียนผู้ป่วย)
     actor: CurrentUser,
     user_id: i32,
     prename_id: i32,
@@ -66,7 +67,9 @@ async fn insert_patient_group(pool: &PgPool, user_id: i32, name: &str, active: b
 }
 
 async fn setup(pool: &PgPool) -> Fixture {
-    let actor = actor_with(pool, common::all_of(Resource::LabVisit)).await;
+    let mut permissions = common::all_of(Resource::LabVisit);
+    permissions.push(common::perm("patient.view"));
+    let actor = actor_with(pool, permissions).await;
     let user_id = actor.user.id.0;
     let prename_id = insert_prename(pool, user_id, "นาย").await;
     Fixture {
@@ -177,6 +180,42 @@ async fn read_and_write_permissions_are_checked_separately(pool: PgPool) {
             "{result:?}"
         );
     }
+
+    // add_visits ต้องมี patient.view ด้วย: ผู้ที่มี lab_visit.view + lab_visit.update แต่ไม่มี patient.view ถูกปฏิเสธเหมือนกันทุกกรณี
+    // (ไม่มีทางแยกว่า uuid สุ่ม / ผู้ป่วย inactive / ผู้ป่วยที่อยู่ในนัดหมายแล้ว / ผู้ป่วยที่เพิ่มได้ ผ่านข้อความตอบ — ไม่งั้นเป็น oracle ของ
+    // patient.is_active ที่อ่านได้เฉพาะ patient.view)
+    let (_, inactive) = new_patient(&pool, &f, false).await;
+    let (_, free) = new_patient(&pool, &f, true).await;
+    let no_patient_view = actor_with(
+        &pool,
+        vec![
+            common::perm("lab_visit.view"),
+            common::perm("lab_visit.update"),
+        ],
+    )
+    .await;
+    for patient_ids in [
+        vec![Uuid::new_v4()], // ไม่มีในระบบ
+        vec![inactive],       // inactive
+        vec![patient],        // อยู่ในนัดหมายนี้แล้ว
+        vec![free],           // เพิ่มได้ปกติถ้ามีสิทธิ์
+    ] {
+        let result = service::add_visits(&pool, &no_patient_view, group, &patient_ids).await;
+        assert!(
+            matches!(result, Err(LabVisitError::Forbidden)),
+            "{patient_ids:?} -> {result:?}"
+        );
+    }
+    // และต้องไม่เพิ่มอะไรลงนัดหมาย
+    assert_eq!(detail(&pool, &f, group).await.visits.len(), 1);
+    // ผู้ที่มี patient.view ด้วยได้คำตอบตามสถานะจริงเหมือนเดิม
+    assert!(matches!(
+        service::add_visits(&pool, &f.actor, group, &[inactive]).await,
+        Err(LabVisitError::Validation(_))
+    ));
+    service::add_visits(&pool, &f.actor, group, &[free])
+        .await
+        .unwrap();
 
     // แก้ไขอย่างเดียว: แก้ได้ แต่อ่านไม่ได้ (แก้ไขไม่ implies ดู)
     let writer = actor_with(&pool, vec![common::perm("lab_visit.update")]).await;

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update users set password_hash = $3, must_change_password = false, updated_at = now()\n           where id = $1 and password_hash = $2 and is_active",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "76466def8af82634e386ddf45e8907d44c2015ecbb13bf7d0da6dee96fae5c45"
+}

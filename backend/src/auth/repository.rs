@@ -88,24 +88,61 @@ pub async fn find_user_by_id(
     Ok(row)
 }
 
-/// นับ login ผิดของบัญชีนี้เพิ่มหนึ่ง — ถ้าล็อกครั้งก่อนหมดอายุแล้ว เริ่มนับใหม่ที่ 1 (ได้ครบ 5 ครั้งอีกรอบ)
-pub async fn register_user_failure(
+/// ผลการจองครั้งตรวจ login หนึ่งครั้ง (`reserve_*`)
+#[derive(Debug, PartialEq, Eq)]
+pub enum Reservation {
+    /// จองได้เป็นครั้งที่ `attempt` ของรอบนี้ (เริ่มที่ 1) — เกิน `max` แปลว่ารอบนี้ใช้ครบแล้ว (ห้าม verify)
+    /// `locked_until` = ล็อกที่ตั้งไว้ตอนจอง (ตั้งตอนจองครั้งที่ `max + 1` เป็นต้นไป)
+    Granted {
+        attempt: i32,
+        locked_until: Option<DateTime<Utc>>,
+    },
+    /// ล็อกอยู่แล้ว — ไม่ได้จอง ไม่ได้เขียนอะไร
+    Locked { until: DateTime<Utc> },
+}
+
+/// จองครั้งตรวจรหัสของบัญชีนี้ **ก่อน verify** (atomic — คำขอพร้อมกันได้เลขต่างกัน จึงผ่านด่าน verify ได้ไม่เกิน `max` ครั้งต่อรอบ
+/// ไม่ว่าจะรอคิว argon2 นานแค่ไหน) ล็อกหมดอายุแล้ว = เริ่มนับใหม่ที่ 1; ระหว่างล็อกไม่เขียนอะไร
+///
+/// เลขที่จองเกิน `max` ตั้งล็อก (`lock_until`) ให้เองตอนจอง: ครั้งที่ `max` ที่ถูกตัดกลางทาง (timeout ของ request) จะไม่ได้ตั้งล็อก
+/// เองตอนล้มเหลว รอบนี้จึงปิดโดยผู้จองครั้งถัดไป ไม่ค้างเป็นรอบที่ไม่มีทางหมดอายุ
+pub async fn reserve_user_attempt(
     pool: &PgPool,
     user_id: UserId,
     now: DateTime<Utc>,
-) -> Result<i32, RepositoryError> {
+    max: i32,
+    lock_until: DateTime<Utc>,
+) -> Result<Reservation, RepositoryError> {
     let row = sqlx::query!(
         r#"update users
-           set failed_attempts = case when locked_until <= $2 then 1 else failed_attempts + 1 end,
-               locked_until = case when locked_until <= $2 then null else locked_until end,
+           set failed_attempts = case when locked_until <= $2 then 1
+                                      else least(failed_attempts + 1, $3::int4 + 1) end,
+               locked_until = case when locked_until <= $2 then null
+                                   when failed_attempts + 1 > $3::int4 then $4::timestamptz
+                                   else locked_until end,
                updated_at = now()
-           where id = $1 returning failed_attempts"#,
+           where id = $1 and (locked_until is null or locked_until <= $2)
+           returning failed_attempts, locked_until"#,
         user_id.0,
-        now
+        now,
+        max,
+        lock_until
     )
-    .fetch_one(pool)
+    .fetch_optional(pool)
     .await?;
-    Ok(row.failed_attempts)
+    if let Some(row) = row {
+        return Ok(Reservation::Granted {
+            attempt: row.failed_attempts,
+            locked_until: row.locked_until,
+        });
+    }
+    // ไม่ได้จอง = ล็อกอยู่ตอนที่ update ประเมินเงื่อนไข อ่านเวลาปลดล็อกมาตอบ (ล็อกหมดอายุพอดีระหว่างสองคำสั่งนี้ = ถือว่ายังล็อก)
+    let until = sqlx::query_scalar!("select locked_until from users where id = $1", user_id.0)
+        .fetch_optional(pool)
+        .await?
+        .flatten()
+        .unwrap_or(lock_until);
+    Ok(Reservation::Locked { until })
 }
 
 pub async fn lock_account(
@@ -137,35 +174,50 @@ pub async fn find_unknown_lock(
     Ok(row.and_then(|r| r.locked_until))
 }
 
-/// นับ login ผิดของชื่อที่ไม่มีในระบบ — กติกาเดียวกับ `register_user_failure` (ล็อกหมดอายุ = เริ่มนับใหม่)
-/// แล้วลบแถวที่ไม่ได้แตะเกิน 30 วัน กันตารางโตจากชื่อสุ่ม
-pub async fn register_unknown_failure(
+/// จองครั้งตรวจรหัสของชื่อที่ไม่มีในระบบ — กติกาเดียวกับ `reserve_user_attempt` ทุกประการ (ตัวนับอยู่ใน `login_throttle`)
+/// เมื่อจองได้ลบแถวที่ไม่ได้แตะเกิน 30 วันด้วย (กันตารางโตจากชื่อสุ่ม — ใช้ index `login_throttle_updated_at_idx`)
+pub async fn reserve_unknown_attempt(
     pool: &PgPool,
     username_hash: &str,
     now: DateTime<Utc>,
-) -> Result<i32, RepositoryError> {
+    max: i32,
+    lock_until: DateTime<Utc>,
+) -> Result<Reservation, RepositoryError> {
     let row = sqlx::query!(
         r#"insert into login_throttle (username_hash, failed_attempts, updated_at)
            values ($1, 1, $2)
            on conflict (username_hash) do update
            set failed_attempts = case when login_throttle.locked_until <= $2 then 1
-                                      else login_throttle.failed_attempts + 1 end,
+                                      else least(login_throttle.failed_attempts + 1, $3::int4 + 1) end,
                locked_until = case when login_throttle.locked_until <= $2 then null
+                                   when login_throttle.failed_attempts + 1 > $3::int4 then $4::timestamptz
                                    else login_throttle.locked_until end,
                updated_at = $2
-           returning failed_attempts"#,
+           where login_throttle.locked_until is null or login_throttle.locked_until <= $2
+           returning failed_attempts, locked_until"#,
         username_hash,
-        now
+        now,
+        max,
+        lock_until
     )
-    .fetch_one(pool)
+    .fetch_optional(pool)
     .await?;
+    let Some(row) = row else {
+        let until = find_unknown_lock(pool, username_hash)
+            .await?
+            .unwrap_or(lock_until);
+        return Ok(Reservation::Locked { until });
+    };
     sqlx::query!(
         "delete from login_throttle where updated_at < $1::timestamptz - interval '30 days'",
         now
     )
     .execute(pool)
     .await?;
-    Ok(row.failed_attempts)
+    Ok(Reservation::Granted {
+        attempt: row.failed_attempts,
+        locked_until: row.locked_until,
+    })
 }
 
 pub async fn lock_unknown(
@@ -194,22 +246,60 @@ pub async fn reset_failed_attempts(pool: &PgPool, user_id: UserId) -> Result<(),
     Ok(())
 }
 
-pub async fn insert_session(
+/// สร้าง session เฉพาะเมื่อ credential ที่ login เพิ่งตรวจยังเป็นของจริงอยู่ — `false` = รหัสผ่านถูกเปลี่ยน/รีเซ็ต
+/// หรือบัญชีถูกปิดระหว่างที่ login นี้รอคิว argon2 (ไม่สร้างแถว)
+///
+/// `for share` ล็อกแถวผู้ใช้ให้ชนกับ `update users` ของรีเซ็ต/เปลี่ยนรหัส: ถ้ารีเซ็ตยังไม่ commit คำสั่งนี้รอ แล้วประเมิน
+/// `password_hash = $6` ใหม่หลังรีเซ็ต commit (ไม่ตรง → ไม่ insert); ถ้าคำสั่งนี้ได้ก่อน รีเซ็ตที่ตามมาจะลบแถวนี้เอง
+/// (`insert ... where exists` เฉยๆ ไม่พอ เพราะ READ COMMITTED มองไม่เห็นรีเซ็ตที่ยังไม่ commit)
+pub async fn insert_session_if_credential_unchanged(
     pool: &PgPool,
     token_hash: &str,
     user_id: UserId,
+    verified_password_hash: &str,
     idle_expires_at: DateTime<Utc>,
     absolute_expires_at: DateTime<Utc>,
     user_agent: Option<&str>,
-) -> Result<(), RepositoryError> {
-    sqlx::query!(
+) -> Result<bool, RepositoryError> {
+    let result = sqlx::query!(
         r#"insert into sessions (token_hash, user_id, idle_expires_at, absolute_expires_at, user_agent)
-           values ($1, $2, $3, $4, $5)"#,
+           select $1::text, u.id, $3::timestamptz, $4::timestamptz, $5::text
+           from (select id from users
+                 where id = $2 and password_hash = $6 and is_active
+                 for share) u"#,
         token_hash,
         user_id.0,
         idle_expires_at,
         absolute_expires_at,
-        user_agent
+        user_agent,
+        verified_password_hash
+    )
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected() == 1)
+}
+
+/// จองครั้งตรวจรหัสผ่านปัจจุบันของ session นี้ก่อน verify (atomic — คำขอพร้อมกันได้เลขต่างกัน จึงเกินเพดานไม่ได้)
+/// คืนเลขครั้งที่จอง; None = ไม่มี session นี้แล้ว
+pub async fn register_password_check(
+    pool: &PgPool,
+    token_hash: &str,
+) -> Result<Option<i32>, RepositoryError> {
+    let row = sqlx::query!(
+        "update sessions set password_check_count = password_check_count + 1
+         where token_hash = $1 returning password_check_count",
+        token_hash
+    )
+    .fetch_optional(pool)
+    .await?;
+    Ok(row.map(|r| r.password_check_count))
+}
+
+/// รหัสผ่านปัจจุบันถูกต้อง → เริ่มนับใหม่
+pub async fn reset_password_checks(pool: &PgPool, token_hash: &str) -> Result<(), RepositoryError> {
+    sqlx::query!(
+        "update sessions set password_check_count = 0 where token_hash = $1",
+        token_hash
     )
     .execute(pool)
     .await?;
@@ -287,23 +377,6 @@ pub async fn delete_all_sessions_for_user(
     Ok(result.rows_affected())
 }
 
-/// ลบ session อื่นทั้งหมดของผู้ใช้ ยกเว้นอันที่กำลังใช้อยู่ตอนนี้ (เปลี่ยนรหัสผ่านสำเร็จ —
-/// docs/auth-design.md ข้อ 8)
-pub async fn delete_all_sessions_for_user_except(
-    pool: &PgPool,
-    user_id: UserId,
-    keep_token_hash: &str,
-) -> Result<u64, RepositoryError> {
-    let result = sqlx::query!(
-        "delete from sessions where user_id = $1 and token_hash != $2",
-        user_id.0,
-        keep_token_hash
-    )
-    .execute(pool)
-    .await?;
-    Ok(result.rows_affected())
-}
-
 pub async fn fetch_permissions_for_user(
     pool: &PgPool,
     user_id: UserId,
@@ -326,20 +399,46 @@ pub async fn fetch_permissions_for_user(
         .collect()
 }
 
-pub async fn update_password_hash(
+/// เปลี่ยนรหัสผ่านแบบ compare-and-swap ในทรานแซกชันเดียวกับการเพิกถอน session อื่นและบันทึก audit
+/// (docs/auth-design.md ข้อ 8) — `false` = hash ในฐานไม่ใช่ตัวที่เพิ่งตรวจแล้ว (ถูกรีเซ็ต/เปลี่ยนไประหว่างรอคิว argon2)
+/// หรือบัญชีถูกปิด: ไม่เขียนอะไรเลย ใต้ READ COMMITTED เงื่อนไขถูกประเมินใหม่หลังรอ row lock ของรีเซ็ตที่ commit ก่อน
+pub async fn change_password_if_unchanged(
     pool: &PgPool,
     user_id: UserId,
+    verified_password_hash: &str,
     new_password_hash: &str,
-) -> Result<(), RepositoryError> {
-    sqlx::query!(
-        r#"update users set password_hash = $2, must_change_password = false, updated_at = now()
-           where id = $1"#,
+    keep_token_hash: &str,
+) -> Result<bool, RepositoryError> {
+    let mut tx = pool.begin().await?;
+    let updated = sqlx::query!(
+        r#"update users set password_hash = $3, must_change_password = false, updated_at = now()
+           where id = $1 and password_hash = $2 and is_active"#,
         user_id.0,
+        verified_password_hash,
         new_password_hash
     )
-    .execute(pool)
+    .execute(&mut *tx)
+    .await?
+    .rows_affected();
+    if updated == 0 {
+        return Ok(false);
+    }
+    // เพิกถอน session อื่นทั้งหมดยกเว้นอันปัจจุบัน
+    sqlx::query!(
+        "delete from sessions where user_id = $1 and token_hash != $2",
+        user_id.0,
+        keep_token_hash
+    )
+    .execute(&mut *tx)
     .await?;
-    Ok(())
+    sqlx::query!(
+        r#"insert into audit_log (actor_user_id, action, target_type) values ($1, 'password_changed', 'user')"#,
+        user_id.0
+    )
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(true)
 }
 
 pub async fn count_users(pool: &PgPool) -> Result<i64, RepositoryError> {

@@ -34,7 +34,9 @@ async fn reader(pool: &PgPool) -> Reader {
     let password = Uuid::new_v4().simple().to_string();
     let console = SqlConsole::new(pool.connect_options().as_ref(), &role, &password)
         .unwrap()
-        .with_statement_timeout(Duration::from_millis(1500));
+        .with_statement_timeout(Duration::from_millis(1500))
+        // build ของเทสไม่ optimize: งบปริยาย (200,000 ครั้ง ~1 วินาทีใน release) ใช้เกิน 10 วินาที
+        .with_decrypt_attempts(20_000);
     sql_console::setup(pool, &console).await.unwrap();
     Reader {
         role,
@@ -194,6 +196,66 @@ async fn patient_columns_are_decrypted_by_origin_not_by_name(pool: PgPool) {
         .unwrap()
         .starts_with("\\x01"));
     assert!(!denied.body.to_string().contains("สมชาย"));
+
+    drop_role(&pool, &reader.role).await;
+}
+
+#[sqlx::test]
+async fn ciphertext_inside_expressions_is_decrypted(pool: PgPool) {
+    insert_encrypted_patient(&pool).await;
+    let reader = reader(&pool).await;
+    let app = test_app_with_sql_console(pool.clone(), reader.console.clone()).await;
+    let cookie = session_with(&pool, &app, &["sql.view", "patient.view"]).await;
+
+    // ค่าที่ไม่มีคอลัมน์ต้นทาง: Postgres แปลง bytea เป็น \x<hex> แล้วต่อ/ห่อ — backend หา ciphertext ที่ฝังอยู่แล้วถอด
+    let sql = "select concat(p.name, pt.first_name, ' ', pt.last_name) as full_name,
+                      pt.first_name || ' ' || pt.last_name as joined,
+                      coalesce(pt.first_name, pt.last_name) as picked,
+                      json_build_object('hn', pt.hn, 'nap', pt.nap_no) as doc,
+                      encode(pt.hn, 'hex') as hex_hn,
+                      pt.hn_idx::text as idx
+               from patient pt
+               left join prename p on (p.id = pt.prename_id)";
+    let response = run(&app, &cookie, sql, true).await;
+    assert_eq!(response.status, StatusCode::OK, "{}", response.body);
+    let body = &response.body;
+    assert_eq!(first(body, "full_name"), json!("นายสมชาย ใจดี"));
+    assert_eq!(first(body, "joined"), json!("สมชาย ใจดี"));
+    assert_eq!(first(body, "picked"), json!("สมชาย"));
+    assert_eq!(first(body, "doc"), json!({ "hn": HN, "nap": NAP_NO }));
+    assert_eq!(first(body, "hex_hn"), json!(HN));
+    assert_eq!(column(body, "full_name")["decrypted"], json!(true));
+    // blind index ไม่ใช่ ciphertext — คงเป็น hex
+    assert!(first(body, "idx").as_str().unwrap().starts_with("\\x"));
+    assert_eq!(column(body, "idx")["decrypted"], json!(false));
+    assert_eq!(body["decryptErrors"], json!(0));
+
+    // union: คอลัมน์ผลลัพธ์ไม่มีต้นทาง แต่ค่ายังเป็น ciphertext
+    let union = run(
+        &app,
+        &cookie,
+        "select first_name as name from patient union all select last_name from patient",
+        true,
+    )
+    .await;
+    assert_eq!(union.body["rows"], json!([["สมชาย"], ["ใจดี"]]));
+
+    // ไม่ติ๊กถอด / ไม่มีสิทธิ์ดูผู้ป่วย → hex ตามเดิม
+    let raw = run(&app, &cookie, sql, false).await;
+    assert!(first(&raw.body, "full_name")
+        .as_str()
+        .unwrap()
+        .starts_with("นาย\\x01"));
+    let no_patient = session_with(&pool, &app, &["sql.view"]).await;
+    let denied = run(&app, &no_patient, sql, true).await;
+    assert_eq!(denied.status, StatusCode::OK);
+    assert!(!denied.body.to_string().contains("สมชาย"));
+    assert_eq!(
+        first(&denied.body, "doc")["hn"]
+            .as_str()
+            .map(|v| v.starts_with("\\x01")),
+        Some(true)
+    );
 
     drop_role(&pool, &reader.role).await;
 }
@@ -622,6 +684,131 @@ async fn setup_is_idempotent_and_refuses_unsafe_roles(pool: PgPool) {
         sql_console::setup(&pool, &own).await,
         Err(SetupError::SameAsAppRole)
     ));
+
+    drop_role(&pool, &reader.role).await;
+}
+
+/// ตัวช่วย :hn()/:nap_no() แปลงข้อความเป็น blind index ด้วย key ลับแล้วเทียบกับคอลัมน์ที่ reader อ่านได้ — เดา/ยืนยันเลขระบุตัว
+/// ผู้ป่วยได้ จึงต้องอยู่ใต้เกต patient.view เดียวกับการถอดรหัส: ผู้ถือ sql.view อย่างเดียวได้ 400 ทุกรูปแบบ (รวมเดาหลายค่าในคำขอเดียว)
+#[sqlx::test]
+async fn helpers_need_patient_view_so_registered_ids_cannot_be_guessed(pool: PgPool) {
+    insert_encrypted_patient(&pool).await;
+    let reader = reader(&pool).await;
+    let app = test_app_with_sql_console(pool.clone(), reader.console.clone()).await;
+    let no_patient = session_with(&pool, &app, &["sql.view"]).await;
+
+    for sql in [
+        "select :hn('66471')::text as idx",
+        "select 1 from patient where hn_idx = :hn('66471')",
+        "select 1 from patient where nap_no_idx = :nap_no('NAP-2026-1')",
+        "select g.v from (values (:hn('66471'), '66471'), (:hn('1'), '1')) g(i, v)
+         join patient p on p.hn_idx = g.i",
+    ] {
+        for decrypt in [false, true] {
+            let response = run(&app, &no_patient, sql, decrypt).await;
+            assert_eq!(
+                response.status,
+                StatusCode::BAD_REQUEST,
+                "{sql}: {}",
+                response.body
+            );
+            assert_eq!(response.body["error"], json!("helpers need patient.view"));
+        }
+    }
+    // คำสั่งที่ไม่ใช้ตัวช่วยยังรันได้ (เห็นเป็น ciphertext ไม่ใช่ plaintext)
+    let plain = run(&app, &no_patient, "select first_name from patient", true).await;
+    assert_eq!(plain.status, StatusCode::OK, "{}", plain.body);
+    assert_ne!(first(&plain.body, "first_name"), json!("สมชาย"));
+
+    drop_role(&pool, &reader.role).await;
+}
+
+/// งานถอดรหัสแบบฝังต้องมีขอบเขตไม่ว่าอินพุตเป็นอะไร: hex run ที่ยาวเกินเพดานข้ามทั้งก้อน และ run ที่สั้นกว่าเพดานหยุดที่งบ —
+/// ตอบ 200 โดยเซลล์ไม่เปลี่ยน ในเวลาจำกัด (คำสั่งยาวไม่กี่สิบตัวอักษรเคยทำให้ worker ค้างเกิน timeout ของคำขอ)
+#[sqlx::test]
+async fn embedded_decryption_work_is_bounded(pool: PgPool) {
+    let reader = reader(&pool).await;
+    let app = test_app_with_sql_console(pool.clone(), reader.console.clone()).await;
+    let cookie = session_with(&pool, &app, &["sql.view", "patient.view"]).await;
+
+    for n in [5000_usize, 1500] {
+        let started = std::time::Instant::now();
+        let response = run(
+            &app,
+            &cookie,
+            &format!("select repeat('01', {n}) as x"),
+            true,
+        )
+        .await;
+        assert_eq!(response.status, StatusCode::OK, "n={n}: {}", response.body);
+        assert_eq!(first(&response.body, "x"), json!("01".repeat(n)));
+        assert!(
+            started.elapsed() < Duration::from_secs(60),
+            "n={n} took {:?}",
+            started.elapsed()
+        );
+    }
+
+    drop_role(&pool, &reader.role).await;
+}
+
+/// วันที่/เวลาที่ chrono แทนไม่ได้ (infinity, ปีเกินช่วง) ต้องไม่ panic: infinity แสดงแบบ Postgres, นอกช่วงเป็น 400
+/// "cannot read column" — และทุกกรณียังบันทึก sql_executed หนึ่งแถว (panic เคยข้ามการบันทึก)
+#[sqlx::test]
+async fn out_of_range_dates_do_not_panic_and_every_run_is_audited(pool: PgPool) {
+    let reader = reader(&pool).await;
+    let app = test_app_with_sql_console(pool.clone(), reader.console.clone()).await;
+    let cookie = session_with(&pool, &app, &["sql.view"]).await;
+    let audited = |pool: &PgPool| {
+        let pool = pool.clone();
+        async move {
+            sqlx::query_scalar::<_, i64>(
+                "select count(*) from audit_log where action = 'sql_executed'",
+            )
+            .fetch_one(&pool)
+            .await
+            .unwrap()
+        }
+    };
+
+    let cases: [(&str, Option<&str>); 6] = [
+        ("select 'infinity'::timestamptz as v", Some("infinity")),
+        ("select '-infinity'::timestamp as v", Some("-infinity")),
+        ("select 'infinity'::date as v", Some("infinity")),
+        ("select '2026-10-21'::date as v", Some("2026-10-21")),
+        (
+            "select '2026-10-21 03:04:05.5+00'::timestamptz as v",
+            Some("2026-10-21T03:04:05.500Z"),
+        ),
+        ("select '262143-01-01'::date as v", None),
+    ];
+    for (sql, expected) in cases {
+        let before = audited(&pool).await;
+        let response = run(&app, &cookie, sql, false).await;
+        match expected {
+            Some(value) => {
+                assert_eq!(response.status, StatusCode::OK, "{sql}: {}", response.body);
+                assert_eq!(first(&response.body, "v"), json!(value), "{sql}");
+            }
+            None => {
+                assert_eq!(
+                    response.status,
+                    StatusCode::BAD_REQUEST,
+                    "{sql}: {}",
+                    response.body
+                );
+                assert!(
+                    response.body["message"]
+                        .as_str()
+                        .unwrap_or_default()
+                        .contains("cannot read column"),
+                    "{sql}: {}",
+                    response.body
+                );
+            }
+        }
+        assert_eq!(audited(&pool).await, before + 1, "{sql}");
+    }
 
     drop_role(&pool, &reader.role).await;
 }

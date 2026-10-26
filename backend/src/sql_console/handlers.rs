@@ -51,9 +51,9 @@ pub async fn query(
     Json(payload): Json<QueryRequest>,
 ) -> Result<Json<QueryResponse>, AppError> {
     let result = service::run(
-        &state.pool,
-        state.sql_console.as_deref(),
-        &state.config.crypto,
+        state.pool.clone(),
+        state.sql_console.clone(),
+        state.config.crypto.clone(),
         &current_user,
         &payload.sql,
         payload.decrypt,

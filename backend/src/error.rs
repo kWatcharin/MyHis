@@ -20,6 +20,10 @@ pub enum AppError {
     #[error("account temporarily locked")]
     AccountLocked { until: DateTime<Utc> },
 
+    /// login ไม่สำเร็จจาก IP นี้ครบเพดานของหน้าต่าง (ไม่ขึ้นกับชื่อผู้ใช้) → 429 พร้อม Retry-After
+    #[error("too many attempts")]
+    TooManyAttempts { until: DateTime<Utc> },
+
     #[error("not authenticated")]
     Unauthenticated,
 
@@ -82,10 +86,13 @@ impl From<crate::auth::AuthError> for AppError {
                 AppError::LoginRejected { remaining_attempts }
             }
             AuthError::AccountLocked { until } => AppError::AccountLocked { until },
+            AuthError::TooManyAttempts { until } => AppError::TooManyAttempts { until },
             err @ (AuthError::PasswordUnchanged | AuthError::CaptchaFailed) => {
                 AppError::Validation(err.to_string())
             }
-            err @ AuthError::CaptchaUnavailable => AppError::Unavailable(err.to_string()),
+            err @ (AuthError::CaptchaUnavailable | AuthError::Busy) => {
+                AppError::Unavailable(err.to_string())
+            }
             AuthError::Repository(e) => e.into(),
             AuthError::MissingSeedRole(name) => {
                 AppError::DataIntegrity(format!("required seed data missing: {name}"))
@@ -374,6 +381,8 @@ impl From<crate::sql_console::RepositoryError> for AppError {
         match err {
             RepositoryError::Database(e) => AppError::Database(e),
             err @ RepositoryError::ConnectTimeout => AppError::Unavailable(err.to_string()),
+            // ปกติ service แปลงเป็น QueryFailed (400 พร้อมข้อความ) แล้วตั้งแต่ to_failure; ทางนี้กันกรณีที่หลุดมา
+            RepositoryError::ResultTooLarge => AppError::Validation("result too large".to_string()),
         }
     }
 }
@@ -384,7 +393,9 @@ impl AppError {
             AppError::InvalidCredentials | AppError::LoginRejected { .. } => {
                 StatusCode::UNAUTHORIZED
             }
-            AppError::AccountLocked { .. } => StatusCode::TOO_MANY_REQUESTS,
+            AppError::AccountLocked { .. } | AppError::TooManyAttempts { .. } => {
+                StatusCode::TOO_MANY_REQUESTS
+            }
             AppError::Unauthenticated => StatusCode::UNAUTHORIZED,
             AppError::Forbidden | AppError::ForbiddenWithReason(_) => StatusCode::FORBIDDEN,
             AppError::NotFound => StatusCode::NOT_FOUND,
@@ -469,7 +480,7 @@ impl IntoResponse for AppError {
         )
             .into_response();
 
-        if let AppError::AccountLocked { until } = &self {
+        if let AppError::AccountLocked { until } | AppError::TooManyAttempts { until } = &self {
             let seconds = (*until - Utc::now()).num_seconds().max(0);
             if let Ok(value) = HeaderValue::from_str(&seconds.to_string()) {
                 response.headers_mut().insert("Retry-After", value);

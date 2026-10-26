@@ -182,10 +182,10 @@ async fn wrong_current_password_on_change_has_no_attempt_count(pool: PgPool) {
     assert_eq!(wrong.body, json!({ "error": "invalid credentials" }));
 }
 
-/// login ด้วยชื่อที่ไม่มีในระบบ: ประวัติ (audit_log.target_id) เก็บแค่ SHA-256 ของชื่อ ไม่เก็บชื่อดิบ
-/// (อาจเป็นรหัสผ่านที่พิมพ์ผิดช่อง) — บัญชีที่มีจริงยังเก็บ username ตามเดิม
+/// login ด้วยชื่อที่ไม่มีในระบบ: ประวัติ (audit_log.target_id) ไม่เก็บอะไรที่มาจากชื่อที่พิมพ์ — ทั้งดิบและ hash
+/// (ชื่ออาจเป็นรหัสผ่านที่พิมพ์ผิดช่อง และผู้ถือ sql.view อ่านคอลัมน์นี้ได้) บัญชีที่มีจริงยังเก็บ username ตามเดิม
 #[sqlx::test]
-async fn failed_login_audit_never_stores_an_unknown_typed_name(pool: PgPool) {
+async fn failed_login_audit_never_stores_anything_derived_from_an_unknown_typed_name(pool: PgPool) {
     let app = test_app(pool.clone()).await;
     insert_user_with_password(&pool, "nurse.one", PASSWORD, "nurse").await;
     attempt(&app, "  My-Secret-Pass-Typo ", WRONG).await;
@@ -198,11 +198,26 @@ async fn failed_login_audit_never_stores_an_unknown_typed_name(pool: PgPool) {
     .await
     .unwrap();
     assert_eq!(targets.len(), 2);
-    let unknown = targets[0].clone().unwrap();
-    assert_eq!(unknown.len(), 64);
-    assert!(unknown.chars().all(|c| c.is_ascii_hexdigit()));
-    assert!(!unknown.to_lowercase().contains("secret"));
+    assert_eq!(targets[0], None);
     assert_eq!(targets[1].as_deref(), Some("nurse.one"));
+
+    // ไม่มีคอลัมน์ใดของแถวนั้นมีชื่อที่พิมพ์ หรือ SHA-256 ของมัน (ตัวนับอยู่ใน login_throttle ซึ่งผู้ถือ sql.view อ่านไม่ได้)
+    let typed_hash: String = sqlx::query_scalar(
+        "select encode(sha256(convert_to('my-secret-pass-typo', 'UTF8')), 'hex')",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let leaked: i64 = sqlx::query_scalar(
+        "select count(*) from audit_log a
+         where a.action = 'login_failed' and a.actor_user_id is null
+           and (a::text ilike '%secret%' or a::text like '%' || $1 || '%')",
+    )
+    .bind(&typed_hash)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(leaked, 0);
 }
 
 /// login สำเร็จแล้วลบ session ที่หมดอายุทิ้ง (ของทุกคน) — session ที่ยังใช้ได้อยู่ไม่ถูกแตะ
@@ -248,4 +263,118 @@ async fn successful_login_cleans_up_expired_sessions(pool: PgPool) {
     assert_eq!(left.len(), 2, "{left:?}"); // still-valid + session ใหม่ของ login นี้
     assert!(left.contains(&"still-valid".to_string()));
     assert!(!left.iter().any(|h| h.starts_with("expired")));
+}
+
+/// คำขอพร้อมกันผ่านด่าน verify ได้ไม่เกิน 5 ครั้งต่อรอบ ไม่ว่าจะรอคิว argon2 อยู่กี่ตัว: ตัวนับถูกจองแบบ atomic **ก่อน** verify
+/// 8 คำขอผิดพร้อมกัน → ผลคงที่เสมอ ไม่ขึ้นกับลำดับ: 401 ที่เหลือ 4/3/2/1 อย่างละหนึ่ง, 429 อีก 4, ไม่มี 200,
+/// และ audit `login_failed` ต่อชื่อ = 5 (4 ครั้งผิด + ครั้งที่ล็อก; ครั้งที่ 6-8 ถูกปัดโดยไม่ verify) — ชื่อที่ไม่มีในระบบเหมือนกันทุกอย่าง
+#[sqlx::test]
+async fn concurrent_wrong_attempts_pass_the_verify_gate_at_most_five_times(pool: PgPool) {
+    let app = test_app(pool.clone()).await;
+    insert_user_with_password(&pool, "nurse.one", PASSWORD, "nurse").await;
+
+    for username in ["nurse.one", "ghost.user"] {
+        let jobs: Vec<_> = (0..8)
+            .map(|_| {
+                let (app, username) = (app.clone(), username.to_string());
+                tokio::spawn(async move { attempt(&app, &username, WRONG).await })
+            })
+            .collect();
+        let mut remaining = Vec::new();
+        let mut locked = 0;
+        for job in jobs {
+            let response = job.await.unwrap();
+            match response.status {
+                StatusCode::UNAUTHORIZED => {
+                    remaining.push(response.body["remainingAttempts"].as_i64().unwrap())
+                }
+                StatusCode::TOO_MANY_REQUESTS => locked += 1,
+                other => panic!("unexpected status {other} for {username}"),
+            }
+        }
+        remaining.sort_unstable();
+        assert_eq!(remaining, vec![1, 2, 3, 4], "{username}");
+        assert_eq!(locked, 4, "{username}");
+    }
+
+    let failures: i64 =
+        sqlx::query_scalar("select count(*) from audit_log where action = 'login_failed'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(failures, 10);
+}
+
+/// รอบที่ถูกตัดกลางทาง (ครั้งที่ 5 จองแล้วแต่ request ถูก timeout ก่อนตั้งล็อก) ต้องไม่ค้างเป็นรอบที่ไม่มีวันหมดอายุ:
+/// ผู้จองครั้งที่ 6 ตั้งล็อกให้เอง แล้วล็อกหมดอายุตามปกติ
+#[sqlx::test]
+async fn an_abandoned_last_attempt_does_not_leave_a_round_without_a_lock(pool: PgPool) {
+    let app = test_app(pool.clone()).await;
+    insert_user_with_password(&pool, "nurse.one", PASSWORD, "nurse").await;
+    // เหมือนครั้งที่ 5 จองไว้แล้วหายไป: นับ 5 แต่ไม่มีล็อก
+    sqlx::query("update users set failed_attempts = 5 where username = 'nurse.one'")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let sixth = attempt(&app, "nurse.one", PASSWORD).await;
+    assert_eq!(sixth.status, StatusCode::TOO_MANY_REQUESTS);
+    assert!(sixth.retry_after.is_some());
+    let locked: bool =
+        sqlx::query_scalar("select locked_until > now() from users where username = 'nurse.one'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!(
+        locked,
+        "the sixth reservation must close the round with a lock"
+    );
+
+    sqlx::query("update users set locked_until = now() - interval '1 second'")
+        .execute(&pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        attempt(&app, "nurse.one", PASSWORD).await.status,
+        StatusCode::OK
+    );
+}
+
+/// audit ของ login ที่ล้มเหลวด้วยชื่อที่ไม่มีในระบบมีเพดานต่อนาที (ชื่อสุ่มสร้างได้ไม่จำกัด): เกินเพดานข้ามแถว audit แต่ตัวนับ
+/// ใน login_throttle ยังทำงานครบ และ login ล้มเหลวของบัญชีที่มีจริงบันทึกครบทุกครั้งเสมอ
+#[sqlx::test]
+async fn unknown_name_audit_is_capped_but_counting_and_real_accounts_are_not(pool: PgPool) {
+    let app = common::test_app_with_unknown_login_audit(
+        pool.clone(),
+        my_his_backend::auth::AuditBudget::new(3, chrono::Duration::minutes(1)),
+    )
+    .await;
+    insert_user_with_password(&pool, "nurse.one", PASSWORD, "nurse").await;
+
+    for i in 0..6 {
+        let response = attempt(&app, &format!("ghost.{i}"), WRONG).await;
+        assert_eq!(response.status, StatusCode::UNAUTHORIZED);
+        assert_eq!(response.body["remainingAttempts"], 4);
+    }
+    for _ in 0..3 {
+        attempt(&app, "nurse.one", WRONG).await;
+    }
+
+    let unknown: i64 = sqlx::query_scalar(
+        "select count(*) from audit_log where action = 'login_failed' and actor_user_id is null",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let known: i64 = sqlx::query_scalar(
+        "select count(*) from audit_log where action = 'login_failed' and actor_user_id is not null",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let counters: i64 = sqlx::query_scalar("select count(*) from login_throttle")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!((unknown, known, counters), (3, 3, 6));
 }

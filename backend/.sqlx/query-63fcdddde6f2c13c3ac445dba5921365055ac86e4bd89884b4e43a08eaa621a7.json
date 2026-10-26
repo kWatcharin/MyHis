@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into audit_log (actor_user_id, action, target_type) values ($1, 'password_changed', 'user')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "63fcdddde6f2c13c3ac445dba5921365055ac86e4bd89884b4e43a08eaa621a7"
+}

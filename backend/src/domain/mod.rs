@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 pub mod changes;
 pub mod patient_crypto;
+pub mod username;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, sqlx::Type)]
 #[sqlx(transparent)]

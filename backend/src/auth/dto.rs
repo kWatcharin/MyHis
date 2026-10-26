@@ -14,9 +14,10 @@ use crate::domain::{Permission, User};
 #[derive(Deserialize, Validate)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct LoginRequest {
-    #[validate(length(min = 1, message = "username is required"))]
+    // เพดานบนกันชื่อ/รหัสยาวหลายร้อย KB (เดิมมีแค่เพดาน body 256 KiB): ชื่อที่เก็บจริงยาว ≤ 32 (domain::username) เผื่อช่องว่างหัวท้าย
+    #[validate(length(min = 1, max = 64, message = "username is required"))]
     pub username: String,
-    #[validate(length(min = 1, message = "password is required"))]
+    #[validate(length(min = 1, max = 1024, message = "password is required"))]
     pub password: String,
     /// token จาก widget Cloudflare Turnstile — ไม่มีได้เมื่อปิดฟีเจอร์ ใช้ได้ครั้งเดียว ห้าม log
     /// (Cloudflare กำหนดยาวสุด 2048 ตัวอักษร)
@@ -48,9 +49,13 @@ pub struct LoginConfigResponse {
 #[derive(Deserialize, Validate)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct ChangePasswordRequest {
-    #[validate(length(min = 1, message = "current password is required"))]
+    #[validate(length(min = 1, max = 1024, message = "current password is required"))]
     pub current_password: String,
-    #[validate(length(min = 12, message = "new password must be at least 12 characters"))]
+    #[validate(length(
+        min = 12,
+        max = 1024,
+        message = "new password must be at least 12 characters (at most 1024)"
+    ))]
     pub new_password: String,
 }
 
