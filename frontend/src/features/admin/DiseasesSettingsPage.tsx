@@ -32,7 +32,7 @@ import {
 import { usePagePermissions } from '@/features/role-preview/usePagePermissions'
 import { ApiError } from '@/lib/api'
 import { notify } from '@/lib/notify'
-import { hasCriteria, textIncludes } from '@/lib/search'
+import { STATUS_SEARCH_FIELD, hasCriteria, statusMatches, textIncludes } from '@/lib/search'
 import type { SearchValues } from '@/lib/search'
 
 import type { DiseaseFormValues } from './DiseaseFormDialog'
@@ -77,7 +77,8 @@ export function DiseasesSettingsPage() {
   const visibleItems = items.filter(
     (item) =>
       textIncludes(item.name, criteria.name ?? '') &&
-      textIncludes(item.abbreviation, criteria.abbreviation ?? ''),
+      textIncludes(item.abbreviation, criteria.abbreviation ?? '') &&
+      statusMatches(item.isActive, criteria.status),
   )
 
   // เรียงตามคอลัมน์ "ลำดับ" เมื่อกดหัวตาราง (หลังกรอง ก่อนแบ่งหน้า)
@@ -123,6 +124,7 @@ export function DiseasesSettingsPage() {
         fields={[
           { name: 'name', label: 'ชื่อโรค' },
           { name: 'abbreviation', label: 'คำย่อ' },
+          STATUS_SEARCH_FIELD,
         ]}
         onSearch={(values) => {
           setCriteria(values)

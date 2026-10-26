@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { ThaiDateInput } from '@/components/ui/thai-date-input'
+import { NativeSelect } from '@/components/ui/native-select'
 import type { SearchValues } from '@/lib/search'
 import { cn } from '@/lib/utils'
 
@@ -13,6 +15,10 @@ export interface SearchFieldDef {
   name: string
   label: string
   placeholder?: string
+  // ชนิดช่อง: ข้อความ (ค่าเริ่มต้น), วันที่ (แสดง พ.ศ. ค่า "YYYY-MM-DD"), ตัวเลือก (ค่าว่าง = ทั้งหมด ข้อความตาม allLabel)
+  type?: 'text' | 'date' | 'select'
+  options?: { value: string; label: string }[]
+  allLabel?: string
 }
 
 interface SearchFormProps {
@@ -58,17 +64,35 @@ export function SearchForm({ id, ariaLabel, fields, onSearch }: SearchFormProps)
               GRID_COLUMNS[Math.min(fields.length, 3)],
             )}
           >
-            {fields.map((field) => (
-              <Field key={field.name}>
-                <FieldLabel htmlFor={`${id}-${field.name}`}>{field.label}</FieldLabel>
-                <Input
-                  id={`${id}-${field.name}`}
-                  value={draft[field.name] ?? ''}
-                  onChange={(e) => setDraft({ ...draft, [field.name]: e.target.value })}
-                  placeholder={field.placeholder}
-                />
-              </Field>
-            ))}
+            {fields.map((field) => {
+              const fieldId = `${id}-${field.name}`
+              const value = draft[field.name] ?? ''
+              const set = (next: string) => setDraft({ ...draft, [field.name]: next })
+              return (
+                <Field key={field.name}>
+                  <FieldLabel htmlFor={fieldId}>{field.label}</FieldLabel>
+                  {field.type === 'select' ? (
+                    <NativeSelect id={fieldId} value={value} onChange={(e) => set(e.target.value)}>
+                      <option value="">{field.allLabel ?? 'ทั้งหมด'}</option>
+                      {field.options?.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </NativeSelect>
+                  ) : field.type === 'date' ? (
+                    <ThaiDateInput id={fieldId} value={value} onChange={set} />
+                  ) : (
+                    <Input
+                      id={fieldId}
+                      value={value}
+                      onChange={(e) => set(e.target.value)}
+                      placeholder={field.placeholder}
+                    />
+                  )}
+                </Field>
+              )
+            })}
           </div>
           <div className="flex justify-center gap-2">
             <Button type="submit">

@@ -33,7 +33,7 @@ import { usePagePermissions } from '@/features/role-preview/usePagePermissions'
 import { ApiError } from '@/lib/api'
 import { formatThaiDate } from '@/lib/date'
 import { notify } from '@/lib/notify'
-import { hasCriteria, textIncludes } from '@/lib/search'
+import { STATUS_SEARCH_FIELD, hasCriteria, statusMatches } from '@/lib/search'
 import type { SearchValues } from '@/lib/search'
 
 import type { BudgetYearFormValues } from './BudgetYearFormDialog'
@@ -61,6 +61,18 @@ function budgetYearErrorMessage(err: unknown): string {
 
 type FormState = { mode: 'create' } | { mode: 'edit'; item: BudgetYear } | null
 
+// ค้นหาด้วยช่วงวันที่ = ปีงบประมาณที่มีวันใดวันหนึ่งอยู่ในช่วงที่เลือก (ช่วงซ้อนกัน) — ใส่วันเดียวทั้งสองช่อง = ปีที่วันนั้นอยู่
+// ใส่แค่ช่องเดียวก็ได้ วันที่เป็น "YYYY-MM-DD" ทั้งคู่จึงเทียบเป็นข้อความได้ตรง ๆ
+function matchesCriteria(item: BudgetYear, criteria: SearchValues): boolean {
+  const from = criteria.from ?? ''
+  const to = criteria.to ?? ''
+  return (
+    (from === '' || item.endDate >= from) &&
+    (to === '' || item.startDate <= to) &&
+    statusMatches(item.isActive, criteria.status)
+  )
+}
+
 // ต่อ API จริงเต็ม CRUD (backend/src/budget_year) — create/update คืนแค่ status ไม่มี body เลย
 // refetch() ทั้ง list หลังทุก mutation เหมือนหน้าตั้งค่าเพจ/role
 export function BudgetYearsSettingsPage() {
@@ -72,7 +84,7 @@ export function BudgetYearsSettingsPage() {
   const [isDeleting, setIsDeleting] = useState(false)
   // เงื่อนไขค้นหาที่ใช้กรองจริง (เปลี่ยนเมื่อกดปุ่ม "ค้นหา")
   const [criteria, setCriteria] = useState<SearchValues>({})
-  const visibleItems = items.filter((item) => textIncludes(item.year, criteria.year ?? ''))
+  const visibleItems = items.filter((item) => matchesCriteria(item, criteria))
 
   // เรียงตามคอลัมน์ "ลำดับ" เมื่อกดหัวตาราง (หลังกรอง ก่อนแบ่งหน้า)
   const sort = useSort(visibleItems, (row) => row.sortOrder)
@@ -117,7 +129,11 @@ export function BudgetYearsSettingsPage() {
       <SearchForm
         id="budget-year-search"
         ariaLabel="ค้นหาปีงบประมาณ"
-        fields={[{ name: 'year', label: 'ปีงบประมาณ (พ.ศ.)', placeholder: 'เช่น 2570' }]}
+        fields={[
+          { name: 'from', label: 'จากวันที่', type: 'date' },
+          { name: 'to', label: 'ถึงวันที่', type: 'date' },
+          STATUS_SEARCH_FIELD,
+        ]}
         onSearch={(values) => {
           setCriteria(values)
           pagination.reset()

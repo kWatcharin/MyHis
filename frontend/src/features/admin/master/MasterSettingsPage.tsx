@@ -31,7 +31,7 @@ import {
 import { usePagePermissions } from '@/features/role-preview/usePagePermissions'
 import { ApiError } from '@/lib/api'
 import { notify } from '@/lib/notify'
-import { hasCriteria, textIncludes } from '@/lib/search'
+import { STATUS_SEARCH_FIELD, hasCriteria, statusMatches, textIncludes } from '@/lib/search'
 import type { SearchValues } from '@/lib/search'
 
 import { useAdminList } from '../useAdminList'
@@ -68,9 +68,12 @@ export function MasterSettingsPage<T extends { id: string }>({ config }: { confi
   // เงื่อนไขค้นหาที่ใช้กรองจริง (เปลี่ยนเมื่อกดปุ่ม "ค้นหา" ในฟอร์ม) — ช่องที่กรอกต้องตรงทุกช่อง
   const [criteria, setCriteria] = useState<SearchValues>({})
 
-  const visibleItems = items.filter((item) =>
-    config.searchFields.every((field) => textIncludes(field.value(item), criteria[field.name] ?? '')),
+  const visibleItems = items.filter(
+    (item) =>
+      config.searchFields.every((field) => textIncludes(field.value(item), criteria[field.name] ?? '')) &&
+      (!config.statusOf || statusMatches(config.statusOf(item), criteria.status)),
   )
+  const searchFields = config.statusOf ? [...config.searchFields, STATUS_SEARCH_FIELD] : config.searchFields
 
   // คอลัมน์ที่กดเรียงได้ (ถ้า config มี sortValue เช่น "ลำดับ") — เรียงหลังกรอง ก่อนแบ่งหน้า
   const sortColumn = config.columns.find((column) => column.sortValue)
@@ -113,7 +116,7 @@ export function MasterSettingsPage<T extends { id: string }>({ config }: { confi
       <SearchForm
         id="master-search"
         ariaLabel={`ค้นหา${config.entityLabel}`}
-        fields={config.searchFields}
+        fields={searchFields}
         onSearch={(values) => {
           setCriteria(values)
           pagination.reset()

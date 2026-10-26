@@ -1,5 +1,6 @@
 // ตัวช่วยค้นหา/กรองรายการฝั่ง client ที่ใช้ร่วมกันทุกหน้ารายการ (ฟอร์มค้นหา: components/layout/SearchForm.tsx)
 // ค่าของฟอร์มค้นหา = ชื่อช่อง → ข้อความที่พิมพ์ (ว่าง = ไม่กรองช่องนั้น; ช่องที่กรอกต้องตรงทุกช่อง)
+import type { SearchFieldDef } from '@/components/layout/SearchForm'
 
 export type SearchValues = Record<string, string>
 
@@ -23,6 +24,23 @@ export function allTokensIncluded(value: string, query: string): boolean {
   if (!q) return true
   const haystack = normalizeText(value)
   return q.split(' ').every((token) => haystack.includes(token))
+}
+
+// ช่อง "สถานะ" ของหน้ารายการที่มี isActive (ปีงบประมาณ, โรค, master) — ค่าว่าง = ทุกสถานะ คู่กับ statusMatches
+export const STATUS_SEARCH_FIELD: SearchFieldDef = {
+  name: 'status',
+  label: 'สถานะ',
+  type: 'select',
+  allLabel: 'ทุกสถานะ',
+  options: [
+    { value: 'active', label: 'ใช้งานอยู่' },
+    { value: 'inactive', label: 'ปิดใช้งาน' },
+  ],
+}
+
+// แถวผ่านช่องสถานะไหม (status = ค่าของ STATUS_SEARCH_FIELD)
+export function statusMatches(isActive: boolean, status: string | undefined): boolean {
+  return !status || (status === 'active') === isActive
 }
 
 // มีเงื่อนไขค้นหาที่กรอกจริง (ไม่ใช่ว่างทั้งหมด) ไหม

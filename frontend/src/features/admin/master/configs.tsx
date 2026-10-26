@@ -90,6 +90,7 @@ export const nationalityConfig: MasterConfig<Nationality> = {
     { name: 'nationalName', label: 'เชื้อชาติ/สัญชาติ', value: (item) => item.nationalName },
     { name: 'nation', label: 'ประเทศ', value: (item) => item.nation },
   ],
+  statusOf: (item) => item.isActive,
   itemLabel: (item) => item.nationalName,
   errorMessages: {
     'nationality name already taken': 'เชื้อชาติ/สัญชาตินี้มีอยู่แล้ว',
@@ -134,6 +135,7 @@ export const patientGroupConfig: MasterConfig<PatientGroup> = {
     },
   ],
   searchFields: [{ name: 'name', label: 'ชื่อกลุ่มคนไข้', value: (item) => item.name }],
+  statusOf: (item) => item.isActive,
   itemLabel: (item) => item.name,
   errorMessages: {
     'patient group name already taken': 'ชื่อกลุ่มคนไข้นี้มีอยู่แล้ว',
@@ -184,6 +186,7 @@ export const labConfig: MasterConfig<Lab> = {
     { name: 'name', label: 'ชื่อแลป', value: (item) => item.name },
     { name: 'abbreviation', label: 'คำย่อ', value: (item) => item.abbreviation },
   ],
+  statusOf: (item) => item.isActive,
   itemLabel: (item) => item.name,
   errorMessages: {
     'lab name already taken': 'ชื่อแลปนี้มีอยู่แล้ว',

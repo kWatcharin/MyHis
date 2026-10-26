@@ -53,6 +53,8 @@ export interface MasterConfig<T extends { id: string }> {
     placeholder?: string
     value: (item: T) => string | null
   }[]
+  // master ที่มี isActive: ใส่แล้วฟอร์มค้นหามีช่อง "สถานะ" ต่อท้าย (คำนำหน้าไม่มีสถานะตาม data dict จึงไม่ใส่)
+  statusOf?: (item: T) => boolean
   // ข้อความที่ใช้เรียกแถวในกล่องยืนยันลบ
   itemLabel: (item: T) => string
   // ข้อความ error ที่ backend ส่งมา (field `error`) → ข้อความไทย เช่น
