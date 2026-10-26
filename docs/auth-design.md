@@ -65,7 +65,7 @@ JWT จะเริ่มคุ้มเมื่อมีหลาย service �
 | password_hash | text | argon2id พร้อม salt ในตัว — บัญชีที่ยังไม่ตั้งรหัส (สร้างใหม่/หลังรีเซ็ต) เป็น hash ของค่าสุ่มที่ทิ้งไปแล้ว login ไม่มีทางผ่าน |
 | is_active | boolean | ปิดบัญชีโดยไม่ลบข้อมูล |
 | must_change_password | boolean | ยังใช้รหัสผ่านชั่วคราว — เหลือแค่ bootstrap admin และบัญชีเดิมก่อนมีลิงก์ลงทะเบียน (การรีเซ็ตไม่ตั้งค่านี้แล้ว) |
-| failed_attempts | integer | นับ login ผิดติดกัน (ครบ 5 = ล็อก, ล็อกหมดอายุแล้วนับใหม่, login สำเร็จ = 0) — ดูข้อ 9 |
+| failed_attempts | integer | นับครั้งที่ login ถูกรับตรวจรหัสในรอบนี้ — **จองก่อน verify** (ครบ 5 = ล็อก, ล็อกหมดอายุแล้วนับใหม่, login สำเร็จ = 0) ดูข้อ 9 |
 | locked_until | timestamptz | ล็อก login ถึงเวลานี้ (60 วินาทีหลังผิดครั้งที่ 5) null ถ้าไม่ถูกล็อก — รีเซ็ตรหัสผ่านปลดล็อก |
 | prename_id | integer | nullable, FK ไป `prename` — คำนำหน้า (ผู้ใช้กรอกเองตอนลงทะเบียน admin แก้ได้) |
 | first_name / last_name | text | nullable — ชื่อ-สกุลเจ้าหน้าที่ (ไม่ใช่ข้อมูลผู้ป่วย จึงไม่เข้ารหัส) |
@@ -183,8 +183,10 @@ primary key คือ (`page_id`, `permission`)
 | idle_expires_at | timestamptz | หมดอายุถ้าไม่ใช้งาน |
 | absolute_expires_at | timestamptz | หมดอายุเด็ดขาดไม่ว่าจะใช้งานอยู่หรือไม่ |
 | user_agent | text | ไว้ให้ผู้ใช้ดูว่ามีอุปกรณ์ไหน login อยู่ |
+| password_check_count | integer | ครั้งที่ใส่รหัสผ่านปัจจุบันผิดตอนเปลี่ยนรหัสใน session นี้ — จองก่อนตรวจ รีเซ็ตเป็น 0 เมื่อรหัสถูก ครบ 5 แล้วลบ session นี้ (ตาราง sessions ไม่อยู่ใน `READABLE_TABLES` ของหน้า SQL) |
 
-ต้องมี index บน `user_id` (ใช้ตอน logout ทุกอุปกรณ์) และงานลบ session ที่หมดอายุทิ้งเป็นระยะ
+ต้องมี index บน `user_id` (ใช้ตอน logout ทุกอุปกรณ์) และบน `idle_expires_at` / `absolute_expires_at` (migration `20261024100000` — งานลบ session ที่หมดอายุ
+ซึ่งรันทุกครั้งที่ login สำเร็จ ไม่สแกนทั้งตารางของทุกผู้ใช้) จำนวน session ต่อผู้ใช้ถูกจำกัดทางอ้อมด้วยเพดาน login ที่สำเร็จต่อผู้ใช้ (ข้อ 9.3)
 
 ### registration_links
 
@@ -199,6 +201,7 @@ primary key คือ (`page_id`, `permission`)
 | created_at / expires_at | timestamptz | หมดอายุ = ออกลิงก์ + 3 วัน |
 | used_at | timestamptz | ลงทะเบียน/ตั้งรหัสสำเร็จเมื่อ — ใช้ซ้ำไม่ได้ |
 | revoked_at | timestamptz | ถูกแทนด้วยลิงก์ใหม่เมื่อ (ผู้ใช้หนึ่งคนมีลิงก์ที่ใช้ได้อย่างมากหนึ่งอัน) |
+| purpose | text | `create` (ออกตอนสร้างบัญชี — `user.create`) หรือ `reset` (ออกตอนรีเซ็ตรหัส — `user.update`) ใช้ตัดสินสิทธิ์ของผู้ออกตอนใช้ลิงก์ (ข้อ 8) not null ไม่มีค่าปริยาย (migration `20261024100100`) |
 
 index บน `user_id` — ลิงก์ "ใช้ได้" = `used_at` และ `revoked_at` เป็น null, ยังไม่หมดอายุ และบัญชียัง `is_active`
 (ปิดบัญชีแล้วลิงก์ใช้ไม่ได้ เปิดกลับแล้วลิงก์ที่ยังไม่หมดอายุใช้ได้อีก)
@@ -211,9 +214,9 @@ index บน `user_id` — ลิงก์ "ใช้ได้" = `used_at` แ�
 | คอลัมน์ | ชนิด | หมายเหตุ |
 |---|---|---|
 | username_hash | text | primary key — SHA-256 (hex) ของชื่อที่พิมพ์มา (ตัวเล็ก ตัดช่องว่าง) **ไม่เก็บชื่อดิบ** (อาจเป็นรหัสผ่านที่พิมพ์ผิดช่อง) |
-| failed_attempts | integer | ผิดติดกันกี่ครั้ง (ล็อกหมดอายุแล้วนับใหม่) |
+| failed_attempts | integer | ครั้งที่ login ถูกรับตรวจรหัสในรอบนี้ (จองก่อน verify เหมือน `users.failed_attempts`; ล็อกหมดอายุแล้วนับใหม่) |
 | locked_until | timestamptz | null = ไม่ล็อก |
-| updated_at | timestamptz | ผิดครั้งล่าสุด — แถวที่ไม่ได้แตะเกิน 30 วันถูกลบตอนเขียน |
+| updated_at | timestamptz | ครั้งล่าสุดที่จอง — แถวที่ไม่ได้แตะเกิน 30 วันถูกลบตอนเขียน (index `login_throttle_updated_at_idx` ให้คำสั่งลบไม่สแกนทั้งตาราง) |
 
 ### audit_log
 
@@ -221,13 +224,19 @@ index บน `user_id` — ลิงก์ "ใช้ได้" = `used_at` แ�
 |---|---|---|
 | id | bigserial | |
 | actor_user_id | integer | FK ไป `users.id` (on delete set null), null ได้ กรณี login ล้มเหลวที่ไม่รู้ว่าใคร |
-| action | text | เข้า/ออก: `login_succeeded`, `login_failed`, `logout`, `logout_all` — การใช้งาน: `<ชนิด>_created/_updated/_deleted` ของทุกหน้า (`patient`, `lab_visit_group`, `lab_visit`, `user`, `role`, `page`, `budget_year`, `disease`, `prename`, `nationality`, `patient_group`, `lab`), `lab_visit_group_exported`, `user_activated/deactivated/roles_replaced/password_reset`, `user_registered`, `user_password_set`, `password_changed`, `page_order_updated` (ลากจัดลำดับเพจทั้งระดับ — metadata `label` = ชื่อหัวข้อกลุ่มหรือ "เมนูชั้นบน" (ไม่มี target_id), details `order` = ชื่อเพจตามลำดับเดิม→ใหม่), `sql_executed` (หน้า SQL — target_type `sql` ไม่มี target_id) |
-| target_type / target_id | text / text | สิ่งที่ถูกกระทำ — `target_id` เก็บเป็น **uuid** ไม่ใช่ id int ภายใน เพื่ออ้างอิงข้ามเวลาได้ — แถวผู้ป่วยมีแค่ uuid; เหตุการณ์ login เก็บ username ของบัญชีที่มีอยู่ หรือ **SHA-256 ของชื่อที่พิมพ์มา** ถ้าไม่มีในระบบ (อาจเป็นรหัสผ่านที่พิมพ์ผิดช่อง — แถวก่อน 2026-10-12 เป็นชื่อดิบ) API ไม่ส่งคอลัมน์นี้ออก |
-| metadata | jsonb | ข้อมูลเพิ่มเติม ห้ามใส่ความลับ/ข้อมูลผู้ป่วย — มีแค่: `{"userAgent"}` ของเหตุการณ์เข้า/ออกระบบ (ตัดไม่เกิน 512 ตัวอักษร), `{"label"}` ชื่อ role/เพจ ณ ตอนนั้น (สองตารางนี้ลบจริง), `{"document", "format"}` ของการส่งออก (`cd4`/`roster`, `excel`/`pdf`), รายละเอียดการเปลี่ยนแปลง `{"after"}` / `{"before", "after"}` / `{"changed"}` (ดูหัวข้อประวัติการใช้งาน), การรันหน้า SQL `{"sqlSha256", "sqlLength", "status", "errorCode", "rows", "truncated", "tables", "decryptedCells", "durationMs"}` (**ไม่เก็บตัว SQL** — hash คำนวณหลังแทนตัวช่วย `:hn()` แล้วจึงไม่มี HN ดิบ) |
+| action | text | เข้า/ออก: `login_succeeded`, `login_failed`, `logout`, `logout_all` — การใช้งาน: `<ชนิด>_created/_updated/_deleted` ของทุกหน้า (`patient`, `lab_visit_group`, `lab_visit`, `user`, `role`, `page`, `budget_year`, `disease`, `prename`, `nationality`, `patient_group`, `lab`), `lab_visit_group_exported`, `user_activated/deactivated/roles_replaced/password_reset`, `user_registered`, `user_password_set`, `password_changed`, `password_change_failed` (ใส่รหัสปัจจุบันผิดตอนเปลี่ยนรหัส — ไม่มี target_id), `page_order_updated` (ลากจัดลำดับเพจทั้งระดับ — metadata `label` = ชื่อหัวข้อกลุ่มหรือ "เมนูชั้นบน" (ไม่มี target_id), details `order` = ชื่อเพจตามลำดับเดิม→ใหม่), `sql_executed` (หน้า SQL — target_type `sql` ไม่มี target_id) |
+| target_type / target_id | text / text | สิ่งที่ถูกกระทำ — `target_id` เก็บเป็น **uuid** ไม่ใช่ id int ภายใน เพื่ออ้างอิงข้ามเวลาได้ — แถวผู้ป่วยมีแค่ uuid; เหตุการณ์ login เก็บ username ของบัญชีที่มีอยู่ ส่วน login ด้วยชื่อที่ไม่มีในระบบเป็น **NULL** (ชื่อที่พิมพ์มาอาจเป็นรหัสผ่านที่พิมพ์ผิดช่อง จึงไม่เก็บทั้งดิบและ hash — ตัวนับอยู่ใน `login_throttle`; แถวก่อน 2026-10-21 เป็น SHA-256 ของชื่อ และก่อน 2026-10-12 เป็นชื่อดิบ — ล้างเป็น NULL แล้วด้วย migration `20261021100300` ตามที่เจ้าของอนุมัติ) API ไม่ส่งคอลัมน์นี้ออก |
+| metadata | jsonb | ข้อมูลเพิ่มเติม ห้ามใส่ความลับ/ข้อมูลผู้ป่วย — มีแค่: `{"userAgent"}` ของเหตุการณ์เข้า/ออกระบบ (ตัดไม่เกิน 512 ตัวอักษร), `{"label"}` ชื่อ role/เพจ ณ ตอนนั้น (สองตารางนี้ลบจริง), `{"document", "format"}` ของการส่งออก (`cd4`/`roster`, `excel`/`pdf`), รายละเอียดการเปลี่ยนแปลง `{"after"}` / `{"before", "after"}` / `{"changed"}` (ดูหัวข้อประวัติการใช้งาน), การรันหน้า SQL `{"sqlSha256", "sqlLength", "status", "errorCode", "rows", "truncated", "tables", "decryptedCells", "durationMs"}` (คำสั่งที่ถูกบล็อกมี `reason` + `keyword` = ชื่อคำสั่งจากชุดคงที่หรือ `OTHER` เท่านั้น) (**ไม่เก็บตัว SQL** — hash คำนวณหลังแทนตัวช่วย `:hn()` แล้วจึงไม่มี HN ดิบ) |
 | ip | inet | IP ของผู้ใช้ — มีเฉพาะเหตุการณ์เข้า/ออกระบบ (ดูด้านล่าง) |
 | created_at | timestamptz | index `(action, created_at)` (ประวัติการเข้าออก) และ `(created_at)` (ประวัติการใช้งาน) |
 
-ตารางนี้เขียนอย่างเดียว ไม่มีการแก้หรือลบจากในแอป
+ตารางนี้เขียนอย่างเดียว ไม่มีการแก้หรือลบจากในแอป — ข้อยกเว้นครั้งเดียวคือ migration `20261021100300` (2026-10-21) ที่ล้าง `target_id`
+ของ `login_failed` ที่ไม่มีผู้กระทำ (ชื่อที่พิมพ์มาอาจเป็นรหัสผ่าน) ตามที่เจ้าของอนุมัติ ไม่แตะแถวอื่น
+
+**เพดานของ `login_failed` ที่ไม่มีผู้กระทำ** (login ด้วยชื่อที่ไม่มีในระบบ ซึ่งสร้างได้ไม่จำกัดโดยเปลี่ยนชื่อ): บันทึกได้ไม่เกิน **60 แถวต่อนาที**
+ทั้งระบบ (`auth/audit_budget.rs`, หน้าต่างคงที่ในหน่วยความจำ) เกินแล้วไม่เขียนแถว audit ในช่วงนั้น (log เตือนหนึ่งครั้งต่อหน้าต่าง) —
+เป็นการเปลี่ยนนโยบาย audit: ช่วงที่ถูกยิงด้วยชื่อสุ่มจำนวนมากประวัติจะเป็นตัวอย่างไม่ครบ แต่ตัวนับ/ล็อกใน `login_throttle` ทำงานครบ
+และ login ที่ล้มเหลวของ **บัญชีที่มีอยู่จริง** บันทึกครบทุกครั้งเสมอ
 
 **ประวัติการเข้าออก** (หน้า "ประวัติการเข้าออก" `/audit/auth`, API `GET /audit/auth-events`, สิทธิ์ `audit.view`):
 - `login_succeeded`, `login_failed`, `logout`, `logout_all` บันทึก IP + User-Agent จาก request header (ไม่เก็บ header อื่น
@@ -238,8 +247,8 @@ index บน `user_id` — ลิงก์ "ใช้ได้" = `used_at` แ�
   ปลอมได้จึงไม่ใช้ ไม่มี header = null — ข้อจำกัด: (1) ถ้าวันหน้ามี Caddy สองชั้นซ้อนกัน ตัวในต้องตั้ง `trusted_proxies`
   (2) บน Docker Desktop ของ Windows ได้ IP ของ docker gateway ไม่ใช่ IP เครื่องจริง (เซิร์ฟเวอร์ Linux ได้ IP จริง)
   (3) dev เปิด backend ที่ `127.0.0.1:8081` ด้วย ผู้ที่เรียกตรงจากเครื่องนี้ปลอม header ได้
-- login ไม่สำเร็จด้วยชื่อที่ไม่มีในระบบ: ชื่อที่พิมพ์มายังเก็บใน `target_id` แต่ **API ประวัติไม่อ่านคอลัมน์นี้** (อาจเป็นรหัสผ่าน
-  ที่พิมพ์ผิดช่อง) หน้าเว็บแสดงแค่ "ไม่พบชื่อผู้ใช้" + IP/อุปกรณ์
+- login ไม่สำเร็จด้วยชื่อที่ไม่มีในระบบ: `target_id` เป็น NULL (ไม่เก็บอะไรที่คำนวณจากชื่อที่พิมพ์ เพราะอาจเป็นรหัสผ่านที่พิมพ์ผิดช่อง)
+  และ API ประวัติไม่อ่านคอลัมน์นี้อยู่แล้ว หน้าเว็บแสดงแค่ "ไม่พบชื่อผู้ใช้" + IP/อุปกรณ์
 
 **ประวัติการใช้งาน** (หน้า "ประวัติการใช้งาน" `/audit/activities`, API `GET /audit/activities`, สิทธิ์ `audit.view` ตัวเดียวกัน):
 - ทุก action ยกเว้นเข้า/ออกระบบ — แต่ละโมดูลเขียน audit ในทรานแซกชันเดียวกับการแก้ข้อมูล (หน้าตั้งค่า master, role, เพจ
@@ -269,13 +278,13 @@ index บน `user_id` — ลิงก์ "ใช้ได้" = `used_at` แ�
 | Method | Path | สิทธิ์ | อธิบาย |
 |---|---|---|---|
 | GET | `/auth/login-config` | สาธารณะ | หน้า login ถามก่อนแสดงฟอร์ม: `{ turnstileSiteKey }` (site key ของ Cloudflare Turnstile, `null` = ปิด ไม่ต้องแสดง widget) — ข้อ 9.1 |
-| POST | `/auth/login` | สาธารณะ | รับ username/password (+ `turnstileToken` เมื่อเปิด Turnstile) ถ้าผ่านจะตั้ง cookie และคืนข้อมูลผู้ใช้ — ไม่ผ่าน: `401 { error: "invalid credentials", remainingAttempts }` (เหลืออีกกี่ครั้งก่อนล็อก 4..1) ครั้งที่ 5 และระหว่างล็อก: `429 account temporarily locked` + `Retry-After` (ข้อ 9) — Turnstile ไม่ผ่าน/ไม่มี token: `400 captcha failed`, ติดต่อ Cloudflare ไม่ได้: `503 captcha unavailable` (ข้อ 9.1) |
+| POST | `/auth/login` | สาธารณะ | รับ username/password (+ `turnstileToken` เมื่อเปิด Turnstile) ถ้าผ่านจะตั้ง cookie และคืนข้อมูลผู้ใช้ — ไม่ผ่าน: `401 { error: "invalid credentials", remainingAttempts }` (เหลืออีกกี่ครั้งก่อนล็อก 4..1) ครั้งที่ 5 และระหว่างล็อก: `429 account temporarily locked` + `Retry-After` (ข้อ 9) — Turnstile ไม่ผ่าน/ไม่มี token: `400 captcha failed`, ติดต่อ Cloudflare ไม่ได้: `503 captcha unavailable` (ข้อ 9.1) — มี login ค้างคิว argon2 เต็ม: `503 server busy` (ปฏิเสธก่อนจองครั้งตรวจ ไม่นับเป็นครั้งที่ผิด ข้อ 8) — IP นี้ login ไม่สำเร็จครบเพดาน (20 ครั้ง/10 นาที): `429 too many attempts` + `Retry-After` ตอบก่อนทำอย่างอื่น ไม่ขึ้นกับชื่อผู้ใช้ (ข้อ 9.2) |
 | POST | `/auth/logout` | ต้อง login | ลบ session ปัจจุบันและล้าง cookie — บันทึก `logout` (IP/User-Agent) ถ้ามี session |
 | POST | `/auth/logout-all` | ต้อง login | ลบทุก session ของผู้ใช้คนนี้ |
 | GET | `/audit/activities?from=&to=` | `audit.view` | ประวัติการใช้งาน (ทุก action ยกเว้นเข้า/ออก) กฎช่วงวัน/จำนวนแถวเดียวกับ `auth-events` ต่อแถว: `occurredAt`, `action`, `user`, `targetType`, `targetLabel` (แถวผู้ป่วย = null เสมอ), `exportDocument`, `exportFormat` (เฉพาะการส่งออก), `details` (`{before?, after?, changed?}` หรือ null — ผู้ป่วยมีแค่ `changed`) |
 | GET | `/audit/auth-events?from=&to=` | `audit.view` | ประวัติการเข้าออกของผู้ใช้ทุกคน (`YYYY-MM-DD` วันตามเวลาไทย รวมทั้งสองวัน ไม่เกิน 366 วัน — เกิน/กลับด้าน = `400`) เรียงใหม่→เก่า ไม่เกิน 5,000 แถว (`truncated`) ต่อแถว: `occurredAt`, `event`, `user` (null = ไม่พบชื่อผู้ใช้), `ip`, `userAgent` |
 | GET | `/auth/me` | ต้อง login | คืนข้อมูลผู้ใช้ปัจจุบันพร้อมรายการ permission |
-| POST | `/auth/password` | ต้อง login | เปลี่ยนรหัสผ่านตัวเอง ต้องกรอกรหัสเดิมด้วย (ผิด → `401`) — รหัสใหม่ ≥ 12 ตัวและต้องไม่ซ้ำรหัสเดิม (`400`) หน้าเว็บเปิดจากเมนูชื่อผู้ใช้ท้ายเมนูซ้าย (ไม่บังคับเปลี่ยน) |
+| POST | `/auth/password` | ต้อง login | เปลี่ยนรหัสผ่านตัวเอง ต้องกรอกรหัสเดิมด้วย (ผิด → `401` บันทึก `password_change_failed`; ผิดครบ 5 ครั้งต่อ session แล้ว session นั้นถูกลบ แต่ไม่ล็อกบัญชี) — รหัสใหม่ ≥ 12 ตัวและต้องไม่ซ้ำรหัสเดิม (`400`) ถ้าแอดมินรีเซ็ต/ปิดบัญชีระหว่างที่คำขอนี้กำลังประมวลผล คำขอไม่เขียนทับผลนั้น (`401`) หน้าเว็บเปิดจากเมนูชื่อผู้ใช้ท้ายเมนูซ้าย (ไม่บังคับเปลี่ยน) |
 | GET | `/users` | `user.view` | รายชื่อผู้ใช้ทั้งหมดพร้อม role, `isActive`, `mustChangePassword`, `lockedUntil` (null = ไม่ล็อก), ข้อมูลตัว (`prenameId/prenameName/firstName/lastName/position`), `registeredAt` (null = ยังไม่ลงทะเบียน) และ `registrationExpiresAt` (ลิงก์ที่ค้างอยู่ อาจหมดอายุแล้ว — null = ไม่มี) (โมดูล `users/` — หน้า "ผู้ใช้งาน" `/users` กลุ่มเมนูลงทะเบียน) |
 | POST | `/users` | `user.create` | สร้างผู้ใช้ที่ยังไม่ลงทะเบียน + role เริ่มต้น → `201 { user, registrationToken, registrationExpiresAt }` (token ของลิงก์ลงทะเบียน อยู่ใน response ครั้งเดียว หน้าเว็บประกอบเป็น `/register#<token>`) — username เก็บเป็นตัวเล็กที่ trim แล้ว ยาว 3–32 ตัว เฉพาะ `a-z 0-9 . _ -` (`400 invalid username`), ชื่อที่แสดง 1–100 ตัว, `409 username already taken` |
 | PUT | `/users/{id}` | `user.update` | ฟอร์มแก้ไข: **แทนที่ทั้งชุด** ชื่อที่แสดง + `prenameId/firstName/lastName/position` (null/ว่าง = ล้างค่า, ≤100 ตัว, คำนำหน้าต้องมีอยู่และไม่ถูกลบ `400 unknown prename`) + `roleIds` (กฎเดียวกับ `PUT /users/{id}/roles`) ในทรานแซกชันเดียว |
@@ -289,7 +298,7 @@ index บน `user_id` — ลิงก์ "ใช้ได้" = `used_at` แ�
 | DELETE | `/roles/{id}` | `role.delete` | ลบ role — ปฏิเสธด้วย `409` ถ้ายังมีผู้ใช้ผูกอยู่ หรือถ้า `is_system` |
 | PUT | `/users/{id}/roles` | `user.update` | แทนที่ชุด role ทั้งหมดของผู้ใช้คนนี้ (full replace) — ต้องมีอย่างน้อย 1 role เสมอ ส่ง array ว่างจะได้ `400`; uuid ซ้ำถูกตัดทิ้ง; แก้ของตัวเองแล้วสิทธิ์รวมต้องยังมี `role.view` + `role.update` (`400 cannot remove your own role management permission`) |
 | GET | `/pages` | `page.view` | รายชื่อ page ทั้งหมดพร้อม permission ที่ต้องมี (สำหรับหน้าแอดมินจัดการเมนู) เรียงตามโครงเมนู (เพจหลักแต่ละอันตามด้วยเพจย่อย) — `route` null = หัวข้อกลุ่ม, `refId` = uuid ของเพจหลัก |
-| POST | `/pages` | `page.create` | สร้าง page ใหม่ พร้อมชุด permission ที่ต้องการ — ไม่ส่ง `route` = หัวข้อกลุ่ม, `refId` = อยู่ใต้เพจหลักนั้น `400` ถ้าเพจหลักไม่พบ/ไม่ใช่หัวข้อกลุ่มชั้นบน (`main page not found`, `main page must be a top-level page without a route`) หรือเพจย่อยไม่มี route (`sub page requires a route`) — ไม่ส่ง `sortOrder` = ต่อท้ายระดับของมัน (ค่ามากสุดของพี่น้อง + 10) |
+| POST | `/pages` | `page.create` | สร้าง page ใหม่ พร้อมชุด permission ที่ต้องการ — ไม่ส่ง `route` = หัวข้อกลุ่ม, `refId` = อยู่ใต้เพจหลักนั้น `400` ถ้าเพจหลักไม่พบ/ไม่ใช่หัวข้อกลุ่มชั้นบน (`main page not found`, `main page must be a top-level page without a route`) หรือเพจย่อยไม่มี route (`sub page requires a route`) — ไม่ส่ง `sortOrder` = ต่อท้ายระดับของมัน (ค่ามากสุดของพี่น้อง + 10) — `route` (ทั้ง POST และ PATCH) ต้องเป็น path ในแอป: `400 route must be a path inside the app` ถ้าไม่ขึ้นต้น `/` ตัวเดียว (`//host`, `/\host`, `https://…`), มี `\`/ช่องว่าง/control หรือยาวเกิน 200 ตัว — `label` ≤ 100 ตัว, `icon` ≤ 64 ตัว (`400`; ทั้ง POST และ PATCH) และเพจทั้งระบบ ≤ 300 (`409 too many pages`) เพราะเมนูถูกอ่านทั้งตารางทุกครั้งที่ใครเปิดแอป (ข้อ 11) |
 | PATCH | `/pages/{id}` | `page.update` | แก้ label/icon/route/sort_order หรือแทนที่ชุด permission ทั้งหมด (full replace) — `refId`: ไม่ส่ง = ไม่แตะ, `null` = ย้ายขึ้นเป็นเพจหลัก, uuid = ย้ายเข้ากลุ่ม (ล้าง route เป็น null ไม่ได้) — ย้ายกลุ่มจริง (ต่างจากค่าเดิม) โดยไม่ส่ง `sortOrder` = ต่อท้ายกลุ่มใหม่ `409 page has sub pages` ถ้าหัวข้อที่ยังมีเพจย่อยถูกย้ายเข้ากลุ่มอื่นหรือใส่ route |
 | PUT | `/pages/order` | `page.update` | `{ refId, ids }` เรียงเพจทั้งระดับใหม่ (ลากวางในหน้าตั้งค่าเพจ) — `refId` null/ไม่ส่ง = เพจหลักชั้นบน, uuid = เพจย่อยของหัวข้อกลุ่มนั้น; `sort_order` เขียนใหม่เป็น 10, 20, 30… ในทรานแซกชันเดียว + audit `page_order_updated` แถวเดียว (ลำดับเท่าเดิม = ไม่เขียนอะไร) `ids` ต้องเป็นเพจของระดับนั้นครบชุดพอดี ไม่งั้น `409 page order out of date`; `refId` ไม่ใช่หัวข้อกลุ่ม `400` (`main page not found`, `main page must be a top-level page without a route`) — ย้ายข้ามกลุ่มทางนี้ไม่ได้ ใช้ PATCH |
 | DELETE | `/pages/{id}` | `page.delete` | ลบ page — `409 page has sub pages` ถ้ายังมีเพจย่อย (ย้าย/ลบเพจย่อยก่อน) |
@@ -319,11 +328,11 @@ index บน `user_id` — ลิงก์ "ใช้ได้" = `used_at` แ�
 | POST | `/lab-visit-groups` | `lab_visit.create` | สร้างนัดหมาย → `201 { id }` — `409 lab visit group already exists` ถ้าปี+กลุ่มซ้ำ, `400` ถ้า CD4 ครั้งที่ 2 ไม่หลังครั้งที่ 1 หรืออ้าง master ที่ไม่มี/ปิดใช้งาน |
 | GET | `/lab-visit-groups/{id}` | `lab_visit.view` | หัวนัดหมาย + `visits` (รายชื่อคนไข้: `patientId` เป็น uuid **ไม่มีข้อมูลระบุตัว** — หน้าเว็บ join กับ `/patients` เอง) ไม่รวมคนไข้ที่ถูกลบจากทะเบียน |
 | PUT / DELETE | `/lab-visit-groups/{id}` | `lab_visit.update` / `lab_visit.delete` | แทนที่หัวนัดหมาย (คงปีงบ/กลุ่มที่ถูกปิดใช้งานภายหลังไว้ได้) / soft delete พร้อมรายชื่อคนไข้ทั้งหมด |
-| POST | `/lab-visit-groups/{id}/visits` | `lab_visit.update` | `{ patientIds }` เพิ่มคนไข้หลายคน (ต่อท้ายตามลำดับที่ส่ง, ตัดซ้ำ) — ทั้งชุดถูกปฏิเสธถ้ามีคนไม่พบ/ปิดใช้งาน (`400`) หรืออยู่ในนัดหมายแล้ว (`409`) |
+| POST | `/lab-visit-groups/{id}/visits` | `lab_visit.update` **+ `patient.view`** | `{ patientIds }` เพิ่มคนไข้หลายคน (ต่อท้ายตามลำดับที่ส่ง, ตัดซ้ำ) — ทั้งชุดถูกปฏิเสธถ้ามีคนไม่พบ/ปิดใช้งาน (`400`) หรืออยู่ในนัดหมายแล้ว (`409`) — ต้องมี `patient.view` ด้วยเพราะคำตอบเหล่านี้ขึ้นกับสถานะในทะเบียนผู้ป่วย (`is_active` อ่านได้ทาง `GET /patients` เท่านั้น) ผู้ที่ไม่มีได้ `403` เหมือนกันทุกกรณี — กฎเดียวกับ create/replace ผู้ป่วย (ข้อ 10) |
 | POST | `/lab-visit-groups/{id}/exports` | `lab_visit.export` | `{ document: cd4 \| roster, format: excel \| pdf }` → 204 บันทึกการส่งออกเอกสาร (`lab_visit_group_exported`) — หน้าเว็บเรียกก่อนสร้าง Excel/แสดงหน้าพิมพ์ทุกครั้ง ค่าอื่น = `400`, นัดหมายไม่มี/ถูกลบ = `404` |
 | PUT / DELETE | `/lab-visits/{id}` | `lab_visit.update` | แทนที่ระยะเวลากินยา (ปี 0–100, เดือน 0–11), ผล VL, สูตรยา, ลำดับ / เอาคนไข้ออกจากนัดหมาย (soft delete เพิ่มกลับได้) |
 | GET | `/sql/schema` | `sql.view` | ตาราง/คอลัมน์ที่ role อ่านอย่างเดียวของหน้า SQL อ่านได้ (ไม่มีคอลัมน์ลับ) พร้อม `encrypted` ต่อคอลัมน์, `maxRows`, `statementTimeoutMs` — ใช้ทำ auto complete (โมดูล `sql_console/` — หน้า "SQL" `/data/script`) |
-| POST | `/sql/query` | `sql.view` | `{ sql, decrypt }` รันคำสั่งเดียวแบบอ่านอย่างเดียวด้วย role ฐานข้อมูลแยก (docs/infrastructure.md หัวข้อหน้า SQL) → `{ columns: [{name, type, supported, encrypted, decrypted}], rows, rowCount, truncated, durationMs, decryptErrors }` สูงสุด 500 แถว 5 วินาที — ถอดรหัสคอลัมน์ผู้ป่วย (ตาม OID/attnum ต้นทาง ไม่ใช่ชื่อ) เฉพาะเมื่อ `decrypt` และมี `patient.view` ด้วย, ตัวช่วย `:hn('...')` / `:nap_no('...')` แทนเป็น blind index — Postgres ปฏิเสธ: `400 { error: "query failed", message, code (SQLSTATE), position }`, ไม่ใช่คำสั่งอ่าน/หลายคำสั่ง (ไม่รัน): `400 { error: "statement not allowed", reason: "read_only" | "multiple_statements", keyword }` (`keyword` = ชื่อคำสั่ง เช่น `DELETE`), ยังไม่ตั้งค่า: `503 sql console not configured` ทุกครั้งบันทึก `sql_executed` (metadata `status` = `ok` / `error` / `blocked`; บันทึกไม่ได้ = ไม่ส่งผล) |
+| POST | `/sql/query` | `sql.view` | `{ sql, decrypt }` รันคำสั่งเดียวแบบอ่านอย่างเดียวด้วย role ฐานข้อมูลแยก (docs/infrastructure.md หัวข้อหน้า SQL) → `{ columns: [{name, type, supported, encrypted, decrypted}], rows, rowCount, truncated, durationMs, decryptErrors }` สูงสุด 500 แถว 5 วินาที **ผลลัพธ์ไม่เกิน 16 MiB และ 200 คอลัมน์** (ไบต์ที่รับจาก Postgres + งบหน่วยความจำของ JSON ที่แปลงแล้ว — numeric/bytea/array ขยายใหญ่กว่าที่ส่งมา; เกิน = `400 { error: "query failed", message: "result too large: …" }` ยังบันทึก audit) การรัน + บันทึก audit ทำใน task แยกที่ไม่ผูกกับ request: ผู้ใช้ปิดแท็บ/ครบ 10 วินาทีกลางคำสั่งแล้ว audit ยังถูกเขียนเมื่อคำสั่งจบ — ถอดรหัสคอลัมน์ผู้ป่วย (ตาม OID/attnum ต้นทาง ไม่ใช่ชื่อ) และ ciphertext ที่ฝังอยู่ใน expression (concat, cast, coalesce, union, json — หา `\x<hex>` ในค่าแล้วถอด GCM ตรวจ tag + AAD) เฉพาะเมื่อ `decrypt` และมี `patient.view` ด้วย (การสแกน ciphertext ที่ฝังจำกัดงบ 200,000 ครั้งต่อคำขอ, hex run ยาวเกิน 4,096 ตัวอักษรข้าม, รันบน blocking thread; เกินงบ = เซลล์ที่เหลือแสดงเป็น hex; ค่าวันที่/เวลา `infinity` แสดงแบบ Postgres ส่วนนอกช่วงของ chrono = `400` ‘cast it to ::text’), ตัวช่วย `:hn('...')` / `:nap_no('...')` แทนเป็น blind index และ **ต้องมี `patient.view`** (ไม่มี = `400 { error: "helpers need patient.view" }` เพราะใช้เดา/ยืนยัน HN-NAP ที่ลงทะเบียนได้) — Postgres ปฏิเสธ: `400 { error: "query failed", message, code (SQLSTATE), position }`, ไม่ใช่คำสั่งอ่าน/หลายคำสั่ง (ไม่รัน): `400 { error: "statement not allowed", reason: "read_only" | "multiple_statements", keyword }` (`keyword` = ชื่อคำสั่งจากชุดคงที่ เช่น `DELETE` หรือ `OTHER` สำหรับคำแรกที่ไม่อยู่ในชุด — ไม่ใช่ข้อความที่ผู้ใช้พิมพ์), ยังไม่ตั้งค่า: `503 sql console not configured` ทุกครั้งบันทึก `sql_executed` (metadata `status` = `ok` / `error` / `blocked`; บันทึกไม่ได้ = ไม่ส่งผล) |
 | GET | `/menu` | ต้อง login | คืนรายชื่อ page ที่ผู้ใช้ปัจจุบันเข้าถึงได้ เรียงตามโครงเมนู (`id`, `label`, `icon`, `route`, `refId`) — ดูหัวข้อ 11 |
 | GET | `/health` | สาธารณะ | สำหรับ healthcheck ของ container |
 
@@ -338,23 +347,33 @@ index บน `user_id` — ลิงก์ "ใช้ได้" = `used_at` แ�
 - `401` ยังไม่ได้ login หรือ session ใช้ไม่ได้ — login ไม่ผ่านมี `remainingAttempts` ใน body ด้วย
 - `403` login แล้วแต่ไม่มีสิทธิ์
 - `409` ชื่อผู้ใช้ซ้ำ
-- `429` ถูกล็อกชั่วคราวจากการลองผิดหลายครั้ง พร้อม header `Retry-After`
-- `503` บริการภายนอกที่ต้องใช้ไม่ตอบ — Cloudflare Turnstile ตอน login (`captcha unavailable`) และหน้า SQL ที่ยังไม่ตั้งค่า
-  (`sql console not configured`)
+- `429` ถูกล็อกชั่วคราวจากการลองผิดหลายครั้ง (`account temporarily locked` ต่อชื่อ — ข้อ 9, `too many attempts` ต่อ IP — ข้อ 9.2 หรือเมื่อบัญชีนี้ login **สำเร็จ** บ่อยเกินเพดาน — ข้อ 9.3)
+  พร้อม header `Retry-After`
+- `503` บริการภายนอกที่ต้องใช้ไม่ตอบ — Cloudflare Turnstile ตอน login (`captcha unavailable`), login ค้างคิวเต็ม (`server busy`)
+  และหน้า SQL ที่ยังไม่ตั้งค่า (`sql console not configured`)
+- `403` ยังใช้กับคำขอที่เปลี่ยนสถานะซึ่งมาจากหน้าเว็บของ origin อื่น (ข้อ 7 ด่าน same-origin)
 - `400 query failed` เฉพาะหน้า SQL: body มี `message` / `code` / `position` ของ Postgres (ไม่ log ข้อความนี้)
 
 ## 6. ขั้นตอนการ login
 
 1. handler ตรวจรูปแบบ input เบื้องต้น แล้วส่งต่อให้ service
+   - **ด่านแรกสุด:** จองโควตา login ที่ไม่สำเร็จของ IP นี้ — ครบเพดานแล้วตอบ `429 too many attempts` ทันที
+     ก่อนเรียก Turnstile และก่อนคิว argon2 (ข้อ 9.2)
    - ถ้าเปิด Turnstile: service ตรวจ token กับ Cloudflare **ก่อนดูชื่อผู้ใช้** — ไม่ผ่านตอบ `400`/`503` ทันที
      ไม่นับเป็นครั้งที่ผิด ไม่บันทึก audit (ข้อ 9.1)
-2. service ปรับ username เป็นตัวพิมพ์เล็กและตัดช่องว่าง
-3. ตรวจล็อก (`users.locked_until` หรือ `login_throttle` ของชื่อที่ไม่มี) ถ้ายังไม่พ้นเวลา ตอบ `429` ทันที
-4. ดึงผู้ใช้จากฐานข้อมูล **ถ้าไม่พบ ให้ยังคำนวณ hash หลอกอยู่ดี** เพื่อให้เวลาตอบกลับใกล้เคียงกัน
-5. ตรวจรหัสผ่านด้วย argon2 (ใน `spawn_blocking`)
-6. ถ้าผิด หรือไม่พบผู้ใช้ หรือบัญชีถูกปิด → บันทึก audit, นับผิดเพิ่ม (ชื่อที่ไม่มีนับใน `login_throttle`) แล้วตอบ `401` ด้วยข้อความกลาง ๆ
-   ข้อความเดียวเสมอ + `remainingAttempts` (ครบ 5 ครั้ง → ล็อก ตอบ `429` แทน) — สามกรณีได้ผลเหมือนกันทุกอย่าง
-7. ถ้าผ่าน → รีเซ็ตตัวนับ, สร้าง session ใหม่, ตั้ง cookie, บันทึก audit, คืนข้อมูลผู้ใช้
+2. service ปรับ username เป็นตัวพิมพ์เล็กและตัดช่องว่าง ชื่อที่ไม่ตรงรูปแบบที่เก็บได้ (`domain::username`: 3–32 ตัว `a-z 0-9 . _ -`) ไม่มีทางมีอยู่
+   จึงข้ามการค้นฐานข้อมูล (ไม่ส่งอักขระอย่าง NUL เข้า Postgres ที่ปฏิเสธด้วย error → เคยเป็น 500) แล้วเดินเส้นทาง ‘ไม่พบผู้ใช้’ ข้อ 5 ทั้งหมด —
+   ตอบเหมือนชื่อที่ไม่มีในระบบ; `username` ≤ 64 ตัวและรหัสผ่าน ≤ 1024 ตัวที่ DTO (เกิน = `400`)
+3. ดึงผู้ใช้จากฐานข้อมูล แล้วตรวจล็อกแบบอ่านอย่างเดียว (`users.locked_until` หรือ `login_throttle` ของชื่อที่ไม่มี)
+   ถ้ายังไม่พ้นเวลา ตอบ `429` ทันที ไม่เข้าคิว argon2 (ทางลัดเท่านั้น — ตัวตัดสินจริงคือข้อ 4)
+4. **เข้าคิว argon2 ของ login** (ไม่เกิน 3 ช่องคำนวณพร้อมกัน, ค้างรวมไม่เกิน 64 — เต็มแล้วตอบ `503 server busy` ทันที ข้อ 8) แล้ว
+   **จองครั้งตรวจรหัสแบบ atomic ก่อน verify** (`failed_attempts + 1` ใน SQL คำสั่งเดียว) — ล็อกอยู่หรือรอบนี้ใช้ครบ 5 ครั้งแล้ว
+   (รวมครั้งที่ยังรอคิวอยู่) ตอบ `429` โดยไม่ verify ดังนั้นคำขอพร้อมกันผ่านด่าน verify ได้ไม่เกิน 5 ครั้งต่อรอบ (ข้อ 9)
+5. **ถ้าไม่พบผู้ใช้ ให้ยังคำนวณ hash หลอกอยู่ดี** เพื่อให้เวลาตอบกลับใกล้เคียงกัน แล้วตรวจรหัสผ่านด้วย argon2 (ใน `spawn_blocking`)
+6. ถ้าผิด หรือไม่พบผู้ใช้ หรือบัญชีถูกปิด → บันทึก audit แล้วตอบ `401` ด้วยข้อความกลาง ๆ ข้อความเดียวเสมอ + `remainingAttempts`
+   (= 5 − เลขครั้งที่จองไว้) ถ้าเป็นครั้งที่ 5 ของรอบ → ตั้งล็อก ตอบ `429` แทน — สามกรณีได้ผลเหมือนกันทุกอย่าง
+7. ถ้าผ่าน → **จองเพดานการเข้าสำเร็จของบัญชีนี้** (ข้อ 9.3: 30 ครั้ง/10 นาที ไม่คืนโควตา — เกินแล้วล้างตัวนับผิดที่จองไว้ในข้อ 4 แล้วตอบ
+   `429 too many attempts` ไม่สร้าง session ไม่เขียน audit) แล้วรีเซ็ตตัวนับ, สร้าง session ใหม่, ตั้ง cookie, บันทึก audit, คืนข้อมูลผู้ใช้
 8. จุดที่เว้นไว้สำหรับ MFA ในอนาคตคือระหว่างข้อ 6 กับ 7
 
 ข้อความ error ของ login ต้องเหมือนกันทุกกรณี ไม่บอกว่าไม่มีชื่อผู้ใช้นี้ ไม่บอกว่ารหัสผ่านผิด
@@ -387,21 +406,45 @@ Extractor อ่าน cookie แล้ว hash ค่าที่ได้ ไ�
 ถ้าภายหลัง frontend ถูกแยกไปคนละโดเมนกับ backend จะต้องเปลี่ยนเป็น `SameSite=None`
 และต้องเพิ่มการป้องกัน CSRF แบบ token ทันที ให้ถือเป็นการตัดสินใจที่ต้องทบทวนร่วมกันก่อน
 
+### ด่าน same-origin ของคำขอที่เปลี่ยนสถานะ
+
+`SameSite=Lax` กันได้แค่คำขอข้าม **site** — origin อื่นใน site เดียวกัน (subdomain/พอร์ตอื่นของโดเมนเดียวกัน) ยังส่งคุกกี้ได้ และ POST ที่ไม่มี
+body (`/users/{id}/reset-password`, `/auth/logout`, `/auth/logout-all`) ไม่ถูก `Json` extractor ปฏิเสธ form ธรรมดาเหมือน POST อื่น
+จึงมี middleware กลาง (`app.rs` `reject_cross_site`) ตรวจ **ทุก method ที่ไม่ใช่ GET/HEAD/OPTIONS** ด้วย header ที่เบราว์เซอร์ตั้งเอง:
+
+1. มี `Sec-Fetch-Site` → ผ่านเฉพาะ `same-origin` กับ `none`; `same-site` / `cross-site` → `403`
+2. ไม่มี แต่มี `Origin` → authority ต้องตรงกับ `Host` (ไม่เชื่อ `X-Forwarded-Host`); `Origin: null` หรือไม่ตรง → `403`
+3. ไม่มีทั้งสอง (curl, สคริปต์ seed, เทส — ไม่ใช่เบราว์เซอร์) → ผ่าน
+
+หน้าเว็บเรียก `/api` แบบ same-origin เสมอ (Caddy ฝั่ง frontend / vite proxy) จึงไม่ต้องแก้ฝั่งเว็บ; ทุก Caddy ที่คั่นต้องส่ง `Host` เดิมต่อ (Caddy ทำเป็นปริยาย)
+เทส `backend/tests/same_origin.rs` + unit test ใน `app.rs`
+
 ## 8. รหัสผ่าน
 
 - ใช้ argon2id พารามิเตอร์เริ่มต้นตามคำแนะนำของ OWASP (หน่วยความจำ 19 MiB, iterations 2, parallelism 1)
 - ทุกการ hash และ verify ต้องอยู่ใน `spawn_blocking` มิฉะนั้นจะบล็อก async runtime — เรียกผ่าน `password::hash_async` /
   `verify_async` ซึ่งรอคิวให้คำนวณพร้อมกันได้ไม่เกิน 4 งาน (ตัวละ 19 MiB) ถูกยิง login รัว ๆ จะรอคิวจนชน timeout
   ของ request แทนที่จะเปิด blocking thread จนหน่วยความจำเครื่องหมด
+- **login (ผู้ที่ยังไม่ยืนยันตัวตน) แยกโควตาจากงานของผู้ที่ยืนยันแล้ว:** login เข้าคิวผ่าน `password::admit_login` — คำนวณพร้อมกันได้ไม่เกิน
+  **3** จาก 4 ช่อง (เหลืออย่างน้อย 1 ช่องให้เปลี่ยนรหัสผ่าน / สร้าง-รีเซ็ตบัญชี / ลงทะเบียนผ่านลิงก์ ต่อให้มีคนยิง login รัว ๆ) และ login ที่อยู่ใน
+  ระบบ (คำนวณ + รอ) รวมไม่เกิน **64** — เกินแล้วตอบ `503 server busy` ทันที ไม่รอจน 408 การเข้าคิวเกิดก่อนจองครั้งตรวจ
+  จึงไม่เผาโควตาครั้งผิดของใคร (หน้า login แสดง "ระบบกำลังยุ่ง ลองใหม่") — เทสหน่วยใน `password.rs` ด้วยตัวจำกัดค่าเล็ก
 - ความยาวขั้นต่ำ 12 ตัวอักษร ไม่บังคับรูปแบบตัวอักษรพิเศษ ความยาวมีผลมากกว่าความซับซ้อน
 - ตรวจกับรายการรหัสผ่านยอดนิยมแบบสั้น ๆ ได้ถ้าอยากเพิ่มภายหลัง
-- เปลี่ยนรหัสผ่านสำเร็จ ให้เพิกถอน session อื่นทั้งหมดยกเว้นอันปัจจุบัน
+- เปลี่ยนรหัสผ่านสำเร็จ ให้เพิกถอน session อื่นทั้งหมดยกเว้นอันปัจจุบัน — เขียน hash ใหม่ (เฉพาะเมื่อ hash ในฐานยังเป็นตัวที่เพิ่งตรวจ และบัญชียัง active) ลบ session อื่น และบันทึก `password_changed` ในทรานแซกชันเดียว
+- การเพิกถอน credential (รีเซ็ต/ตั้งรหัสผ่านผ่านลิงก์/เปลี่ยนรหัสเอง) ลบได้แค่ session ที่มี ณ ตอนนั้น จึงสร้าง session ตอน login ผูกกับ hash ที่เพิ่งตรวจ (`insert ... from (select ... for share)`) — login ที่รอคิว argon2 ข้ามจังหวะรีเซ็ตจะไม่ได้ session
 - รหัสใหม่ต้องไม่ซ้ำรหัสเดิม (กันใส่รหัสชั่วคราวที่แอดมินเห็นแล้วซ้ำ ซึ่งทำให้การเปลี่ยนไม่มีความหมาย)
 - **ไม่มีรหัสผ่านชั่วคราวแล้ว — ใช้ลิงก์ลงทะเบียน/ตั้งรหัสใหม่แทน:**
   - สร้างผู้ใช้/รีเซ็ตรหัส ตั้ง `password_hash` เป็น hash ของค่าสุ่ม 256 บิตที่ทิ้งทันที (login ไม่ผ่านแบบเดียวกับรหัสผิด)
     แล้วออกลิงก์ `/register#<token>` ใช้ครั้งเดียว อายุ 3 วัน (ตาราง `registration_links` เก็บแค่ SHA-256 ของ token)
   - token อยู่หลัง `#` — ไม่ถูกส่งไป server ตอนเปิดหน้า (ไม่ติด log/Referer) หน้าเว็บอ่านแล้วลบออกจาก URL ทันที
     และส่งให้ API ใน body ของ POST เท่านั้น
+  - **อำนาจของผู้ออกลิงก์ตรวจซ้ำตอนใช้ลิงก์** (ทั้ง lookup และ complete): ผู้ออก (`created_by`) ต้องยัง active และยังถือสิทธิ์ของ **การกระทำที่ออกลิงก์**
+    (`registration_links.purpose`): ลิงก์ `reset` ต้อง `user.update` เท่านั้น (รีเซ็ตรหัสใช้สิทธิ์นี้ตอนออก — ผู้ถือ `user.create` อย่างเดียวรีเซ็ตใครไม่ได้ จึงไม่ควร
+    ใช้ลิงก์รีเซ็ตที่ออกไว้ก่อนถูกถอน `user.update`) ลิงก์ `create` รับ `user.create` หรือ `user.update` และสิทธิ์ปัจจุบันของเป้าหมายต้องอยู่ในชุดสิทธิ์ปัจจุบันของผู้ออก
+    — เดียวกับกฎ require/require_manageable/require_within_own ตอนออกลิงก์ ลิงก์ที่ค้างอยู่จึงใช้ไม่ได้ถ้าเป้าหมายถูกเพิ่มสิทธิ์เกินผู้ออก ผู้ออกถูกปิดบัญชี หรือถูกถอนสิทธิ์ที่ใช้ออกลิงก์นั้น
+    (ใช้ได้อีกถ้าเงื่อนไขกลับมาจริง; ลิงก์ของ admin ผ่านเสมอ) migration `20261024100100` ตั้ง `purpose` ให้ลิงก์ที่ค้างอยู่: เป้าหมายยังไม่ลงทะเบียน = `create`
+    (รวมลิงก์รีเซ็ตที่ออกให้คนที่ยังไม่ลงทะเบียน — ผ่อนกว่าจนหมดอายุ ≤ 3 วัน) ที่เหลือ = `reset`
   - ลิงก์ใช้ไม่ได้ทุกกรณีได้ข้อความกลางเดียว ตรวจลิงก์ (ราคาถูก) ก่อนคำนวณ argon2 เสมอ จึงไม่เปิดช่อง DoS
     และ token 256 บิตเดาไม่ได้ จึงไม่ต้องมี rate limit เพิ่ม
   - ลงทะเบียนครั้งแรก: ผู้ใช้กรอกคำนำหน้า ชื่อ สกุล (บังคับ) ตำแหน่ง (ไม่บังคับ) + ตั้งรหัส → `registered_at`
@@ -418,6 +461,11 @@ Extractor อ่าน cookie แล้ว hash ค่าที่ได้ ไ�
 - ผิดครั้งที่ 1–4 ตอบ `401` พร้อม `remainingAttempts` (4..1) หน้า login แสดง "เหลือโอกาส X/5 ครั้ง" เริ่มที่ 5/5
 - ครั้งที่ 5 และทุกครั้งระหว่างล็อก (แม้รหัสถูก) ตอบ `429` + `Retry-After` หน้า login ปิดฟอร์มและนับถอยหลังตามนั้น
 - ล็อกหมดอายุแล้วนับใหม่ (ได้ 5 ครั้งเต็ม), login สำเร็จรีเซ็ตเป็น 0, รีเซ็ตรหัสผ่านจากหน้าผู้ใช้งานปลดล็อก
+- **จองก่อน verify (2026-10-21):** ตัวนับเพิ่มด้วย SQL คำสั่งเดียว (atomic) *ก่อน* คำนวณ argon2 — เดิมเช็กล็อกจากภาพเก่าแล้วค่อยนับตอนผิด
+  คำขอที่รอคิว argon2 อยู่พร้อมกันจึงผ่านเช็กล็อกได้หมดก่อนที่ครั้งที่ 5 จะเขียนล็อก ตอนนี้เลขที่จองได้เกิน 5 = `429` ทันทีโดยไม่ verify
+  ดังนั้นผ่านด่าน verify ได้ไม่เกิน 5 ครั้งต่อรอบ และ `login_failed` ของรอบนั้นมี 5 แถวพอดี (เทส `concurrent_wrong_attempts_pass_the_verify_gate_at_most_five_times`)
+  - ผู้จองเลขที่ 6 เป็นคนตั้งล็อกเอง: ครั้งที่ 5 ที่จองแล้วถูกตัดกลางทาง (request timeout) จะไม่ได้ตั้งล็อกตอนล้มเหลว รอบจึงไม่ค้างโดยไม่มีวันหมดอายุ
+  - ระหว่างล็อกไม่เขียนอะไรเลย (เหมือนเดิม) — คำขอที่ต่อคิว argon2 อยู่ตอนถูกตัดทิ้งนับเป็นครั้งที่ใช้ไปแล้ว (ยอมรับ: ปลอดภัยกว่านับขาด)
 - **ชื่อที่ไม่มีในระบบนับและล็อกด้วยกติกาเดียวกัน** (ตาราง `login_throttle` เก็บแค่ SHA-256 ของชื่อ) — status, body และ
   `Retry-After` เหมือนชื่อที่มีจริงทุกครั้ง จึงใช้ตัวนับเดาว่าชื่อไหนมีอยู่ไม่ได้ (ก่อนหน้านี้ชื่อที่ไม่มีไม่เคยถูกล็อก
   คนลองผิด 5 ครั้งจึงรู้ได้) — เทส `backend/tests/login_throttle.rs`
@@ -428,7 +476,8 @@ Extractor อ่าน cookie แล้ว hash ค่าที่ได้ ไ�
 - คนอื่นจงใจกรอกผิดเพื่อล็อกบัญชีเราได้ (ครั้งละ 60 วินาที) ยอมรับได้เพราะระบบมีผู้ใช้น้อย
 - ถ้าวันหนึ่งมีผู้ใช้มากขึ้นหรือเปิดสาธารณะ ให้เปลี่ยนเป็นล็อกที่นานขึ้นเรื่อย ๆ
 
-การจำกัดจำนวน request ต่อ IP เป็นหน้าที่ของ Caddy ไม่ใช่ของ backend
+login ที่ไม่สำเร็จต่อ IP จำกัดในแอป (ข้อ 9.2) ส่วนการจำกัดจำนวน request ทั่วไปต่อ IP ยังเป็นหน้าที่ของ Caddy/เครื่องปลายทาง
+(docs/infrastructure.md)
 
 ### 9.1 Cloudflare Turnstile (กันบอทหน้า login)
 
@@ -448,6 +497,49 @@ Extractor อ่าน cookie แล้ว hash ค่าที่ได้ ไ�
 - เทส `backend/tests/login_turnstile.rs` ใช้ siteverify ปลอมในเครื่อง ไม่ยิง Cloudflare จริง
 - ยังไม่ใส่ที่หน้าลงทะเบียน `/register` (สาธารณะเหมือนกัน) — ใช้ `TurnstileWidget` เดียวกันได้ถ้าต้องการ
 
+### 9.2 เพดาน login ที่ไม่สำเร็จต่อ IP
+
+เพิ่ม 2026-10-21 เสริมตัวนับต่อชื่อ (ข้อ 9): ผู้โจมตีเปลี่ยนชื่อทุกครั้งเพื่อเลี่ยงตัวนับต่อชื่อได้ แต่ละครั้งยังเสียคิว argon2 (ข้อ 8)
+และการเรียก Turnstile (ข้อ 9.1) ตัวนับนี้นับตามที่อยู่ที่ proxy เห็น ไม่ขึ้นกับว่าชื่อมีในระบบ จึงไม่เป็น oracle ของชื่อผู้ใช้
+- **กติกา:** ไม่สำเร็จเกิน **20 ครั้ง / 10 นาที / IP** (หน้าต่างคงที่เริ่มตอนครั้งแรก) → `429 { error: "too many attempts" }` + `Retry-After`
+  (วินาทีที่เหลือของหน้าต่าง) ตอบก่อนเรียก Turnstile, ก่อนคิว argon2 และก่อนดูผู้ใช้ — ชื่อมี/ไม่มีได้ผลเหมือนกันเป๊ะ
+- **จองก่อนทำงาน (บทเรียนเดียวกับข้อ 9):** คำขอจองโควตาของ IP ด้วย lock ในหน่วยความจำ *ก่อน* เริ่ม ไม่ใช่เช็กแล้วค่อยนับ
+  คำขอพร้อมกันจาก IP เดียวจึงผ่านด่านได้ไม่เกินเพดาน
+- **อะไรนับ:** ทุกคำขอที่จบด้วยผลไม่สำเร็จ — `401`, `429` จากล็อกชื่อ, `400 captcha failed` **คืนโควตา** เมื่อ login สำเร็จ หรือพังเพราะฝั่งเรา
+  (`503 server busy`, `503 captcha unavailable`, error ภายใน) คำขอที่ถูกยกเลิกกลางทาง (client ตัด connection ทิ้ง) **ไม่คืน** —
+  ไม่งั้นส่งรหัสผิดแล้วตัดทิ้งเพื่อให้ argon2 ทำงานต่อโดยไม่ถูกนับได้
+- **IP คือใคร:** ค่าขวาสุดของ `X-Forwarded-For` (Caddy สองชั้น — docs/infrastructure.md ข้อ 6) ซึ่งที่ Caddy ชั้นนอกคือ `{client_ip}`:
+  `CF-Connecting-IP` เมื่อ TCP peer อยู่ในช่วง IP ของ Cloudflare (ใช้ Cloudflare proxy), ไม่งั้นเป็น IP ของ peer เอง — ถ้าไม่ตั้งแบบนี้
+  ทุกคนจะมี IP เป็นของ Cloudflare edge และใช้ key ร่วมกัน (ล็อก login ทั้งระบบได้ด้วย 20 คำขอ);
+  IPv6 นับทั้ง **/56** (ผู้ใช้เปลี่ยนที่อยู่ภายใน /64 ได้เอง และผู้ถือ prefix /48 มี /64 ถึง 65,536 ก้อน แต่มี /56 แค่ 256 ก้อน — ผู้ใช้ Cloudflare
+  IPv6 เข้าต้นทาง IPv4 ได้และ `CF-Connecting-IP` เป็น IPv6 ของเขา), `::ffff:a.b.c.d` นับเป็น IPv4; **ไม่มี header = ไม่นับ** (ไม่ได้มาทาง proxy)
+  — จึงห้ามเปิด backend ให้เข้าตรง ไม่งั้นปลอม header เลี่ยงเพดานได้
+- **หน่วยความจำ:** อยู่ในโปรเซส (restart แล้วเริ่มใหม่) ติดตามสูงสุด 10,000 key — เต็มด้วยแถวที่ยังไม่หมดอายุแล้วที่อยู่ใหม่ **ใช้ถังรวมถังเดียว**
+  300 ครั้ง/10 นาที (ไม่ใช่ไม่จำกัด — ผู้โจมตีที่ดันตารางให้เต็มจึงไม่ได้ใบอนุญาตไม่จำกัด; ราคาที่จ่าย: ระหว่างถูกโจมตีที่อยู่ใหม่ของคนจริงอาจชนถังรวม
+  รอหน้าต่างหมดแล้วเข้าได้) พร้อม log เตือนหนึ่งครั้ง; ถ้าเห็นที่อยู่ที่ไม่ใช่ public (loopback/private/link-local) จะเตือนใน log หนึ่งครั้งต่อโปรเซส
+  เพราะแปลว่า proxy chain ส่งที่อยู่ของ container/gateway แทนผู้ใช้
+- **log:** `warn` ครั้งเดียวต่อ IP ต่อหน้าต่างเมื่อชนเพดาน (IP ไม่ใช่ความลับ — ให้เจ้าของ/fail2ban ใช้) ไม่เขียน `audit_log` (บอทจะถม)
+- **ข้อควรรู้:** คนหลัง NAT เดียวกันใช้โควตาร่วม (20 ครั้ง/10 นาทีเผื่อพอสำหรับผู้ใช้ไม่กี่คน); คนที่ชนเพดานต้องรอหน้าต่างหมด (หน้า login
+  แสดง "รอประมาณ N นาที" ไม่ใช้ตัวนับถอยหลังของล็อกชื่อ), restart backend ล้างตาราง
+- โค้ด `backend/src/auth/ip_budget.rs`, เทส `backend/tests/login_ip_limit.rs`
+
+### 9.3 เพดาน login ที่สำเร็จต่อผู้ใช้
+
+เพิ่ม 2026-10-24 (security audit รอบ 2): เพดานข้อ 9.2 นับเฉพาะความพยายามที่ไม่สำเร็จ — login สำเร็จคืนโควตา จึงไม่มีอะไรจำกัดผู้ถือรหัสผ่านที่ถูกต้อง
+(หรือรหัสที่ถูกขโมย) ที่วนล็อกอินรัว: แต่ละครั้งสร้าง session ใหม่ (อยู่ตาม idle TTL), เขียนแถว audit `login_succeeded` ถาวร (ไม่มี retention)
+และสั่ง sweep session หมดอายุ
+- **กติกา:** เข้าสำเร็จเกิน **30 ครั้ง / 10 นาที / ผู้ใช้** (หน้าต่างคงที่) → `429 { error: "too many attempts" }` + `Retry-After` ไม่สร้าง session ไม่เขียน audit
+- **จองหลังรหัสถูก ก่อนสร้าง session และไม่คืนโควตา** (ตรวจ+นับใน lock เดียว เกินเพดานไม่ได้แม้ขนาน) เกินแล้ว **ล้างตัวนับผิดที่จองไว้ก่อน verify**
+  (ไม่งั้นคำขอที่ได้ 429 สะสมจนล็อกบัญชีเอง) รหัสผิดไม่กินโควตานี้ (มีเพดานต่อชื่อ/IP ของมันเอง)
+- **ข้อควรรู้ (oracle แคบมาก):** เมื่อบัญชีใดมีการเข้าสำเร็จครบ 30 ครั้งในหน้าต่าง รหัสที่ถูกได้ `429` ส่วนรหัสผิดได้ `401` — ผู้เดารหัสแยกได้เฉพาะ
+  ช่วงที่บัญชีนั้นถูกใช้เข้าถี่ผิดปกติอยู่แล้ว (ต้องมีผู้ถือรหัสที่ถูกวนอยู่ก่อน) และรหัสผิดยังถูกจำกัดโดยตัวนับต่อชื่อ/IP
+- **ผลข้างเคียงที่ยอมรับ:** ผู้ถือรหัสที่ถูกต้องใช้โควตาของเจ้าของบัญชีหมดได้ในหน้าต่างนั้น (เจ้าของเข้าไม่ได้ ≤ 10 นาที) — เขาถือรหัสอยู่แล้ว จึงไม่ใช่สิทธิ์ใหม่;
+  session ที่ออกไปแล้วไม่กระทบ
+- **หน่วยความจำ:** อยู่ในโปรเซส (restart แล้วเริ่มใหม่) ตารางสูงสุด 10,000 ผู้ใช้ (ระบบนี้มีผู้ใช้ไม่กี่คน จึงไม่เกิดจริง) เกินแล้วผู้ใช้ใหม่ไม่ถูกติดตาม + log เตือน
+- **log:** `warn` ครั้งเดียวต่อผู้ใช้ต่อหน้าต่างเมื่อชนเพดาน (user id ภายใน ไม่ใช่ชื่อ)
+- ควบคู่กับ index ของ `sessions.idle_expires_at` / `absolute_expires_at` (ข้อ 4) — sweep ตอน login ไม่สแกนทั้งตาราง
+- โค้ด `backend/src/auth/user_budget.rs`, เทส `backend/tests/login_success_limit.rs`
+
 ## 10. การจัดการสิทธิ์
 
 - ผู้ใช้มีได้ **หลาย role** ผ่านตาราง `user_roles` (many-to-many, ดูหัวข้อ 4)
@@ -466,7 +558,7 @@ Extractor อ่าน cookie แล้ว hash ค่าที่ได้ ไ�
   `prename`, `nationality`, `patient_group`, `lab`) ได้ `view` / `create` / `update` / `delete` — `user` (ผู้ใช้งาน)
   ไม่มี `delete` (ปิดใช้งานแทน), `lab_visit` มี `export` เพิ่ม, `shift` มี `view` / `update` และ `audit` มี `view`
   (สองตัวหลังยังไม่มีหน้า) หน้าตั้งค่าสิทธิ์แสดงเป็นตาราง เพจ × ดู/เพิ่ม/แก้ไข/ลบ/ส่งออก
-  - **ทุก action ตรวจแยกกัน** (แก้ไขไม่ implies ดู) — POST = เพิ่ม, PUT/PATCH = แก้ไข, DELETE = ลบ, อ่าน = ดู
+  - **ทุก action ตรวจแยกกัน** (แก้ไขไม่ implies ดู — ยกเว้นผู้ป่วย: เพิ่ม/แก้ผู้ป่วยต้องมี `patient.view` ด้วย เพราะ 409 ‘hn already registered’ และ 400 ‘disease is inactive’ ตอบต่างกันตามข้อมูลในทะเบียนที่ต้องมีสิทธิ์ดูถึงอ่านได้ — และ **เพิ่มคนไข้เข้านัดหมายแล็ป** (`POST /lab-visit-groups/{id}/visits`) ก็ต้องมี `patient.view` ด้วยเหตุผลเดียวกัน: ‘patient is inactive’ / ‘unknown patient’ / ‘already in group’ เผยสถานะ `is_active` ในทะเบียน) — POST = เพิ่ม, PUT/PATCH = แก้ไข, DELETE = ลบ, อ่าน = ดู
     ผู้ใช้งาน: แก้ข้อมูล/ชุด role/เปิด-ปิดใช้งาน/รีเซ็ตรหัส = `user.update` นัดหมายแล็ป: เพิ่ม/แก้/เอาคนไข้ออกจาก
     นัดหมาย และแก้หัวนัดหมาย = `lab_visit.update` (สร้างนัดหมาย = `create`, ลบนัดหมายทั้งอัน = `delete`)
   - **ข้อมูลข้ามเพจ:** หน้านัดหมายแล็ป (รายละเอียด/พิมพ์) join ชื่อ/HN จาก `GET /patients` จึงต้องมี `patient.view`
@@ -538,6 +630,13 @@ Extractor อ่าน cookie แล้ว hash ค่าที่ได้ ไ�
   คุมทั้งกลุ่ม — ค่าเริ่มต้นหัวข้อไม่ผูก permission) หัวข้อกลุ่ม (เพจหลักไม่มี route) เห็นเมื่อมีเพจย่อยที่เห็นได้
   อย่างน้อยหนึ่งหน้า ไม่โชว์หัวข้อเปล่า เช่น nurse ไม่เห็นหัวข้อ "สิทธิ์"/"การตั้งค่า" — RoleSwitcher ที่ preview
   สิทธิ์ของ role อื่นกรองด้วยกฎเดียวกันฝั่งหน้าเว็บ (`frontend/src/features/auth/menu.ts`)
+- **`route` ต้องเป็น path ภายในแอป** (`users/service/pages.rs` `is_in_app_route`; ฟอร์มและ sidebar ใช้กฎเดียวกัน `isInternalRoute` ใน `menu.ts`):
+  ค่าที่เก็บถูกส่งให้ทุกคนที่เห็นเพจและ sidebar ทำเป็นลิงก์ — `//host`, `/\host`, `https://…` react-router ถือเป็นลิงก์ภายนอกแล้วเรนเดอร์
+  เป็น `<a href>` ธรรมดา ผู้จัดการเพจที่ไม่ใช่ admin (ได้ `page.create`/`page.update` ทางเดียว ไม่ผ่าน `require_within_own`) จึงใช้ช่องนี้เปลี่ยนลิงก์ในแถบข้าง
+  ของ admin ให้พาออกนอกโดเมนได้ถ้าไม่ตรวจ — เมนูที่ route ไม่ผ่านกฎ (ข้อมูลเก่า/แก้ตรง DB) ไม่ถูกแสดงเป็นลิงก์ (ตรวจ `pages.route` บน dev แล้วไม่มีแถวใดผิดกฎ)
+- **ขนาดของข้อมูลเมนูมีเพดาน:** `label` ≤ 100 ตัว, `icon` ≤ 64 ตัว (DTO + CHECK `NOT VALID` ใน migration `20261024100200`), เพจทั้งระบบ ≤ 300 (`409 too many pages`
+  — นับแล้วค่อย insert จึงเป็นเพดานหลวม) เหตุผล: `GET /menu` อ่านทั้งตารางทุกครั้งที่ใครเปิดแอป และผู้ถือ `page.create` (แจกต่อได้ ไม่ผ่าน `require_within_own`)
+  เคยทำให้เมนูของทุกคนหนักได้ไม่จำกัด (ตัวอย่างวัดได้: เพจ 50 อัน → response 12 MB)
 - **Seed 3 หน้าเริ่มต้น** (หัวข้อ 4): `Dashboard` เป็นหน้า default หลัง login (สาธารณะ ไม่ต้องมี
   permission) กับหน้าตั้งค่า `การตั้งค่าเพจ`/`การตั้งค่า role` (ปัจจุบัน `page.view` / `role.view`) —
   นอกเหนือจากนี้ admin เพิ่มเองทีหลังผ่าน `POST /pages`

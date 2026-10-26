@@ -31,7 +31,8 @@ my-his/
 ├─ docs/
 │  ├─ rust-guidelines.md       กฎการเขียน Rust ของโปรเจกต์ (อ่านก่อนเขียนโค้ด)
 │  ├─ auth-design.md           ดีไซน์ระบบ auth ฉบับละเอียด
-│  └─ infrastructure.md        การวาง container, backup, ความปลอดภัยของเครื่อง
+│  ├─ infrastructure.md        การวาง container, backup, ความปลอดภัยของเครื่อง
+│  └─ security-audit.md        สรุปผล security audit (2026-10-21): สิ่งที่แก้แล้ว, ที่เหลือ, สิ่งที่ต้องทำตอน deploy
 ├─ ops/                        Caddyfile, สคริปต์ backup/restore, patient_decrypt.py (ถอดคอลัมน์ที่เข้ารหัสนอกแอป ให้ผู้ใช้รันเอง)
 ├─ frontend/
 └─ backend/
@@ -44,6 +45,7 @@ my-his/
       ├─ main.rs               อ่าน config, ต่อ DB, รัน server
       ├─ app.rs                ประกอบ router ของทุกโมดูล + middleware กลาง
       ├─ config.rs             อ่าน environment variable
+      ├─ conn_guard.rs         ห่อ listener ของ axum::serve: cap connection พร้อมกัน + ตัด connection ที่ไม่คืบหน้า (ไม่ใช่ rate limit)
       ├─ crypto.rs             เข้ารหัสคอลัมน์ข้อมูลผู้ป่วย (AES-256-GCM) + blind index สำหรับค้นหา
       ├─ token.rs              สุ่ม token + SHA-256 (session cookie, ลิงก์ลงทะเบียน) ใช้ร่วมกันหลายโมดูล
       ├─ turnstile.rs          ตรวจ token Cloudflare Turnstile กับ siteverify ตอน login (HTTP ขาออกที่เดียว, reqwest)
@@ -159,4 +161,5 @@ session หมดอายุ, logout แล้วใช้ cookie เดิม�
 - `docs/rust-guidelines.md` — กฎการเขียน Rust: error, async, SQLx, log, เทส, สิ่งที่ยังไม่ต้องทำ
 - `docs/auth-design.md` — โมเดล session, ตารางฐานข้อมูล, API, flow, การจัดการสิทธิ์
 - `docs/infrastructure.md` — การวาง container, network, backup, การตั้งค่าเครื่อง
+- `docs/security-audit.md` — ผล security audit 2 รอบ (รอบสองแก้แล้ว 2026-10-24), ข้อที่ยังเหลือ (Turnstile key จริง, Cloudflare + firewall origin, ยืนยัน IP จริงบนเครื่องจริง) และรายการตอน deploy
 - `docs/rea.md` — กฎการใช้ REA (reverse engineering MCP): เป้าหมายที่ใช้ได้/ห้าม, ติดตั้ง/ถอน
