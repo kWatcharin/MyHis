@@ -25,6 +25,7 @@ pub mod prename;
 pub mod registration;
 pub mod sql_console;
 pub mod state;
+pub mod stock;
 pub mod token;
 pub mod turnstile;
 pub mod users;

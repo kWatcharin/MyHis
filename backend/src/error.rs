@@ -355,6 +355,29 @@ impl From<crate::item::RepositoryError> for AppError {
     }
 }
 
+impl From<crate::stock::StockError> for AppError {
+    fn from(err: crate::stock::StockError) -> Self {
+        use crate::stock::StockError;
+        match err {
+            StockError::Forbidden => AppError::Forbidden,
+            StockError::Conflict(msg) => AppError::Conflict(msg),
+            StockError::Validation(msg) => AppError::Validation(msg),
+            StockError::NotFound => AppError::NotFound,
+            StockError::Repository(e) => e.into(),
+        }
+    }
+}
+
+impl From<crate::stock::RepositoryError> for AppError {
+    fn from(err: crate::stock::RepositoryError) -> Self {
+        use crate::stock::RepositoryError;
+        match err {
+            RepositoryError::Database(e) => AppError::Database(e),
+            err @ RepositoryError::InvalidValue(_) => AppError::DataIntegrity(err.to_string()),
+        }
+    }
+}
+
 impl From<crate::patient::PatientError> for AppError {
     fn from(err: crate::patient::PatientError) -> Self {
         use crate::patient::PatientError;

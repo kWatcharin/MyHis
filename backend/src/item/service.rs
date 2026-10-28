@@ -6,8 +6,8 @@
 //! ธงที่ไม่ส่งมา: ตอนเพิ่ม = ค่าตั้งต้นของหมวด, ตอนแก้ไข = ค่าเดิมของรายการ (เปลี่ยนหมวดไม่คัดลอกธงซ้ำ)
 //! หมวด/หน่วยที่ปิดใช้งานเลือกใหม่ไม่ได้ แต่ค่าที่ผูกอยู่แล้วคงไว้ได้ (แบบโรคประจำตัวของ patient)
 //!
-//! ยังไม่มีตาราง stock: กฎ "ห้ามเปลี่ยนหน่วยฐาน/การติดตามล็อต/วันหมดอายุหลังมีการเคลื่อนไหว" และ
-//! "ห้ามลบรายการที่ยังมีของ" ต้องเพิ่มที่นี่พร้อม ledger (docs/inventory-design.md)
+//! กฎที่ขึ้นกับคลัง (docs/inventory-design.md ข้อ 6): หลังมีการเคลื่อนไหวห้ามเปลี่ยนหน่วยฐาน/การติดตามล็อต/
+//! วันหมดอายุ และห้ามลบรายการที่ยังมีของ — repository ตรวจหลังล็อกแถว item (คืน `WriteOutcome`)
 //!
 //! **จุดตรวจสิทธิ์**: ทุกฟังก์ชันรับ `actor: &CurrentUser` เป็นพารามิเตอร์แรกและเช็คสิทธิ์
 //! ของ action นั้น (`item.view/create/update/delete`) ที่นี่ เหมือนโมดูล master อื่น
@@ -23,6 +23,7 @@ use crate::domain::item_tracking::ItemTracking;
 use crate::domain::{Action, ItemId, ItemUnitId, Resource};
 use crate::item::repository::{
     self, ConversionRow, ExistingItem, ItemOptions, ItemRow, ItemWrite, RepositoryError,
+    WriteOutcome,
 };
 
 /// ตรงกับ varchar(100) ของคอลัมน์ name — นับเป็นตัวอักษร (ไม่ใช่ byte) เพราะชื่อไทย
@@ -250,10 +251,21 @@ pub async fn replace(
         .await?
         .ok_or(ItemError::NotFound)?;
     let write = prepare(pool, &input, Some(&existing)).await?;
-    repository::replace_item(pool, actor.user.id, existing.id, &write)
+    let outcome = repository::replace_item(pool, actor.user.id, existing.id, &write)
         .await
         .map_err(map_unique_violation)?;
-    Ok(())
+    check_outcome(outcome)
+}
+
+/// กฎที่ขึ้นกับคลัง (ตรวจใน repository หลังล็อกแถว) → Conflict แบบ "ยังถูกใช้" ของ master อื่น
+fn check_outcome(outcome: WriteOutcome) -> Result<(), ItemError> {
+    match outcome {
+        WriteOutcome::Done => Ok(()),
+        WriteOutcome::HasMovements => {
+            Err(ItemError::Conflict("item has stock movements".to_string()))
+        }
+        WriteOutcome::HasStock => Err(ItemError::Conflict("item still has stock".to_string())),
+    }
 }
 
 pub async fn delete(pool: &PgPool, actor: &CurrentUser, public_id: Uuid) -> Result<(), ItemError> {
@@ -262,8 +274,6 @@ pub async fn delete(pool: &PgPool, actor: &CurrentUser, public_id: Uuid) -> Resu
     let existing = repository::find_item_by_public_id(pool, public_id)
         .await?
         .ok_or(ItemError::NotFound)?;
-    // ยังไม่มีตาราง stock — ลบได้เสมอ (เพิ่ม "ห้ามลบรายการที่ยังมีของ" ตรงนี้เมื่อมี ledger)
-
-    repository::soft_delete_item(pool, actor.user.id, existing.id).await?;
-    Ok(())
+    let outcome = repository::soft_delete_item(pool, actor.user.id, existing.id).await?;
+    check_outcome(outcome)
 }

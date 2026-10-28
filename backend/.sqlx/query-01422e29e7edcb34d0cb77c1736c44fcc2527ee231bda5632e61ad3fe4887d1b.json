@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select i.id from item i\n         where i.id in (select sl.item_id from stock_receipt_line rl\n                        join stock_lot sl on sl.id = rl.lot_id\n                        where rl.receipt_id = $1)\n         order by i.id\n         for update",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "01422e29e7edcb34d0cb77c1736c44fcc2527ee231bda5632e61ad3fe4887d1b"
+}

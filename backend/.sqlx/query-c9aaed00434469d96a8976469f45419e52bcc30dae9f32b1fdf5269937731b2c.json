@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select m.id, m.lot_id as \"lot_id: StockLotId\", m.qty_delta,\n                  m.receipt_line_id as \"receipt_line_id!\"\n           from stock_movement m\n           join stock_receipt_line rl on rl.id = m.receipt_line_id\n           where rl.receipt_id = $1 and m.movement_type <> 'reversal'\n           order by m.lot_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "lot_id: StockLotId",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "qty_delta",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "receipt_line_id!",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "c9aaed00434469d96a8976469f45419e52bcc30dae9f32b1fdf5269937731b2c"
+}

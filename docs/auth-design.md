@@ -141,8 +141,9 @@ primary key คือ (`user_id`, `role_id`) ต้องมี index บน `ro
 ผลบน DB สะอาด: `Dashboard`, "ลงทะเบียน" (ผู้ป่วย `/patients` — ต้อง `patient.view`, ผู้ใช้งาน `/users` — ต้อง
 `user.view`), "Lab" (นัดหมายแล็ป — ต้อง `lab_visit.view`), "สิทธิ์" (การตั้งค่าเพจ, การตั้งค่า role) และ "การตั้งค่า"
 (หน้า master: ปีงบประมาณ, โรค, คำนำหน้า, สัญชาติ, กลุ่มคนไข้, แลป + master คลัง ตั้งค่าหมวดคลัง / ตั้งค่าหน่วยนับ /
-ตั้งค่ารายการคลัง ที่ migration `20261026100000_inventory_masters.sql` ต่อท้ายกลุ่มโดยไม่ขยับลำดับเดิม) — admin
-ย้าย/เปลี่ยนชื่อเพจหลักเองได้ผ่านหน้าการตั้งค่าเพจ
+ตั้งค่ารายการคลัง ที่ migration `20261026100000_inventory_masters.sql` ต่อท้ายกลุ่มโดยไม่ขยับลำดับเดิม) และ "คลัง"
+(รับเข้า `/stock/receipts` — ต้อง `stock_receipt.view`; migration `20261028100000_stock_receipts.sql` ต่อท้ายเมนูชั้นบน)
+— admin ย้าย/เปลี่ยนชื่อเพจหลักเองได้ผ่านหน้าการตั้งค่าเพจ
 
 **ไม่มี `is_system`** ต่างจาก `roles` โดยตั้งใจ — `is_system` บน `roles` มีไว้กัน role `admin`/`nurse`
 ที่ระบบ bootstrap ต้องพึ่งไม่ให้ถูกลบ แต่ไม่มี page ไหนที่ auth/bootstrap ต้องพึ่งการมีอยู่ของมัน
@@ -225,7 +226,7 @@ index บน `user_id` — ลิงก์ "ใช้ได้" = `used_at` แ�
 |---|---|---|
 | id | bigserial | |
 | actor_user_id | integer | FK ไป `users.id` (on delete set null), null ได้ กรณี login ล้มเหลวที่ไม่รู้ว่าใคร |
-| action | text | เข้า/ออก: `login_succeeded`, `login_failed`, `logout`, `logout_all` — การใช้งาน: `<ชนิด>_created/_updated/_deleted` ของทุกหน้า (`patient`, `lab_visit_group`, `lab_visit`, `user`, `role`, `page`, `budget_year`, `disease`, `prename`, `nationality`, `patient_group`, `lab`, `item_category`, `item_unit`, `item`), `lab_visit_group_exported`, `user_activated/deactivated/roles_replaced/password_reset`, `user_registered`, `user_password_set`, `password_changed`, `password_change_failed` (ใส่รหัสปัจจุบันผิดตอนเปลี่ยนรหัส — ไม่มี target_id), `page_order_updated` (ลากจัดลำดับเพจทั้งระดับ — metadata `label` = ชื่อหัวข้อกลุ่มหรือ "เมนูชั้นบน" (ไม่มี target_id), details `order` = ชื่อเพจตามลำดับเดิม→ใหม่), `sql_executed` (หน้า SQL — target_type `sql` ไม่มี target_id) |
+| action | text | เข้า/ออก: `login_succeeded`, `login_failed`, `logout`, `logout_all` — การใช้งาน: `<ชนิด>_created/_updated/_deleted` ของทุกหน้า (`patient`, `lab_visit_group`, `lab_visit`, `user`, `role`, `page`, `budget_year`, `disease`, `prename`, `nationality`, `patient_group`, `lab`, `item_category`, `item_unit`, `item`), `stock_receipt_created/_updated/_cancelled` (ใบรับเข้า — ยกเลิก = ลงรายการกลับยอด ไม่ลบแถว), `lab_visit_group_exported`, `user_activated/deactivated/roles_replaced/password_reset`, `user_registered`, `user_password_set`, `password_changed`, `password_change_failed` (ใส่รหัสปัจจุบันผิดตอนเปลี่ยนรหัส — ไม่มี target_id), `page_order_updated` (ลากจัดลำดับเพจทั้งระดับ — metadata `label` = ชื่อหัวข้อกลุ่มหรือ "เมนูชั้นบน" (ไม่มี target_id), details `order` = ชื่อเพจตามลำดับเดิม→ใหม่), `sql_executed` (หน้า SQL — target_type `sql` ไม่มี target_id) |
 | target_type / target_id | text / text | สิ่งที่ถูกกระทำ — `target_id` เก็บเป็น **uuid** ไม่ใช่ id int ภายใน เพื่ออ้างอิงข้ามเวลาได้ — แถวผู้ป่วยมีแค่ uuid; เหตุการณ์ login เก็บ username ของบัญชีที่มีอยู่ ส่วน login ด้วยชื่อที่ไม่มีในระบบเป็น **NULL** (ชื่อที่พิมพ์มาอาจเป็นรหัสผ่านที่พิมพ์ผิดช่อง จึงไม่เก็บทั้งดิบและ hash — ตัวนับอยู่ใน `login_throttle`; แถวก่อน 2026-10-21 เป็น SHA-256 ของชื่อ และก่อน 2026-10-12 เป็นชื่อดิบ — ล้างเป็น NULL แล้วด้วย migration `20261021100300` ตามที่เจ้าของอนุมัติ) API ไม่ส่งคอลัมน์นี้ออก |
 | metadata | jsonb | ข้อมูลเพิ่มเติม ห้ามใส่ความลับ/ข้อมูลผู้ป่วย — มีแค่: `{"userAgent"}` ของเหตุการณ์เข้า/ออกระบบ (ตัดไม่เกิน 512 ตัวอักษร), `{"label"}` ชื่อ role/เพจ ณ ตอนนั้น (สองตารางนี้ลบจริง), `{"document", "format"}` ของการส่งออก (`cd4`/`roster`, `excel`/`pdf`), รายละเอียดการเปลี่ยนแปลง `{"after"}` / `{"before", "after"}` / `{"changed"}` (ดูหัวข้อประวัติการใช้งาน), การรันหน้า SQL `{"sqlSha256", "sqlLength", "status", "errorCode", "rows", "truncated", "tables", "decryptedCells", "durationMs"}` (คำสั่งที่ถูกบล็อกมี `reason` + `keyword` = ชื่อคำสั่งจากชุดคงที่หรือ `OTHER` เท่านั้น) (**ไม่เก็บตัว SQL** — hash คำนวณหลังแทนตัวช่วย `:hn()` แล้วจึงไม่มี HN ดิบ) |
 | ip | inet | IP ของผู้ใช้ — มีเฉพาะเหตุการณ์เข้า/ออกระบบ (ดูด้านล่าง) |
@@ -269,7 +270,9 @@ index บน `user_id` — ลิงก์ "ใช้ได้" = `used_at` แ�
     เพจ = label/icon/route/main_page/sort_order/permissions, ผู้ใช้ = username/display_name/prename/first_name/
     last_name/position + roles (`user_roles_replaced`), หัวนัดหมาย = budget_year/patient_group/วันนัด/sort_order,
     หมวดคลัง = name/ธงตั้งต้น 3 ตัว/sort_order/is_active, รายการคลัง = name/category/base_unit/track_lot/track_expiry/
-    patient_linkable/reorder_point/is_active + conversions (ข้อความ เช่น `1 กล่อง = 100 เม็ด` — แก้ factor แล้วเห็นเดิม→ใหม่)
+    patient_linkable/reorder_point/is_active + conversions (ข้อความ เช่น `1 กล่อง = 100 เม็ด` — แก้ factor แล้วเห็นเดิม→ใหม่),
+    ใบรับเข้า = doc_no/receipt_type (คำไทย)/budget_year/received_on/source/ref_no/note/cancel_reason + lines (ข้อความ เช่น
+    `พาราเซตามอล · lot A1 · หมด 31/03/2570 · 2 กล่อง (= 200 เม็ด)`) — ยกเลิกเห็น cancel_reason เดิม→ใหม่
   - **ข้อมูลผู้ป่วย (`patient_updated`, `lab_visit_updated`) เก็บแค่ `{"changed": [ชื่อช่อง]}` ไม่มีค่า** — HN/NAP NO
     เทียบด้วย blind index, ชื่อ-สกุลถอดรหัสแถวเดียวเทียบใน service (ciphertext สุ่ม nonce) API อ่านได้แค่ `changed`
     ของสองชนิดนี้ (กันซ้ำอีกชั้น) เทส `backend/tests/activity_details.rs` ตรวจว่าค่าไม่อยู่ทั้งใน response และ audit_log
@@ -328,8 +331,15 @@ index บน `user_id` — ลิงก์ "ใช้ได้" = `used_at` แ�
 | GET | `/items` | `item.view` | รายการคลังที่ยังไม่ถูกลบ พร้อมชื่อหมวด/หน่วยฐานและ `conversions` (เรียงตาม factor) เรียงตามหมวดแล้วชื่อ (โมดูล `item/` — หน้า "ตั้งค่ารายการคลัง") |
 | GET | `/items/options` | `item.view` | ตัวเลือกของฟอร์ม: หมวด (พร้อมธงตั้งต้น) และหน่วยนับ เฉพาะที่ใช้งานอยู่ — เพราะ `/item-categories`, `/item-units` ต้องมีสิทธิ์ดูหน้านั้น |
 | POST | `/items` | `item.create` | สร้างรายการ (`name`, `categoryId`, `baseUnitId`, ธง 3 ตัว — ไม่ส่ง = ค่าตั้งต้นของหมวด, `reorderPoint` null ได้, `isActive`, `conversions: [{unitId, factor}]`) — `409 item name already taken` (ซ้ำทั้งระบบ), `400` ถ้าอ้างหมวด/หน่วยที่ไม่มีหรือปิดใช้งาน, หน่วยแปลงซ้ำ/เป็นหน่วยฐาน/factor ≤ 1/เกิน 10 หน่วย, จุดสั่งซื้อติดลบ |
-| PUT | `/items/{id}` | `item.update` | **แทนที่ทั้งชุด** (ธงที่ไม่ส่ง = คงค่าเดิม ไม่คัดลอกจากหมวดใหม่; `conversions` แทนที่ชุดเดิม) — หมวด/หน่วยที่ปิดใช้งานคงไว้ได้ถ้าผูกอยู่แล้ว |
-| DELETE | `/items/{id}` | `item.delete` | soft delete รายการพร้อมหน่วยแปลง (ปล่อยชื่อให้ใช้ซ้ำ) — ยังไม่มีตาราง stock จึงลบได้เสมอ |
+| PUT | `/items/{id}` | `item.update` | **แทนที่ทั้งชุด** (ธงที่ไม่ส่ง = คงค่าเดิม ไม่คัดลอกจากหมวดใหม่; `conversions` แทนที่ชุดเดิม) — หมวด/หน่วยที่ปิดใช้งานคงไว้ได้ถ้าผูกอยู่แล้ว — `409 item has stock movements` ถ้าเปลี่ยนหน่วยฐาน/`trackLot`/`trackExpiry` ของรายการที่มีการเคลื่อนไหวในคลังแล้ว |
+| DELETE | `/items/{id}` | `item.delete` | soft delete รายการพร้อมหน่วยแปลง (ปล่อยชื่อให้ใช้ซ้ำ) — `409 item still has stock` ถ้ายังมีของคงเหลือ (ของหมดแล้วลบได้ ประวัติใน ledger ยังอยู่) |
+| GET | `/stock/receipts` | `stock_receipt.view` | ใบรับเข้า + ยอดยกมาทั้งหมด (หัวใบ + `lineCount`, ผู้รับ, สถานะยกเลิก) เรียงวันที่รับใหม่→เก่า (โมดูล `stock/` — หน้า "รับเข้า" กลุ่มเมนูคลัง) |
+| GET | `/stock/receipts/options` | `stock_receipt.view` | ตัวเลือกของฟอร์ม: รายการที่ใช้งานอยู่ (หมวด, หน่วยฐาน, หน่วยแปลงพร้อม factor, ธงติดตาม), ปีงบที่ใช้งานอยู่พร้อมช่วงวัน, แหล่งที่มาที่เคยกรอก (≤ 50 ค่า ใช้ล่าสุดก่อน) |
+| GET | `/stock/receipts/{id}` | `stock_receipt.view` | หัวใบ + บรรทัด (`itemName`, `lotNo`, `expiryDate`, `unitName`, `unitFactor` ณ วันรับ, `quantity`, `baseQuantity`, `baseUnitName`) |
+| POST | `/stock/receipts` | `stock_receipt.create` | `{ receiptType: receive\|opening, budgetYearId, receivedOn, source?, refNo?, note?, lines: [{ itemId, unitId, quantity, lotNo?, expiryDate? }] }` → `201 { id, docNo }` ลงคลังทันที (ledger + คงเหลือ + audit ในทรานแซกชันเดียว) เลขที่ `RC<ปีงบ>-<4 หลัก>` รันต่อปีงบ — `400` ถ้าวันที่รับเกินวันนี้ (เวลาไทย)/นอกปีงบ/ปีงบปิดใช้งาน, บรรทัด 0 หรือ > 100, รายการปิดใช้งาน/หน่วยไม่ใช่ของรายการ/จำนวน ≤ 0 หรือเกิน 10,000,000 หน่วยฐาน, ล็อต/วันหมดอายุไม่ตรงกับธงติดตาม, ของหมดอายุแล้ว, ล็อตซ้ำในใบ, วันหมดอายุไม่ตรงกับล็อตเดิมที่ยังมีของ — `409 item changed while saving, please try again` ถ้ารายการถูกแก้ระหว่างบันทึก |
+| PUT | `/stock/receipts/{id}` | `stock_receipt.update` | แก้ข้อความหัวใบ `{ source, refNo, note }` (ส่งครบ null = ล้าง) — บรรทัด/วันที่/ประเภทแก้ไม่ได้ `409 receipt is cancelled` |
+| POST | `/stock/receipts/{id}/cancel` | `stock_receipt.delete` | `{ reason }` ยกเลิกทั้งใบ = ลง movement `reversal` คืนยอดทุกบรรทัด (ใบยังอยู่ในรายการ) — `400 cancel reason is required`, `409 receipt is already cancelled`, `409 stock from this receipt has already been issued` (คงเหลือของล็อตใดน้อยกว่าที่ใบนี้รับ — ไม่คืนบางส่วน) |
+| GET | `/stock/lots?item=` | `stock_receipt.view` | ล็อตที่มีเลขของรายการ (`lotNo`, `expiryDate`, `qtyOnHand`) มีของก่อนแล้วหมดอายุก่อน — ฟอร์มใช้เติมเลขล็อต/วันหมดอายุ (รายการที่ไม่พบ = `[]`) |
 | GET | `/patients` | `patient.view` | ผู้ป่วยทั้งหมดที่ยังไม่ถูกลบ (HN/เลขประจำตัว/ชื่อ-สกุลถอดรหัสแล้ว) พร้อมโรคประจำตัว (โมดูล `patient/` — หน้า "ผู้ป่วย" กลุ่มเมนูลงทะเบียน) |
 | GET | `/patients/options` | `patient.view` | ตัวเลือกของฟอร์ม: คำนำหน้า, สัญชาติและโรค (เฉพาะที่ใช้งานอยู่) — อ่านผ่านโมดูลนี้ เพราะ `/diseases` ฯลฯ ต้องมีสิทธิ์ดูหน้า master นั้น |
 | POST | `/patients` | `patient.create` | ลงทะเบียน (รวม `diseaseIds` โรคประจำตัว) — `409 hn already registered` ถ้า HN ซ้ำ, `400` ถ้าค่าผิด/อ้าง master ที่ไม่มี/โรคปิดใช้งาน |
@@ -561,13 +571,15 @@ login ที่ไม่สำเร็จต่อ IP จำกัดในแ�
   เด็ดขาด (กันไม่ให้มี user ที่ login ได้แต่ไม่มีสิทธิ์อะไรเลยโดยไม่ตั้งใจ) — `PUT /users/{id}/roles`
   ที่ส่ง array ว่างต้องถูกปฏิเสธด้วย `400`
 - **`Permission` แยกตามเพจ: `<resource>.<action>`** — ปิดตายใน Rust (ตาราง `PERMISSIONS` ใน
-  `backend/src/domain/mod.rs` แต่ละตัวผูกกับ authorization check จริงในโค้ด สร้างผ่าน UI ไม่ได้) มี 60 ตัว —
+  `backend/src/domain/mod.rs` แต่ละตัวผูกกับ authorization check จริงในโค้ด สร้างผ่าน UI ไม่ได้) มี 64 ตัว —
   47 ตัวจาก migration ด้านล่าง, `sql.view` (หน้า SQL เพิ่ม 2026-10-19 — migration `20261019100000` ให้เฉพาะ role
   ระบบ admin เพราะกติกาห้ามให้สิทธิ์เกินตัวเองทำให้ไม่มีใครติ๊กสิทธิ์ที่ยังไม่มีใครถือได้, role อื่นติ๊กเอง ถอดรหัสข้อมูล
   ผู้ป่วยในผลลัพธ์ต้องมี `patient.view` ด้วย และ **อ่าน `audit_log` / ตาราง `users` ได้โดยไม่ต้องมี `audit.view` /
   `user.view`** จึงควรให้เฉพาะผู้ดูแล) และ master คลัง 3 หน้า `item_category`, `item_unit`, `item` × ดู/เพิ่ม/แก้ไข/ลบ
   (เพิ่ม 2026-10-26 — migration `20261026100000` ให้เฉพาะ role ระบบ admin ด้วยเหตุผลเดียวกัน; หน่วยแปลงของรายการใช้สิทธิ์
-  ของ `item` และฟอร์มรายการอ่านตัวเลือกหมวด/หน่วยผ่าน `GET /items/options` ด้วย `item.view`) ชุดเดิม:
+  ของ `item` และฟอร์มรายการอ่านตัวเลือกหมวด/หน่วยผ่าน `GET /items/options` ด้วย `item.view`), ใบรับเข้า
+  `stock_receipt` × ดู/เพิ่ม/แก้ไข/ลบ (เพิ่ม 2026-10-28 — migration `20261028100000` ให้เฉพาะ admin; **ลบ = ยกเลิกใบรับ**
+  ลงรายการกลับยอด ไม่ลบแถว หน้าเว็บแสดงป้าย "ยกเลิก", แก้ไข = แก้ข้อความหัวใบเท่านั้น) ชุดเดิม:
   `patient` (ผู้ป่วย), `lab_visit` (นัดหมายแล็ป), `role`, `page` และ master 6 หน้า (`budget_year`, `disease`,
   `prename`, `nationality`, `patient_group`, `lab`) ได้ `view` / `create` / `update` / `delete` — `user` (ผู้ใช้งาน)
   ไม่มี `delete` (ปิดใช้งานแทน), `lab_visit` มี `export` เพิ่ม, `shift` มี `view` / `update` และ `audit` มี `view`

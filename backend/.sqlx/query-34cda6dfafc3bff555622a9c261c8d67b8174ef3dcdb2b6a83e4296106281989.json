@@ -1,0 +1,38 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select cv.item_id as \"item_id: ItemId\", u.uuid as unit_public_id, u.name as unit_name,\n                  cv.factor\n           from item_unit_conversion cv\n           join item i on i.id = cv.item_id\n           join item_unit u on u.id = cv.unit_id\n           where cv.deleted_at is null and i.deleted_at is null and i.is_active\n           order by cv.item_id, cv.factor, u.name",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "item_id: ItemId",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "unit_public_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "unit_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "factor",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "34cda6dfafc3bff555622a9c261c8d67b8174ef3dcdb2b6a83e4296106281989"
+}

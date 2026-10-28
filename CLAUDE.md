@@ -32,7 +32,7 @@ my-his/
 ├─ docs/
 │  ├─ rust-guidelines.md       กฎการเขียน Rust ของโปรเจกต์ (อ่านก่อนเขียนโค้ด)
 │  ├─ auth-design.md           ดีไซน์ระบบ auth ฉบับละเอียด
-│  ├─ inventory-design.md      ระบบคลัง: master ทำแล้ว, ล็อต/ledger/รับ-เบิก ยังเป็นร่าง (อ่านก่อนแตะโมดูล item*)
+│  ├─ inventory-design.md      ระบบคลัง: master + ล็อต/ledger/รับเข้า ทำแล้ว, เบิก/นับ/ปรับ ยังเป็นร่าง (อ่านก่อนแตะโมดูล item*/stock)
 │  ├─ infrastructure.md        การวาง container, backup, ความปลอดภัยของเครื่อง
 │  └─ security-audit.md        สรุปผล security audit (2026-10-21): สิ่งที่แก้แล้ว, ที่เหลือ, สิ่งที่ต้องทำตอน deploy
 ├─ ops/                        Caddyfile, สคริปต์ backup/restore, patient_decrypt.py (ถอดคอลัมน์ที่เข้ารหัสนอกแอป ให้ผู้ใช้รันเอง)
@@ -44,7 +44,8 @@ my-his/
 │  └─ features/<ฟีเจอร์>/       1 ฟีเจอร์ = 1 โฟลเดอร์; ฟีเจอร์ที่มีหลายหน้าแยกโฟลเดอร์ย่อยต่อหน้า
 │                             (หน้า + dialog ของหน้านั้น) ส่วนไฟล์ที่ใช้ร่วมกันหลายหน้า (*Api.ts ฯลฯ) อยู่ที่ราก
 │                             ของฟีเจอร์ เช่น admin/{roles,pages,diseases,...}/, admin/master/ (หน้า master
-│                             แบบ config), audit/{activity-history,auth-history}/, lab-visits/{groups,group-detail,print}/
+│                             แบบ config), audit/{activity-history,auth-history}/, lab-visits/{groups,group-detail,print}/,
+│                             stock/receipts/ (หน้ารับเข้า — stockApi.ts ที่ราก stock/)
 └─ backend/
    ├─ Cargo.toml
    ├─ Dockerfile
@@ -72,6 +73,9 @@ my-his/
       ├─ prename/ nationality/ patient_group/ lab/   master อื่น ๆ โครงเดียวกับ disease/
       ├─ item_category/ item_unit/ item/   master คลัง: หมวด, หน่วยนับ, รายการ + หน่วยแปลง (สิทธิ์ `item_category.*` /
       │                        `item_unit.*` / `item.*`) — กฎคลังและส่วนธุรกรรมที่ยังเป็นร่างอยู่ใน docs/inventory-design.md
+      ├─ stock/                ธุรกรรมคลัง: ล็อต, คงเหลือ, ledger `stock_movement` (เพิ่มได้อย่างเดียว — trigger ห้ามแก้/ลบ),
+      │                        ใบรับเข้า + ยอดยกมา (สิทธิ์ `stock_receipt.*`, delete = ยกเลิกใบ) — `repository/ledger.rs` คือแกนที่
+      │                        เอกสารเบิก/นับ/ปรับยอดจะใช้ร่วม หน้า "รับเข้า" /stock/receipts กลุ่มเมนูคลัง
       ├─ patient/              ลงทะเบียนผู้ป่วย + โรคประจำตัว (สิทธิ์ `patient.*`, เข้ารหัสด้วย crypto.rs)
       ├─ lab_visit/            นัดหมายแล็ป (lab_visit_group + lab_visit) สิทธิ์ `lab_visit.*` — คืนแค่ uuid คนไข้ ไม่แตะข้อมูลระบุตัว
       ├─ sql_console/          หน้า SQL /data/script (สิทธิ์ `sql.view`): รัน SQL อ่านอย่างเดียวด้วย role DB แยก

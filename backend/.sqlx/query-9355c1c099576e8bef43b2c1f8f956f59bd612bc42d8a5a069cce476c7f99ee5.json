@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update stock_lot set expiry_date = $2, updated_by = $3, updated_at = now() where id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Date",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9355c1c099576e8bef43b2c1f8f956f59bd612bc42d8a5a069cce476c7f99ee5"
+}

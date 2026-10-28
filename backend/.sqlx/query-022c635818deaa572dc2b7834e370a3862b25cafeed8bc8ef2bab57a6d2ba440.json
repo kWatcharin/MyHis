@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update stock_receipt\n         set source = $3, ref_no = $4, note = $5, updated_by = $2, updated_at = now()\n         where id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Varchar",
+        "Varchar",
+        "Varchar"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "022c635818deaa572dc2b7834e370a3862b25cafeed8bc8ef2bab57a6d2ba440"
+}

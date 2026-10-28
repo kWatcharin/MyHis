@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select i.id as \"id: ItemId\", i.uuid as public_id, i.is_active, i.track_lot, i.track_expiry,\n                  i.base_unit_id as \"base_unit_id: ItemUnitId\", u.uuid as base_unit_public_id\n           from item i\n           join item_unit u on u.id = i.base_unit_id\n           where i.uuid = any($1) and i.deleted_at is null",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: ItemId",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "public_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "is_active",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 3,
+        "name": "track_lot",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 4,
+        "name": "track_expiry",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "base_unit_id: ItemUnitId",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "base_unit_public_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "505c215dcdfd850f94a9f30279a55aa4ea7cf9757da79b31425d4015221c171f"
+}

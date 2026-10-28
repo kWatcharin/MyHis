@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update stock_balance set qty_on_hand = qty_on_hand + $2, updated_at = now() where lot_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "cfed977e3a52de8434daaf05ef8af79d103d122bb533349eef60bbceecf34211"
+}

@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select lot_id as \"lot_id: StockLotId\", qty_on_hand\n           from stock_balance\n           where lot_id = any($1)\n           order by lot_id\n           for update",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "lot_id: StockLotId",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "qty_on_hand",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4Array"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "530f0d664e899d049c9b67d43f874e1ba6f4498ac94ebf4457c6e8aabdc97f6a"
+}

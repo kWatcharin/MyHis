@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select sl.lot_no as \"lot_no!\", sl.expiry_date, b.qty_on_hand\n           from stock_lot sl\n           join stock_balance b on b.lot_id = sl.id\n           join item i on i.id = sl.item_id\n           where i.uuid = $1 and i.deleted_at is null and sl.lot_no is not null\n           order by b.qty_on_hand > 0 desc, sl.expiry_date nulls last, sl.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "lot_no!",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "expiry_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 2,
+        "name": "qty_on_hand",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "e3f82c6f8926e992784a6ead34d825c36f097941d026765d5baef51001c85b83"
+}

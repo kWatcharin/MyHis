@@ -66,6 +66,9 @@ async fn migration_turns_menu_groups_into_main_pages(pool: PgPool) {
             "- ตั้งค่าหมวดคลัง /settings/item-categories",
             "- ตั้งค่าหน่วยนับ /settings/item-units",
             "- ตั้งค่ารายการคลัง /settings/items",
+            // กลุ่มคลัง (20261028100000_stock_receipts.sql) ต่อท้ายเมนูชั้นบน
+            "คลัง (กลุ่ม)",
+            "- รับเข้า /stock/receipts",
         ]
     );
 
@@ -120,7 +123,8 @@ async fn migration_converts_groups_set_through_the_ui(pool: PgPool) {
             .fetch_all(&pool)
             .await
             .unwrap();
-    assert_eq!(headers, ["ลงทะเบียน", "Lab", "สิทธิ์", "การตั้งค่า"]);
+    // "คลัง" มาจาก migration stock_receipts (ต่อท้ายเมนูชั้นบน)
+    assert_eq!(headers, ["ลงทะเบียน", "Lab", "สิทธิ์", "การตั้งค่า", "คลัง"]);
 }
 
 async fn menu_labels(app: &Router, cookie: &str) -> Vec<(String, Value, Value)> {

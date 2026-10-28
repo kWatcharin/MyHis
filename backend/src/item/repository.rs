@@ -280,15 +280,44 @@ pub async fn insert_item(
     Ok(row.id)
 }
 
-/// แทนที่ข้อมูลรายการทั้งชุด + หน่วยแปลง + audit ในทรานแซกชันเดียว
+/// ผลของการแทนที่/ลบรายการ — กฎที่ขึ้นกับ ledger (ตาราง stock อ่านตรง — โมดูลฟีเจอร์ไม่เรียกกันเอง) ตรวจหลังล็อก
+/// แถว item แล้ว การรับเข้าคลังล็อกแถวเดียวกันก่อนลงยอด จึงไม่มีจังหวะที่ตรวจผ่านแล้วมี movement แทรก
+#[derive(Debug, PartialEq, Eq)]
+pub enum WriteOutcome {
+    Done,
+    /// มีการเคลื่อนไหวในคลังแล้ว — เปลี่ยนหน่วยฐาน/ธงติดตามล็อต/วันหมดอายุไม่ได้ (ไม่ได้บันทึกอะไร)
+    HasMovements,
+    /// ยังมีของคงเหลือ — ลบไม่ได้ (ไม่ได้บันทึกอะไร)
+    HasStock,
+}
+
+/// แทนที่ข้อมูลรายการทั้งชุด + หน่วยแปลง + audit ในทรานแซกชันเดียว — หลังมี movement ห้ามเปลี่ยนหน่วยฐาน
+/// (ยอดเดิมนับเป็นหน่วยฐานเดิม: 100 เม็ดจะกลายเป็น 100 กล่อง) และห้ามเปลี่ยนการติดตามล็อต/วันหมดอายุ
 pub async fn replace_item(
     pool: &PgPool,
     actor: UserId,
     id: ItemId,
     w: &ItemWrite,
-) -> Result<(), RepositoryError> {
+) -> Result<WriteOutcome, RepositoryError> {
     let mut tx = pool.begin().await?;
     let before = snapshot(&mut tx, id).await?;
+    let locked = sqlx::query_scalar!(
+        r#"select (i.base_unit_id <> $2 or i.track_lot <> $3 or i.track_expiry <> $4)
+                  and exists (select 1 from stock_lot sl
+                              join stock_movement m on m.lot_id = sl.id
+                              where sl.item_id = i.id) as "locked!"
+           from item i
+           where i.id = $1"#,
+        id.0,
+        w.base_unit_id.0,
+        w.tracking.track_lot(),
+        w.tracking.track_expiry()
+    )
+    .fetch_optional(&mut *tx)
+    .await?;
+    if locked == Some(true) {
+        return Ok(WriteOutcome::HasMovements);
+    }
     let updated = sqlx::query!(
         r#"update item
            set name = $3, category_id = $4, base_unit_id = $5, track_lot = $6, track_expiry = $7,
@@ -315,17 +344,32 @@ pub async fn replace_item(
         insert_audit(&mut tx, actor, "item_updated", id, Some(details)).await?;
     }
     tx.commit().await?;
-    Ok(())
+    Ok(WriteOutcome::Done)
 }
 
 /// soft delete รายการพร้อมหน่วยแปลงของรายการ + audit ในทรานแซกชันเดียว — partial unique ของชื่อ
-/// นับเฉพาะแถวที่ยังไม่ถูกลบ จึงสร้างชื่อเดิมซ้ำได้หลังลบ
+/// นับเฉพาะแถวที่ยังไม่ถูกลบ จึงสร้างชื่อเดิมซ้ำได้หลังลบ รายการที่ยังมีของคงเหลือลบไม่ได้ (ของหมดแล้วลบได้ ประวัติ
+/// ใน ledger ยังอ้างแถวเดิม)
 pub async fn soft_delete_item(
     pool: &PgPool,
     actor: UserId,
     id: ItemId,
-) -> Result<(), RepositoryError> {
+) -> Result<WriteOutcome, RepositoryError> {
     let mut tx = pool.begin().await?;
+    let has_stock = sqlx::query_scalar!(
+        r#"select exists (select 1 from stock_lot sl
+                          join stock_balance b on b.lot_id = sl.id
+                          where sl.item_id = i.id and b.qty_on_hand > 0) as "has_stock!"
+           from item i
+           where i.id = $1
+           for update of i"#,
+        id.0
+    )
+    .fetch_optional(&mut *tx)
+    .await?;
+    if has_stock == Some(true) {
+        return Ok(WriteOutcome::HasStock);
+    }
     sqlx::query!(
         "update item_unit_conversion
          set deleted_at = now(), deleted_by = $2, updated_by = $2, updated_at = now()
@@ -348,7 +392,7 @@ pub async fn soft_delete_item(
         insert_audit(&mut tx, actor, "item_deleted", id, None).await?;
     }
     tx.commit().await?;
-    Ok(())
+    Ok(WriteOutcome::Done)
 }
 
 /// ทำให้หน่วยแปลงที่ยังไม่ถูกลบของรายการ "ตรงกับ" ชุดที่ต้องการ: หน่วยที่ไม่อยู่ในชุด → soft delete,

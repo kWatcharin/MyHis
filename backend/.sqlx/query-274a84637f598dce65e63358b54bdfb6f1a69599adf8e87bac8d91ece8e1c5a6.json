@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select source as \"source!\"\n           from stock_receipt\n           where source is not null\n           group by source\n           order by max(created_at) desc\n           limit $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "source!",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "274a84637f598dce65e63358b54bdfb6f1a69599adf8e87bac8d91ece8e1c5a6"
+}

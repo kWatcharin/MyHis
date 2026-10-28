@@ -47,7 +47,8 @@ async fn insert_role(pool: &PgPool, name: &str, permissions: &[&str]) {
 fn permission_table_round_trips_and_has_no_impossible_pairs() {
     let all: Vec<Permission> = Permission::all().collect();
     // 47 ตัวจาก migration page_action_permissions + sql.view (หน้า SQL) + 12 ตัวของ master คลัง (inventory_masters)
-    assert_eq!(all.len(), 60);
+    // + 4 ตัวของใบรับเข้า (stock_receipts)
+    assert_eq!(all.len(), 64);
     for permission in &all {
         assert_eq!(Permission::parse(permission.as_str()), Some(*permission));
         assert_eq!(
@@ -115,9 +116,9 @@ async fn migration_converts_every_role_and_page_permission(pool: PgPool) {
     assert!(auditor.iter().any(|key| key == "audit.view"));
 
     // role ระบบ: admin ได้ครบทุกตัว (47 ตัวจาก migration นี้ + sql.view จาก migration sql_console_admin_permission
-    // + master คลัง 12 ตัวจาก migration inventory_masters), nurse (seed: shift + patient) ได้ shift.view/update
-    // + ผู้ป่วย + นัดหมายแล็ป (migration ที่ตามมาแตะเฉพาะ admin)
-    assert_eq!(role_permissions(&pool, "admin").await.len(), 60);
+    // + master คลัง 12 ตัวจาก migration inventory_masters + ใบรับเข้า 4 ตัวจาก stock_receipts), nurse (seed: shift +
+    // patient) ได้ shift.view/update + ผู้ป่วย + นัดหมายแล็ป (migration ที่ตามมาแตะเฉพาะ admin)
+    assert_eq!(role_permissions(&pool, "admin").await.len(), 64);
     assert!(role_permissions(&pool, "admin")
         .await
         .iter()

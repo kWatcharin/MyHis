@@ -1,0 +1,112 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select r.id as \"id: StockReceiptId\", r.uuid as public_id, r.doc_no,\n                  b.uuid as budget_year_public_id, b.year as budget_year, r.receipt_type,\n                  r.received_on, r.source, r.ref_no, r.note,\n                  (select count(*) from stock_receipt_line l where l.receipt_id = r.id) as \"line_count!\",\n                  cu.display_name as created_by_name, r.created_at,\n                  xu.display_name as \"cancelled_by_name?\", r.cancelled_at, r.cancel_reason\n           from stock_receipt r\n           join budget_year b on b.id = r.budget_year_id\n           join users cu on cu.id = r.created_by\n           left join users xu on xu.id = r.cancelled_by\n           where $1::uuid is null or r.uuid = $1\n           order by r.received_on desc, r.id desc",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: StockReceiptId",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "public_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "doc_no",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "budget_year_public_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "budget_year",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "receipt_type",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "received_on",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 7,
+        "name": "source",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 8,
+        "name": "ref_no",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 9,
+        "name": "note",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 10,
+        "name": "line_count!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 11,
+        "name": "created_by_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "cancelled_by_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "cancelled_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 15,
+        "name": "cancel_reason",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      null,
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "0abc166ab1d9eb432ebc964579188be632d2446fbd7ed45137f97dfe0b0392e8"
+}

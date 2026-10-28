@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into stock_doc_counter (doc_type, budget_year_id, last_no)\n         values ('receipt', $1, 1)\n         on conflict (doc_type, budget_year_id)\n         do update set last_no = stock_doc_counter.last_no + 1\n         returning last_no as \"last_no!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "last_no!",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "9e3e3a7b1e69e0249a8ee64a6eece4d252a24ef0ffcbc231b440e3ef9b19e60f"
+}

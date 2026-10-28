@@ -1,0 +1,70 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select i.uuid as item_public_id, i.name as item_name, sl.lot_no, sl.expiry_date,\n                  u.name as unit_name, rl.unit_factor, rl.quantity, rl.base_quantity,\n                  bu.name as base_unit_name\n           from stock_receipt_line rl\n           join stock_lot sl on sl.id = rl.lot_id\n           join item i on i.id = sl.item_id\n           join item_unit u on u.id = rl.unit_id\n           join item_unit bu on bu.id = i.base_unit_id\n           where rl.receipt_id = $1\n           order by rl.sort_order, rl.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "item_public_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "item_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "lot_no",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "expiry_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 4,
+        "name": "unit_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "unit_factor",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "quantity",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "base_quantity",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "base_unit_name",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b34e2ed9a8148de748c0d344f95e496c1656f47dd673e4cd8a43ab5c71a291df"
+}

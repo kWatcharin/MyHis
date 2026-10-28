@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select cv.item_id as \"item_id: ItemId\", cv.unit_id as \"unit_id: ItemUnitId\",\n                  u.uuid as unit_public_id, cv.factor\n           from item_unit_conversion cv\n           join item_unit u on u.id = cv.unit_id\n           where cv.item_id = any($1) and cv.deleted_at is null",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "item_id: ItemId",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "unit_id: ItemUnitId",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "unit_public_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "factor",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4Array"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "1a5c7e5e53889b06c418b793198c769afbfd9c3c201a426a93cacc7a92c6a64a"
+}

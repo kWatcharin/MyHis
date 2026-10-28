@@ -1,0 +1,38 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select uuid as public_id, year, start_date, end_date\n           from budget_year\n           where deleted_at is null and is_active\n           order by start_date desc",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "public_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "year",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "start_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 3,
+        "name": "end_date",
+        "type_info": "Date"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "c8e6abb70bcdfe69184fbf040028e8b4cefcfb9304bb590a03981cee809b6850"
+}

@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select item_id as \"item_id: ItemId\", unit_id as \"unit_id: ItemUnitId\", factor\n           from item_unit_conversion\n           where item_id = any($1) and deleted_at is null",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "item_id: ItemId",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "unit_id: ItemUnitId",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "factor",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4Array"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "055de76f9a986c69b012aadfc682cdf2377a8530f956b7a1065487f22521f87d"
+}

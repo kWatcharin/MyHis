@@ -73,6 +73,14 @@ pub struct ItemUnitId(pub i32);
 #[sqlx(transparent)]
 pub struct ItemId(pub i32);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct StockLotId(pub i32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct StockReceiptId(pub i32);
+
 /// เพจ/ข้อมูลที่ตั้งสิทธิ์แยกได้ — ส่วนหน้าของคีย์ permission เช่น `patient` ใน `patient.view`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Resource {
@@ -100,6 +108,8 @@ pub enum Resource {
     ItemCategory,
     ItemUnit,
     Item,
+    /// ใบรับเข้าคลัง (รวมยอดยกมา) — `delete` = ยกเลิกใบรับ (ลง movement กลับรายการ ไม่ลบแถว)
+    StockReceipt,
 }
 
 /// การกระทำต่อเพจ: ดู / เพิ่ม / แก้ไข / ลบ / ส่งออกเอกสาร — ตรวจแยกกันทุกตัว (แก้ไขไม่ implies ดู)
@@ -180,6 +190,11 @@ const PERMISSIONS: &[(Resource, Action, &str)] = &[
     (Resource::Item, Create, "item.create"),
     (Resource::Item, Update, "item.update"),
     (Resource::Item, Delete, "item.delete"),
+    // ธุรกรรมคลัง — admin ได้จาก migration stock_receipts (role อื่นติ๊กเอง)
+    (Resource::StockReceipt, View, "stock_receipt.view"),
+    (Resource::StockReceipt, Create, "stock_receipt.create"),
+    (Resource::StockReceipt, Update, "stock_receipt.update"),
+    (Resource::StockReceipt, Delete, "stock_receipt.delete"),
 ];
 
 /// permission หนึ่งตัว = แถวหนึ่งใน `PERMISSIONS` (เก็บเป็นลำดับแถว) — สร้างได้จากตารางเท่านั้น (`of`, `parse`,

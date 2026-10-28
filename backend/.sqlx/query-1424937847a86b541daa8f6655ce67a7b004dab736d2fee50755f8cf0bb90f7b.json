@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into stock_movement\n           (lot_id, movement_type, qty_delta, receipt_line_id, reverses_id, created_by)\n         values ($1, $2, $3, $4, $5, $6)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Varchar",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1424937847a86b541daa8f6655ce67a7b004dab736d2fee50755f8cf0bb90f7b"
+}

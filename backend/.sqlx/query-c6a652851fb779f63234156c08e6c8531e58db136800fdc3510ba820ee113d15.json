@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into stock_lot (item_id, lot_no, expiry_date, created_by, updated_by)\n           values ($1, $2, $3, $4, $4)\n           on conflict (item_id, lower(lot_no)) do nothing\n           returning id as \"id: StockLotId\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: StockLotId",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Varchar",
+        "Date",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "c6a652851fb779f63234156c08e6c8531e58db136800fdc3510ba820ee113d15"
+}

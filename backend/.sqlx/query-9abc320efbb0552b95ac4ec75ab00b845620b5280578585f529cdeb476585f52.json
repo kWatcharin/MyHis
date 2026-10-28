@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select jsonb_build_object(\n                  'doc_no', r.doc_no,\n                  'receipt_type', case r.receipt_type when 'opening' then 'ยอดยกมา' else 'รับเข้า' end,\n                  'budget_year', b.year,\n                  'received_on', r.received_on,\n                  'source', r.source, 'ref_no', r.ref_no, 'note', r.note,\n                  'lines', coalesce((\n                      select jsonb_agg(\n                          i.name\n                          || coalesce(' · lot ' || sl.lot_no, '')\n                          || coalesce(' · หมด ' || to_char(sl.expiry_date, 'DD/MM/')\n                                      || (extract(year from sl.expiry_date)::int + 543), '')\n                          || ' · ' || rl.quantity || ' ' || u.name\n                          || case when rl.unit_factor > 1\n                                  then ' (= ' || rl.base_quantity || ' ' || bu.name || ')' else '' end\n                          order by rl.sort_order, rl.id)\n                      from stock_receipt_line rl\n                      join stock_lot sl on sl.id = rl.lot_id\n                      join item i on i.id = sl.item_id\n                      join item_unit u on u.id = rl.unit_id\n                      join item_unit bu on bu.id = i.base_unit_id\n                      where rl.receipt_id = r.id\n                  ), '[]'::jsonb),\n                  'cancel_reason', r.cancel_reason\n              ) as \"snapshot!\"\n           from stock_receipt r\n           join budget_year b on b.id = r.budget_year_id\n           where r.id = $1\n           for update of r",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "snapshot!",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "9abc320efbb0552b95ac4ec75ab00b845620b5280578585f529cdeb476585f52"
+}

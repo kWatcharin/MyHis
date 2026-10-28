@@ -80,8 +80,8 @@ async fn existing_tables_have_int_id_and_unique_uuid(pool: PgPool) {
     .await
     .unwrap();
     // ทุก permission ราย action (20261013100000_page_action_permissions.sql) + sql.view (20261019100000)
-    // + master คลัง 12 ตัว (20261026100000_inventory_masters.sql)
-    assert_eq!(admin_permissions, 60);
+    // + master คลัง 12 ตัว (20261026100000_inventory_masters.sql) + ใบรับเข้า 4 ตัว (20261028100000_stock_receipts.sql)
+    assert_eq!(admin_permissions, 64);
 
     // หน้าตั้งค่าเพจ, role, ปีงบประมาณ, โรค, คำนำหน้า, สัญชาติ, กลุ่มคนไข้, แลป, master คลัง 3 หน้า และผู้ใช้งาน —
     // แต่ละหน้าต้องมีสิทธิ์ "ดู" ของหน้านั้นเอง (เดิมทุกหน้าใช้ user.manage ตัวเดียว)

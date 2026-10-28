@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update stock_receipt\n         set cancelled_by = $2, cancelled_at = now(), cancel_reason = $3,\n             updated_by = $2, updated_at = now()\n         where id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Varchar"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3e3875de0bae096455a2c213639d3ab49869ec68fb224fea49eea99d2769486d"
+}

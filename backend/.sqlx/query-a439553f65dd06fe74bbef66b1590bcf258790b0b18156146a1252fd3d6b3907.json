@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select l.id as \"id: StockLotId\", l.expiry_date, b.qty_on_hand\n           from stock_lot l\n           join stock_balance b on b.lot_id = l.id\n           where l.item_id = $1\n             and ((l.lot_no is null and $2::text is null) or lower(l.lot_no) = lower($2))\n           for update of b",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: StockLotId",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "expiry_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 2,
+        "name": "qty_on_hand",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "a439553f65dd06fe74bbef66b1590bcf258790b0b18156146a1252fd3d6b3907"
+}

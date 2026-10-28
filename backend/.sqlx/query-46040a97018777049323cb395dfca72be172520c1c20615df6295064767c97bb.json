@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select exists (select 1 from stock_lot sl\n                          join stock_balance b on b.lot_id = sl.id\n                          where sl.item_id = i.id and b.qty_on_hand > 0) as \"has_stock!\"\n           from item i\n           where i.id = $1\n           for update of i",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "has_stock!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "46040a97018777049323cb395dfca72be172520c1c20615df6295064767c97bb"
+}

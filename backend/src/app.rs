@@ -97,6 +97,7 @@ fn api_router() -> Router<AppState> {
         .merge(crate::item_category::router())
         .merge(crate::item_unit::router())
         .merge(crate::item::router())
+        .merge(crate::stock::router())
         .merge(crate::registration::router())
         .merge(crate::audit::router())
         .merge(crate::sql_console::router())
