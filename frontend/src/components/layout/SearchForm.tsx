@@ -4,21 +4,77 @@ import type { FormEvent } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from '@/components/ui/combobox'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { ThaiDateInput } from '@/components/ui/thai-date-input'
 import { NativeSelect } from '@/components/ui/native-select'
+import { textIncludes } from '@/lib/search'
 import type { SearchValues } from '@/lib/search'
 import { cn } from '@/lib/utils'
+
+interface SearchOption {
+  value: string
+  label: string
+}
 
 export interface SearchFieldDef {
   name: string
   label: string
   placeholder?: string
-  // ชนิดช่อง: ข้อความ (ค่าเริ่มต้น), วันที่ (แสดง พ.ศ. ค่า "YYYY-MM-DD"), ตัวเลือก (ค่าว่าง = ทั้งหมด ข้อความตาม allLabel)
-  type?: 'text' | 'date' | 'select'
-  options?: { value: string; label: string }[]
+  // ชนิดช่อง: ข้อความ (ค่าเริ่มต้น), วันที่ (แสดง พ.ศ. ค่า "YYYY-MM-DD"), ตัวเลือก (ค่าว่าง = ทั้งหมด ข้อความตาม allLabel),
+  // combobox = ตัวเลือกที่พิมพ์ค้นหาได้ สำหรับรายการยาว (กด × ล้าง = ทั้งหมด)
+  type?: 'text' | 'date' | 'select' | 'combobox'
+  options?: SearchOption[]
   allLabel?: string
+}
+
+// ช่องตัวเลือกแบบพิมพ์ค้นหา (แบบช่องสัญชาติของฟอร์มผู้ป่วย) — ค่า = value ของตัวเลือก, ว่าง = ทั้งหมด
+function SearchCombobox({
+  id,
+  field,
+  value,
+  onChange,
+}: {
+  id: string
+  field: SearchFieldDef
+  value: string
+  onChange: (next: string) => void
+}) {
+  const options = field.options ?? []
+  return (
+    <Combobox
+      items={options}
+      value={options.find((option) => option.value === value) ?? null}
+      onValueChange={(option) => onChange(option?.value ?? '')}
+      itemToStringLabel={(option) => option.label}
+      isItemEqualToValue={(a, b) => a.value === b.value}
+      filter={(option, query) => textIncludes(option.label, query)}
+    >
+      <ComboboxInput
+        id={id}
+        placeholder={field.placeholder ?? `${field.allLabel ?? 'ทั้งหมด'} — พิมพ์เพื่อค้นหา`}
+        showClear
+      />
+      <ComboboxContent>
+        <ComboboxEmpty>ไม่พบ{field.label}ที่ค้นหา</ComboboxEmpty>
+        <ComboboxList>
+          {(option: SearchOption) => (
+            <ComboboxItem key={option.value} value={option}>
+              {option.label}
+            </ComboboxItem>
+          )}
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
+  )
 }
 
 interface SearchFormProps {
@@ -80,6 +136,8 @@ export function SearchForm({ id, ariaLabel, fields, onSearch }: SearchFormProps)
                         </option>
                       ))}
                     </NativeSelect>
+                  ) : field.type === 'combobox' ? (
+                    <SearchCombobox id={fieldId} field={field} value={value} onChange={set} />
                   ) : field.type === 'date' ? (
                     <ThaiDateInput id={fieldId} value={value} onChange={set} />
                   ) : (

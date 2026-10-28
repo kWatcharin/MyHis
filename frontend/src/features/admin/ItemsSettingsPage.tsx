@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
 import { AddButton, DeleteButton, EditButton } from '@/components/layout/ActionButtons'
 import { ListState } from '@/components/layout/ListState'
@@ -85,10 +85,20 @@ export function ItemsSettingsPage() {
   // เงื่อนไขค้นหาที่ใช้กรองจริง (เปลี่ยนเมื่อกดปุ่ม "ค้นหา") — ช่องที่กรอกต้องตรงทุกช่อง
   const [criteria, setCriteria] = useState<SearchValues>({})
 
+  // ตัวเลือกช่องค้นหา "หมวด" = หมวดที่มีรายการอยู่จริง (รวมหมวดที่ปิดใช้งานแล้วแต่ยังมีรายการ) ตามลำดับที่ backend
+  // เรียงมา (ลำดับของหน้าตั้งค่าหมวด) — ค่าที่เลือกคือ uuid ของหมวด กรองแบบตรงตัว ไม่ใช่ข้อความบางส่วน
+  const categoryOptions = useMemo(() => {
+    const names = new Map<string, string>()
+    for (const item of items) {
+      if (!names.has(item.categoryId)) names.set(item.categoryId, item.categoryName)
+    }
+    return [...names].map(([value, label]) => ({ value, label }))
+  }, [items])
+
   const visibleItems = items.filter(
     (item) =>
       textIncludes(item.name, criteria.name ?? '') &&
-      textIncludes(item.categoryName, criteria.category ?? '') &&
+      (!criteria.category || item.categoryId === criteria.category) &&
       statusMatches(item.isActive, criteria.status),
   )
   const pagination = usePagination(visibleItems)
@@ -149,7 +159,7 @@ export function ItemsSettingsPage() {
         ariaLabel="ค้นหารายการคลัง"
         fields={[
           { name: 'name', label: 'ชื่อรายการ' },
-          { name: 'category', label: 'หมวด' },
+          { name: 'category', label: 'หมวด', type: 'combobox', options: categoryOptions, allLabel: 'ทุกหมวด' },
           STATUS_SEARCH_FIELD,
         ]}
         onSearch={(values) => {
