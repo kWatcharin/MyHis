@@ -3,6 +3,9 @@ import { Navigate, Route, Routes } from 'react-router'
 import { AppShell } from '@/components/layout/AppShell'
 import { BudgetYearsSettingsPage } from '@/features/admin/BudgetYearsSettingsPage'
 import { DiseasesSettingsPage } from '@/features/admin/DiseasesSettingsPage'
+import { ItemCategoriesSettingsPage } from '@/features/admin/ItemCategoriesSettingsPage'
+import { ItemsSettingsPage } from '@/features/admin/ItemsSettingsPage'
+import { ItemUnitsSettingsPage } from '@/features/admin/ItemUnitsSettingsPage'
 import { LabsSettingsPage } from '@/features/admin/LabsSettingsPage'
 import { NationalitiesSettingsPage } from '@/features/admin/NationalitiesSettingsPage'
 import { PagesSettingsPage } from '@/features/admin/PagesSettingsPage'
@@ -30,6 +33,8 @@ const MASTER_SETTINGS_ROUTES = [
   { path: '/settings/nationalities', permission: 'nationality.view', element: <NationalitiesSettingsPage /> },
   { path: '/settings/patient-groups', permission: 'patient_group.view', element: <PatientGroupsSettingsPage /> },
   { path: '/settings/labs', permission: 'lab.view', element: <LabsSettingsPage /> },
+  { path: '/settings/item-categories', permission: 'item_category.view', element: <ItemCategoriesSettingsPage /> },
+  { path: '/settings/item-units', permission: 'item_unit.view', element: <ItemUnitsSettingsPage /> },
 ]
 
 function App() {
@@ -117,6 +122,15 @@ function App() {
           element={
             <RequireAuth permission="disease.view">
               <DiseasesSettingsPage />
+            </RequireAuth>
+          }
+        />
+        {/* รายการคลัง: ฟอร์มมีหมวด/หน่วยฐาน/หน่วยแปลง จึงเป็นหน้าเฉพาะ (หมวด/หน่วยนับอยู่ใน MASTER_SETTINGS_ROUTES) */}
+        <Route
+          path="/settings/items"
+          element={
+            <RequireAuth permission="item.view">
+              <ItemsSettingsPage />
             </RequireAuth>
           }
         />

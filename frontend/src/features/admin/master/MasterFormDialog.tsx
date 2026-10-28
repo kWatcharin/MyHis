@@ -48,7 +48,8 @@ function buildSchema(fields: MasterField[]) {
 function emptyValues(fields: MasterField[]): MasterFormValues {
   const values: MasterFormValues = {}
   for (const field of fields) {
-    values[field.name] = field.kind === 'text' ? '' : field.kind === 'number' ? 0 : true
+    values[field.name] =
+      field.kind === 'text' ? '' : field.kind === 'number' ? 0 : (field.defaultValue ?? true)
   }
   return values
 }

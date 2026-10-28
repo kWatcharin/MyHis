@@ -49,6 +49,17 @@ const FIELD_LABELS: Record<string, string> = {
   is_thai: 'คนไทย',
   nationality: 'สัญชาติ',
   diseases: 'โรคประจำตัว',
+  // master คลัง (หมวดคลัง, รายการคลัง)
+  category: 'หมวด',
+  base_unit: 'หน่วยฐาน',
+  track_lot: 'ติดตามล็อต',
+  track_expiry: 'ติดตามวันหมดอายุ',
+  patient_linkable: 'ผูกผู้ป่วยตอนเบิกได้',
+  default_track_lot: 'ติดตามล็อต (ค่าตั้งต้น)',
+  default_track_expiry: 'ติดตามวันหมดอายุ (ค่าตั้งต้น)',
+  default_patient_linkable: 'ผูกผู้ป่วยตอนเบิกได้ (ค่าตั้งต้น)',
+  reorder_point: 'จุดสั่งซื้อ (หน่วยฐาน)',
+  conversions: 'หน่วยแปลง',
   // คนไข้ในนัดหมาย (แสดงแค่ชื่อช่อง)
   take_med_year_range: 'ระยะเวลากินยา (ปี)',
   take_med_month_range: 'ระยะเวลากินยา (เดือน)',

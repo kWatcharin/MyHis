@@ -47,6 +47,10 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
   { key: 'nationality', route: '/settings/nationalities', fallbackLabel: 'ตั้งค่าสัญชาติ', actions: CRUD },
   { key: 'patient_group', route: '/settings/patient-groups', fallbackLabel: 'ตั้งค่ากลุ่มคนไข้', actions: CRUD },
   { key: 'lab', route: '/settings/labs', fallbackLabel: 'ตั้งค่าแลป', actions: CRUD },
+  // master คลัง — หน่วยแปลงของรายการใช้สิทธิ์ของ item (แก้ในฟอร์มรายการ)
+  { key: 'item_category', route: '/settings/item-categories', fallbackLabel: 'ตั้งค่าหมวดคลัง', actions: CRUD },
+  { key: 'item_unit', route: '/settings/item-units', fallbackLabel: 'ตั้งค่าหน่วยนับ', actions: CRUD },
+  { key: 'item', route: '/settings/items', fallbackLabel: 'ตั้งค่ารายการคลัง', actions: CRUD },
   { key: 'shift', route: null, fallbackLabel: 'ตารางเวร (ยังไม่มีหน้า)', actions: ['view', 'update'] },
   // audit.view ตัวเดียวคุมทุกหน้าใต้ "ประวัติ" (ประวัติการเข้าออก /audit/auth, ประวัติการใช้งาน)
   { key: 'audit', route: '/audit/auth', fallbackLabel: 'ประวัติการเข้าออก', actions: ['view'] },

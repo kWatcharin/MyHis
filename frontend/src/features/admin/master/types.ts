@@ -14,7 +14,8 @@ export type MasterField =
       placeholder?: string
     }
   | { kind: 'number'; name: string; label: string }
-  | { kind: 'checkbox'; name: string; label: string; description?: string }
+  // defaultValue = ค่าตอนเพิ่มใหม่ (ไม่ใส่ = ติ๊กไว้ ซึ่งเหมาะกับ isActive)
+  | { kind: 'checkbox'; name: string; label: string; description?: string; defaultValue?: boolean }
 
 export interface MasterColumn<T> {
   header: string

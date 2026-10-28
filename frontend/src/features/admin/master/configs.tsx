@@ -2,7 +2,7 @@ import { sortOrderColumn, statusColumn, textColumn } from './columns'
 import { createMasterApi } from './mastersApi'
 import type { MasterConfig } from './types'
 
-// config ของหน้าตั้งค่า master 4 ตัว (คำนำหน้า, สัญชาติ, กลุ่มคนไข้, แลป) — ชนิดข้อมูลตรงกับ
+// config ของหน้าตั้งค่า master 6 ตัว (คำนำหน้า, สัญชาติ, กลุ่มคนไข้, แลป, หมวดคลัง, หน่วยนับ) — ชนิดข้อมูลตรงกับ
 // *Response ของ backend เป๊ะ ๆ (backend/src/<master>/dto.rs) id = uuid, ฟิลด์เป็น camelCase
 // ชื่อ error ใน errorMessages ต้องตรงกับข้อความที่ backend ส่ง (backend/src/<master>/service.rs)
 
@@ -192,4 +192,131 @@ export const labConfig: MasterConfig<Lab> = {
     'lab name already taken': 'ชื่อแลปนี้มีอยู่แล้ว',
   },
   deleteNote: 'การลบนี้ย้อนกลับไม่ได้',
+}
+
+// ---- หมวดคลัง (item_category) — ธงเป็นค่าตั้งต้นที่คัดลอกให้รายการใหม่ในหมวด (แก้ภายหลังไม่กระทบรายการเดิม) ----
+export interface ItemCategory {
+  id: string
+  name: string
+  defaultTrackLot: boolean
+  defaultTrackExpiry: boolean
+  defaultPatientLinkable: boolean
+  sortOrder: number
+  isActive: boolean
+}
+
+function categoryDefaults(item: ItemCategory): string | null {
+  const parts = [
+    item.defaultTrackLot && 'ล็อต',
+    item.defaultTrackExpiry && 'วันหมดอายุ',
+    item.defaultPatientLinkable && 'ผูกผู้ป่วยได้',
+  ].filter(Boolean)
+  return parts.length > 0 ? parts.join(' · ') : null
+}
+
+export const itemCategoryConfig: MasterConfig<ItemCategory> = {
+  resource: 'item_category',
+  title: 'ตั้งค่าหมวดคลัง',
+  description:
+    'หมวดของรายการคลัง เช่น ยา เวชภัณฑ์สิ้นเปลือง วัสดุแล็บ — การติดตามของหมวดเป็นค่าตั้งต้นตอนเพิ่มรายการใหม่',
+  entityLabel: 'หมวด',
+  api: createMasterApi<ItemCategory>('/item-categories'),
+  columns: [
+    sortOrderColumn(),
+    textColumn('หมวด', (item) => item.name, 'font-medium'),
+    textColumn('ค่าตั้งต้นของรายการใหม่', categoryDefaults),
+    statusColumn(),
+  ],
+  fields: [
+    {
+      kind: 'text',
+      name: 'name',
+      label: 'ชื่อหมวด',
+      required: true,
+      description: 'ชื่อซ้ำกันไม่ได้ (ไม่สนตัวพิมพ์เล็ก/ใหญ่)',
+    },
+    {
+      kind: 'checkbox',
+      name: 'defaultTrackLot',
+      label: 'ติดตามล็อต',
+      defaultValue: false,
+      description: 'ค่าตั้งต้นของรายการใหม่ในหมวดนี้ — แก้ภายหลังไม่เปลี่ยนรายการที่มีอยู่แล้ว',
+    },
+    {
+      kind: 'checkbox',
+      name: 'defaultTrackExpiry',
+      label: 'ติดตามวันหมดอายุ',
+      defaultValue: false,
+      description: 'ต้องติ๊ก "ติดตามล็อต" ด้วย เพราะวันหมดอายุเก็บแยกตามล็อต',
+    },
+    {
+      kind: 'checkbox',
+      name: 'defaultPatientLinkable',
+      label: 'ผูกผู้ป่วยตอนเบิกได้',
+      defaultValue: false,
+      description: 'ตอนเบิกระบุผู้ป่วยหรือไม่ก็ได้ (เช่น ยา)',
+    },
+    { kind: 'number', name: 'sortOrder', label: 'ลำดับการแสดงผล' },
+    {
+      kind: 'checkbox',
+      name: 'isActive',
+      label: 'ใช้งานอยู่',
+      description: 'ปิดไว้ถ้าไม่ต้องการให้เลือกหมวดนี้ให้รายการใหม่ (รายการเดิมยังอยู่หมวดนี้)',
+    },
+  ],
+  searchFields: [{ name: 'name', label: 'ชื่อหมวด', value: (item) => item.name }],
+  statusOf: (item) => item.isActive,
+  itemLabel: (item) => item.name,
+  errorMessages: {
+    'item category name already taken': 'ชื่อหมวดนี้มีอยู่แล้ว',
+    'item category is still used': 'ลบไม่ได้ ยังมีรายการคลังอยู่ในหมวดนี้',
+    'expiry tracking requires lot tracking': 'ติดตามวันหมดอายุต้องติ๊ก "ติดตามล็อต" ด้วย',
+  },
+  deleteNote: 'ถ้ายังมีรายการคลังอยู่ในหมวดนี้ ระบบจะไม่ให้ลบ',
+}
+
+// ---- หน่วยนับ (item_unit) — ชื่อหน่วยใช้ร่วมกัน จำนวนต่อหน่วยตั้งที่รายการคลังแต่ละรายการ ----
+export interface ItemUnit {
+  id: string
+  name: string
+  sortOrder: number
+  isActive: boolean
+}
+
+export const itemUnitConfig: MasterConfig<ItemUnit> = {
+  resource: 'item_unit',
+  title: 'ตั้งค่าหน่วยนับ',
+  description:
+    'หน่วยนับของรายการคลัง เช่น เม็ด แผง กล่อง — 1 กล่องเท่ากับกี่เม็ด ตั้งที่หน้ารายการคลังของแต่ละรายการ',
+  entityLabel: 'หน่วยนับ',
+  api: createMasterApi<ItemUnit>('/item-units'),
+  columns: [
+    sortOrderColumn(),
+    textColumn('หน่วยนับ', (item) => item.name, 'font-medium'),
+    statusColumn(),
+  ],
+  fields: [
+    {
+      kind: 'text',
+      name: 'name',
+      label: 'ชื่อหน่วย',
+      required: true,
+      description: 'ชื่อซ้ำกันไม่ได้ (ไม่สนตัวพิมพ์เล็ก/ใหญ่)',
+    },
+    { kind: 'number', name: 'sortOrder', label: 'ลำดับการแสดงผล' },
+    {
+      kind: 'checkbox',
+      name: 'isActive',
+      label: 'ใช้งานอยู่',
+      description: 'ปิดไว้ถ้าไม่ต้องการให้เลือกหน่วยนี้ให้รายการใหม่ (รายการเดิมใช้ต่อได้)',
+    },
+  ],
+  searchFields: [{ name: 'name', label: 'หน่วยนับ', value: (item) => item.name }],
+  statusOf: (item) => item.isActive,
+  itemLabel: (item) => item.name,
+  errorMessages: {
+    'item unit name already taken': 'หน่วยนับนี้มีอยู่แล้ว',
+    'item unit is still used': 'ลบไม่ได้ ยังมีรายการคลังใช้หน่วยนี้เป็นหน่วยฐานหรือหน่วยแปลงอยู่',
+  },
+  deleteNote: 'ถ้ายังมีรายการคลังใช้หน่วยนี้อยู่ ระบบจะไม่ให้ลบ',
 }
