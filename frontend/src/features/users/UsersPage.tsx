@@ -30,7 +30,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { prenameConfig } from '@/features/admin/master/configs'
-import { rolesApi } from '@/features/admin/rolesApi'
+import { rolesApi } from '@/features/admin/roles/rolesApi'
 import { useAdminList } from '@/features/admin/useAdminList'
 import { useAuth } from '@/features/auth/AuthContext'
 import { useRolePreview } from '@/features/role-preview/RolePreviewContext'

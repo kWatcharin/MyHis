@@ -5,10 +5,10 @@ import { useNavigate } from 'react-router'
 import { useAuth } from '@/features/auth/AuthContext'
 import type { MenuItem } from '@/features/auth/AuthContext'
 import { filterMenuPages } from '@/features/auth/menu'
-import type { Page } from '@/features/admin/pagesApi'
-import { pagesApi } from '@/features/admin/pagesApi'
-import type { Role } from '@/features/admin/rolesApi'
-import { rolesApi } from '@/features/admin/rolesApi'
+import type { Page } from '@/features/admin/pages/pagesApi'
+import { pagesApi } from '@/features/admin/pages/pagesApi'
+import type { Role } from '@/features/admin/roles/rolesApi'
+import { rolesApi } from '@/features/admin/roles/rolesApi'
 
 interface RolePreviewContextValue {
   // null = ใช้สิทธิ์จริงของตัวเอง (ค่าเริ่มต้นเสมอ ไม่ persist ข้าม refresh — ตั้งใจ เป็น

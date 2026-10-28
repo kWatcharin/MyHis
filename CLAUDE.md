@@ -37,7 +37,14 @@ my-his/
 │  └─ security-audit.md        สรุปผล security audit (2026-10-21): สิ่งที่แก้แล้ว, ที่เหลือ, สิ่งที่ต้องทำตอน deploy
 ├─ ops/                        Caddyfile, สคริปต์ backup/restore, patient_decrypt.py (ถอดคอลัมน์ที่เข้ารหัสนอกแอป ให้ผู้ใช้รันเอง)
 │                              check-deploy.sh (ตรวจ stack ที่รันอยู่), check-cloudflare-ips.sh (เทียบช่วง IP Cloudflare ใน Caddyfile) — อ่านอย่างเดียว
-├─ frontend/
+├─ frontend/src/
+│  ├─ App.tsx                 รวม route ทุกหน้า
+│  ├─ components/ui/          คอมโพเนนต์ shadcn   components/layout/  ส่วนประกอบหน้าที่ใช้ร่วมกัน
+│  ├─ lib/                    api, วันที่, ไอคอน ฯลฯ
+│  └─ features/<ฟีเจอร์>/       1 ฟีเจอร์ = 1 โฟลเดอร์; ฟีเจอร์ที่มีหลายหน้าแยกโฟลเดอร์ย่อยต่อหน้า
+│                             (หน้า + dialog ของหน้านั้น) ส่วนไฟล์ที่ใช้ร่วมกันหลายหน้า (*Api.ts ฯลฯ) อยู่ที่ราก
+│                             ของฟีเจอร์ เช่น admin/{roles,pages,diseases,...}/, admin/master/ (หน้า master
+│                             แบบ config), audit/{activity-history,auth-history}/, lab-visits/{groups,group-detail,print}/
 └─ backend/
    ├─ Cargo.toml
    ├─ Dockerfile

@@ -18,7 +18,7 @@ import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/c
 import { Input } from '@/components/ui/input'
 import { NativeSelect } from '@/components/ui/native-select'
 import { grantsRoleManagement } from '@/features/admin/permissions'
-import type { Role } from '@/features/admin/rolesApi'
+import type { Role } from '@/features/admin/roles/rolesApi'
 
 import type { User } from './usersApi'
 
