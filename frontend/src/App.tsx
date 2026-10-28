@@ -24,6 +24,7 @@ import { LabVisitPrintPage } from '@/features/lab-visits/print/LabVisitPrintPage
 import { PatientsPage } from '@/features/patients/PatientsPage'
 import { RegisterPage } from '@/features/registration/RegisterPage'
 import { SqlConsolePage } from '@/features/sql-console/SqlConsolePage'
+import { StockReceiptsPage } from '@/features/stock/receipts/StockReceiptsPage'
 import { UsersPage } from '@/features/users/UsersPage'
 
 // หน้าตั้งค่า master ที่สร้างจาก MasterSettingsPage + config (ดู features/admin/master/) — เข้าหน้าได้ด้วยสิทธิ์
@@ -131,6 +132,15 @@ function App() {
           element={
             <RequireAuth permission="item.view">
               <ItemsSettingsPage />
+            </RequireAuth>
+          }
+        />
+        {/* รับเข้า (เพจย่อยของกลุ่ม "คลัง") — ใบรับ + ยอดยกมา ลงคลังทันทีที่บันทึก */}
+        <Route
+          path="/stock/receipts"
+          element={
+            <RequireAuth permission="stock_receipt.view">
+              <StockReceiptsPage />
             </RequireAuth>
           }
         />

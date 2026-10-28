@@ -44,6 +44,8 @@ const SPECIAL_ACTIONS: Record<string, { label: string; kind: ActivityKind }> = {
   password_change_failed: { label: 'ใส่รหัสผ่านปัจจุบันผิดตอนเปลี่ยนรหัส', kind: 'other' },
   // หน้า SQL — รายการสรุปจาก backend เช่น "12 แถว · patient" (ไม่มีตัว SQL)
   sql_executed: { label: 'รัน SQL', kind: 'other' },
+  // ยกเลิกใบรับเข้า = ลงรายการกลับยอด (ไม่ลบแถว) — สีเดียวกับลบ
+  stock_receipt_cancelled: { label: 'ยกเลิก', kind: 'delete' },
 }
 
 // ชื่อการกระทำ + ประเภท (action ที่ไม่รู้จัก = แสดงชื่อดิบ ประเภท "อื่น ๆ")

@@ -1,7 +1,7 @@
 // แปลรายละเอียดการเปลี่ยนแปลงของประวัติการใช้งาน (Activity.details) เป็นสิ่งที่ modal "ดู" แสดง — ฟังก์ชันล้วน
 // ชื่อช่อง (key) ตรงกับ snapshot ที่ backend เก็บ (repository ของแต่ละโมดูล) ค่าเป็นค่าสำหรับแสดงผลแล้ว (FK เป็นชื่อ)
 import type { MenuItem } from '@/features/auth/AuthContext'
-import { ACTION_LABELS, parsePermission, resourceLabel } from '@/features/admin/permissions'
+import { actionLabel, parsePermission, resourceLabel } from '@/features/admin/permissions'
 import { formatThaiDate } from '@/lib/date'
 
 import { describeAction } from './activities'
@@ -60,6 +60,15 @@ const FIELD_LABELS: Record<string, string> = {
   default_patient_linkable: 'ผูกผู้ป่วยตอนเบิกได้ (ค่าตั้งต้น)',
   reorder_point: 'จุดสั่งซื้อ (หน่วยฐาน)',
   conversions: 'หน่วยแปลง',
+  // ใบรับเข้า (budget_year ใช้ป้ายของนัดหมายแล็ปข้างบน)
+  doc_no: 'เลขที่ใบรับ',
+  receipt_type: 'ประเภท',
+  received_on: 'วันที่รับ',
+  source: 'แหล่งที่มา',
+  ref_no: 'เลขที่เอกสารอ้างอิง',
+  note: 'หมายเหตุ',
+  lines: 'รายการที่รับ',
+  cancel_reason: 'เหตุผลที่ยกเลิก',
   // คนไข้ในนัดหมาย (แสดงแค่ชื่อช่อง)
   take_med_year_range: 'ระยะเวลากินยา (ปี)',
   take_med_month_range: 'ระยะเวลากินยา (เดือน)',
@@ -73,7 +82,15 @@ const FIELD_LABELS: Record<string, string> = {
 }
 
 const FIELD_ORDER = Object.keys(FIELD_LABELS)
-const DATE_FIELDS = new Set(['start_date', 'end_date', 'cd4_first_date', 'cd4_second_date', 'vl_date', 'birth_date'])
+const DATE_FIELDS = new Set([
+  'start_date',
+  'end_date',
+  'cd4_first_date',
+  'cd4_second_date',
+  'vl_date',
+  'birth_date',
+  'received_on',
+])
 
 export function fieldLabel(field: string): string {
   return FIELD_LABELS[field] ?? field
@@ -90,7 +107,7 @@ function orderedFields(fields: string[]): string[] {
 // "patient.view" → "ผู้ป่วย: ดู" (ชื่อเพจตามเมนู) — คีย์ที่ไม่รู้จักแสดงดิบ
 function permissionLabel(key: string, menu: MenuItem[]): string {
   const parsed = parsePermission(key)
-  return parsed ? `${resourceLabel(parsed.resource, menu)}: ${ACTION_LABELS[parsed.action]}` : key
+  return parsed ? `${resourceLabel(parsed.resource, menu)}: ${actionLabel(parsed.resource, parsed.action)}` : key
 }
 
 function asStrings(value: unknown): string[] {
@@ -140,7 +157,10 @@ const NOTES: Record<string, string> = {
 
 export function buildDetailView(activity: Activity, menu: MenuItem[]): DetailView {
   const details = activity.details
-  if (describeAction(activity.action).kind === 'delete') return { kind: 'deleted' }
+  // ลบไม่มีรายละเอียด — ยกเลิกใบรับ (ประเภทลบ) มีค่าเดิม→ใหม่ของเหตุผลที่ยกเลิก จึงแสดงแบบแก้ไข
+  if (describeAction(activity.action).kind === 'delete' && !(details?.before && details.after)) {
+    return { kind: 'deleted' }
+  }
   if (details?.changed) {
     return { kind: 'fields', labels: orderedFields(details.changed).map(fieldLabel) }
   }

@@ -40,7 +40,7 @@ import { RoleFormDialog } from './RoleFormDialog'
 import type { Role } from './rolesApi'
 import { rolesApi } from './rolesApi'
 import type { PermissionGroup } from '../permissions'
-import { ACTION_LABELS, groupPermissionResources, permissionKey } from '../permissions'
+import { actionLabel, groupPermissionResources, permissionKey } from '../permissions'
 import { useAdminList } from '../useAdminList'
 
 // ข้อความ error ที่รู้จักจาก backend (backend/src/users/service/roles.rs) แปลเป็นไทย — อื่นนอกจากนี้
@@ -79,7 +79,7 @@ function summarizePermissions(permissions: string[], groups: PermissionGroup[]):
       const actions =
         granted.length === resource.actions.length
           ? 'ทั้งหมด'
-          : granted.map((action) => ACTION_LABELS[action]).join(' ')
+          : granted.map((action) => actionLabel(resource, action)).join(' ')
       return [`${label}: ${actions}`]
     }),
   )

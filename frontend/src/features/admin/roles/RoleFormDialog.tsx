@@ -18,7 +18,7 @@ import { Input } from '@/components/ui/input'
 import { useAuth } from '@/features/auth/AuthContext'
 
 import type { PermissionAction } from '../permissions'
-import { ACTION_LABELS, ALL_PERMISSIONS, groupPermissionResources, permissionKey } from '../permissions'
+import { ALL_PERMISSIONS, actionLabel, groupPermissionResources, permissionKey } from '../permissions'
 import type { Role } from './rolesApi'
 
 const roleFormSchema = z.object({
@@ -167,7 +167,7 @@ export function RoleFormDialog({
                                         toggle(resource.key, action, checked === true)
                                       }
                                     />
-                                    {ACTION_LABELS[action]}
+                                    {actionLabel(resource, action)}
                                   </label>
                                 ))}
                               </div>

@@ -20,6 +20,8 @@ export interface PermissionResource {
   // ชื่อเมื่อหาเพจในเมนูไม่เจอ (เพจถูกลบ/ผู้แก้มองไม่เห็นเพจนั้น)
   fallbackLabel: string
   actions: PermissionAction[]
+  // ชื่อ action เฉพาะเพจนี้ (แทน ACTION_LABELS) เช่น "ลบ" ของใบรับคือ "ยกเลิก" — ใช้ผ่าน actionLabel()
+  actionLabels?: Partial<Record<PermissionAction, string>>
   // ใช้งานหน้านี้ได้จริงต้องมีสิทธิ์นี้ด้วย (เตือนในฟอร์ม role)
   requires?: { permission: string; message: string }
 }
@@ -51,6 +53,14 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
   { key: 'item_category', route: '/settings/item-categories', fallbackLabel: 'ตั้งค่าหมวดคลัง', actions: CRUD },
   { key: 'item_unit', route: '/settings/item-units', fallbackLabel: 'ตั้งค่าหน่วยนับ', actions: CRUD },
   { key: 'item', route: '/settings/items', fallbackLabel: 'ตั้งค่ารายการคลัง', actions: CRUD },
+  // ใบรับเข้า (+ ยอดยกมา): แก้ไข = แก้ข้อความหัวใบ, ลบ = ยกเลิกใบ (ลงรายการกลับยอด ไม่ลบแถว)
+  {
+    key: 'stock_receipt',
+    route: '/stock/receipts',
+    fallbackLabel: 'รับเข้า',
+    actions: CRUD,
+    actionLabels: { delete: 'ยกเลิก' },
+  },
   { key: 'shift', route: null, fallbackLabel: 'ตารางเวร (ยังไม่มีหน้า)', actions: ['view', 'update'] },
   // audit.view ตัวเดียวคุมทุกหน้าใต้ "ประวัติ" (ประวัติการเข้าออก /audit/auth, ประวัติการใช้งาน)
   { key: 'audit', route: '/audit/auth', fallbackLabel: 'ประวัติการเข้าออก', actions: ['view'] },
@@ -66,6 +76,11 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
     },
   },
 ]
+
+// ชื่อ action ของเพจนี้ (ชื่อเฉพาะเพจก่อน ไม่มีใช้ชื่อกลาง)
+export function actionLabel(resource: PermissionResource, action: PermissionAction): string {
+  return resource.actionLabels?.[action] ?? ACTION_LABELS[action]
+}
 
 export function permissionKey(resource: string, action: PermissionAction): string {
   return `${resource}.${action}`

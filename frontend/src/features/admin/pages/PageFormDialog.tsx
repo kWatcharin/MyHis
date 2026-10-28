@@ -25,7 +25,7 @@ import { useAuth } from '@/features/auth/AuthContext'
 import { isInternalRoute } from '@/features/auth/menu'
 import { resolveIcon } from '@/lib/icons'
 
-import { ACTION_LABELS, ALL_PERMISSIONS, parsePermission, resourceLabel } from '../permissions'
+import { ALL_PERMISSIONS, actionLabel, parsePermission, resourceLabel } from '../permissions'
 import type { Page } from './pagesApi'
 
 // เมนู 2 ชั้น: route ว่าง = เพจหลักที่เป็นหัวข้อกลุ่ม (ไม่มีหน้าของตัวเอง) refId ว่าง = เป็นเพจหลักเอง
@@ -118,7 +118,7 @@ export function PageFormDialog({
   ]
   const labelOf = (key: string) => {
     const parsed = parsePermission(key)
-    return parsed ? `${resourceLabel(parsed.resource, menu)}: ${ACTION_LABELS[parsed.action]}` : key
+    return parsed ? `${resourceLabel(parsed.resource, menu)}: ${actionLabel(parsed.resource, parsed.action)}` : key
   }
 
   const handleSubmit = form.handleSubmit(async (values) => {

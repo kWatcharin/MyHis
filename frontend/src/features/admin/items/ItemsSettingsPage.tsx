@@ -52,6 +52,10 @@ const ITEM_ERRORS: Record<string, string> = {
   'too many conversions': 'หน่วยแปลงได้ไม่เกิน 10 หน่วย',
   'reorder point must not be negative': 'จุดสั่งซื้อต้องไม่ติดลบ',
   'name is required': 'กรอกชื่อรายการ',
+  // กฎที่ขึ้นกับคลัง (ยอดเดิมนับเป็นหน่วยฐาน/ล็อตเดิม)
+  'item has stock movements':
+    'รายการนี้มีการเคลื่อนไหวในคลังแล้ว เปลี่ยนหน่วยฐานหรือการติดตามล็อต/วันหมดอายุไม่ได้',
+  'item still has stock': 'รายการนี้ยังมีของคงเหลือในคลัง ลบไม่ได้',
 }
 
 function itemErrorMessage(err: unknown): string {
