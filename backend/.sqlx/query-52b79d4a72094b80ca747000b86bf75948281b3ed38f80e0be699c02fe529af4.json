@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select jsonb_build_object(\n                  'name', i.name, 'category', c.name, 'base_unit', u.name,\n                  'track_lot', i.track_lot, 'track_expiry', i.track_expiry,\n                  'patient_linkable', i.patient_linkable, 'reorder_point', i.reorder_point,\n                  'is_active', i.is_active,\n                  'conversions', coalesce((\n                      select jsonb_agg('1 ' || cu.name || ' = ' || cv.factor || ' ' || u.name\n                                       order by cv.factor, cu.name)\n                      from item_unit_conversion cv\n                      join item_unit cu on cu.id = cv.unit_id\n                      where cv.item_id = i.id and cv.deleted_at is null\n                  ), '[]'::jsonb)\n              ) as \"snapshot!\"\n           from item i\n           join item_category c on c.id = i.category_id\n           join item_unit u on u.id = i.base_unit_id\n           where i.id = $1\n           for update of i",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "snapshot!",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "52b79d4a72094b80ca747000b86bf75948281b3ed38f80e0be699c02fe529af4"
+}

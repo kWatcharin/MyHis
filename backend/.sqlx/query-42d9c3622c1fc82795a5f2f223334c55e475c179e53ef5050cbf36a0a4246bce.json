@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select uuid as public_id, name\n           from item_unit\n           where deleted_at is null and is_active\n           order by sort_order, name",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "public_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "42d9c3622c1fc82795a5f2f223334c55e475c179e53ef5050cbf36a0a4246bce"
+}

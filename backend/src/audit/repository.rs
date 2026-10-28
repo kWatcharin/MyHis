@@ -109,6 +109,9 @@ pub async fn list_activities(
                       when 'nationality' then nat.national_name
                       when 'patient_group' then pgr.name
                       when 'lab' then lb.name
+                      when 'item_category' then icat.name
+                      when 'item_unit' then iun.name
+                      when 'item' then itm.name
                       when 'lab_visit_group' then 'ปีงบ ' || gby.year || ' · ' || gpg.name
                       when 'lab_visit' then 'ปีงบ ' || gby.year || ' · ' || gpg.name
                       -- หน้า SQL: สรุปจาก metadata (ไม่มีตัว SQL เก็บไว้) เช่น "12 แถว · patient, lab_visit"
@@ -149,6 +152,9 @@ pub async fn list_activities(
            left join nationality nat on ev.target_type = 'nationality' and nat.uuid = ev.target_uuid
            left join patient_group pgr on ev.target_type = 'patient_group' and pgr.uuid = ev.target_uuid
            left join lab lb on ev.target_type = 'lab' and lb.uuid = ev.target_uuid
+           left join item_category icat on ev.target_type = 'item_category' and icat.uuid = ev.target_uuid
+           left join item_unit iun on ev.target_type = 'item_unit' and iun.uuid = ev.target_uuid
+           left join item itm on ev.target_type = 'item' and itm.uuid = ev.target_uuid
            left join lab_visit lv on ev.target_type = 'lab_visit' and lv.uuid = ev.target_uuid
            left join lab_visit_group lvg on lvg.id = lv.lab_visit_group_id
                or (ev.target_type = 'lab_visit_group' and lvg.uuid = ev.target_uuid)

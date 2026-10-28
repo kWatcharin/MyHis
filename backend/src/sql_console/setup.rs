@@ -19,10 +19,14 @@ pub const READER_ROLE: &str = "my_his_sql_reader";
 
 /// ตารางที่หน้า SQL อ่านได้ — ตารางที่ไม่อยู่ในรายการมองไม่เห็นเลย: `sessions` (token_hash ของ session),
 /// `login_throttle` (ชื่อที่พิมพ์ตอน login ผิด อาจเป็นรหัสผ่านที่พิมพ์ผิดช่อง), `_sqlx_migrations`, ตารางใหม่ ๆ
-const READABLE_TABLES: [&str; 19] = [
+const READABLE_TABLES: [&str; 23] = [
     "audit_log",
     "budget_year",
     "disease",
+    "item",
+    "item_category",
+    "item_unit",
+    "item_unit_conversion",
     "lab",
     "lab_visit",
     "lab_visit_group",

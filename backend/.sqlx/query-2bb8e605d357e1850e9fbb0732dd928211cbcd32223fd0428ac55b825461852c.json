@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update item\n           set name = $3, category_id = $4, base_unit_id = $5, track_lot = $6, track_expiry = $7,\n               patient_linkable = $8, reorder_point = $9, is_active = $10,\n               updated_by = $2, updated_at = now()\n           where id = $1 and deleted_at is null",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Varchar",
+        "Int4",
+        "Int4",
+        "Bool",
+        "Bool",
+        "Bool",
+        "Int4",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2bb8e605d357e1850e9fbb0732dd928211cbcd32223fd0428ac55b825461852c"
+}

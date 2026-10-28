@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select jsonb_build_object(\n                  'name', name, 'default_track_lot', default_track_lot,\n                  'default_track_expiry', default_track_expiry,\n                  'default_patient_linkable', default_patient_linkable,\n                  'sort_order', sort_order, 'is_active', is_active\n              ) as \"snapshot!\"\n           from item_category where id = $1 for update",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "snapshot!",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "9036a17214f8cf54c359b83d91f9444d5834ef2f7d1de6e746ef2f9c9c3eba41"
+}

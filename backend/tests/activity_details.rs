@@ -215,6 +215,107 @@ async fn role_and_page_details(pool: PgPool) {
     assert_eq!(labels, ["รายงานทดสอบ"]);
 }
 
+/// รายการคลัง: หมวด/หน่วยฐานเป็นชื่อ หน่วยแปลงเป็นข้อความ "1 กล่อง = 100 เม็ด" — เพิ่ม/แทนที่ (PUT)/ลบ
+/// และชื่อรายการในประวัติอ่านจาก join (แถวที่ถูกลบแล้วยังได้ชื่อ)
+#[sqlx::test]
+async fn inventory_item_details_use_names_and_conversion_text(pool: PgPool) {
+    let app = test_app(pool.clone()).await;
+    let (cookie, _) = admin_session(&pool, &app).await;
+
+    call(
+        &app,
+        &cookie,
+        Method::POST,
+        "/api/item-categories",
+        Some(json!({ "name": "ยา", "defaultTrackLot": true, "defaultTrackExpiry": true })),
+    )
+    .await;
+    for name in ["เม็ด", "กล่อง"] {
+        call(
+            &app,
+            &cookie,
+            Method::POST,
+            "/api/item-units",
+            Some(json!({ "name": name })),
+        )
+        .await;
+    }
+    let drug = find_id(&app, &cookie, "/api/item-categories", "name", "ยา").await;
+    let tablet = find_id(&app, &cookie, "/api/item-units", "name", "เม็ด").await;
+    let boxed = find_id(&app, &cookie, "/api/item-units", "name", "กล่อง").await;
+
+    let body = |factor: i32, reorder_point: Option<i32>| {
+        json!({
+            "name": "พาราเซตามอล 500 mg",
+            "categoryId": drug,
+            "baseUnitId": tablet,
+            "reorderPoint": reorder_point,
+            "conversions": [{ "unitId": boxed, "factor": factor }],
+        })
+    };
+    call(
+        &app,
+        &cookie,
+        Method::POST,
+        "/api/items",
+        Some(body(100, None)),
+    )
+    .await;
+    let items = call(&app, &cookie, Method::GET, "/api/items", None).await;
+    let listed = &items[0];
+    // ธงไม่ส่งมา = ค่าตั้งต้นของหมวด
+    assert_eq!(listed["trackLot"], true);
+    assert_eq!(listed["trackExpiry"], true);
+    assert_eq!(listed["patientLinkable"], false);
+    assert_eq!(listed["categoryName"], "ยา");
+    assert_eq!(
+        listed["conversions"],
+        json!([{ "unitId": boxed, "unitName": "กล่อง", "factor": 100 }])
+    );
+    let id = listed["id"].as_str().unwrap().to_string();
+    let path = format!("/api/items/{id}");
+    call(&app, &cookie, Method::PUT, &path, Some(body(50, Some(200)))).await;
+    call(&app, &cookie, Method::DELETE, &path, None).await;
+
+    let (activity, text) = activities(&app, &cookie).await;
+    let created = &details_of(&activity, "item_created")[0]["after"];
+    assert_eq!(created["category"], "ยา");
+    assert_eq!(created["base_unit"], "เม็ด");
+    assert_eq!(created["conversions"], json!(["1 กล่อง = 100 เม็ด"]));
+    assert_eq!(created["reorder_point"], Value::Null);
+    assert_eq!(
+        details_of(&activity, "item_updated")[0],
+        json!({
+            "before": { "conversions": ["1 กล่อง = 100 เม็ด"], "reorder_point": null },
+            "after": { "conversions": ["1 กล่อง = 50 เม็ด"], "reorder_point": 200 },
+        })
+    );
+    assert_eq!(details_of(&activity, "item_deleted"), [Value::Null]);
+    // ไม่มี id int ภายในของหมวด/หน่วยหลุดไปกับรายละเอียด
+    assert!(!text.contains("category_id") && !text.contains("base_unit_id"));
+
+    let labels: Vec<(&str, &str)> = activity["events"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|e| e["targetType"] == "item")
+        .map(|e| {
+            (
+                e["action"].as_str().unwrap(),
+                e["targetLabel"].as_str().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        labels,
+        [
+            ("item_deleted", "พาราเซตามอล 500 mg"),
+            ("item_updated", "พาราเซตามอล 500 mg"),
+            ("item_created", "พาราเซตามอล 500 mg"),
+        ]
+    );
+}
+
 #[sqlx::test]
 async fn user_details_use_names_not_ids(pool: PgPool) {
     let app = test_app(pool.clone()).await;

@@ -80,10 +80,11 @@ async fn existing_tables_have_int_id_and_unique_uuid(pool: PgPool) {
     .await
     .unwrap();
     // ทุก permission ราย action (20261013100000_page_action_permissions.sql) + sql.view (20261019100000)
-    assert_eq!(admin_permissions, 48);
+    // + master คลัง 12 ตัว (20261026100000_inventory_masters.sql)
+    assert_eq!(admin_permissions, 60);
 
-    // หน้าตั้งค่าเพจ, role, ปีงบประมาณ, โรค, คำนำหน้า, สัญชาติ, กลุ่มคนไข้, แลป และผู้ใช้งาน — แต่ละหน้าต้องมีสิทธิ์
-    // "ดู" ของหน้านั้นเอง (เดิมทุกหน้าใช้ user.manage ตัวเดียว)
+    // หน้าตั้งค่าเพจ, role, ปีงบประมาณ, โรค, คำนำหน้า, สัญชาติ, กลุ่มคนไข้, แลป, master คลัง 3 หน้า และผู้ใช้งาน —
+    // แต่ละหน้าต้องมีสิทธิ์ "ดู" ของหน้านั้นเอง (เดิมทุกหน้าใช้ user.manage ตัวเดียว)
     let settings_pages: Vec<(String, String)> = sqlx::query_as(
         "select p.route, pp.permission from pages p join page_permissions pp on pp.page_id = p.id
          where p.route like '/settings/%' or p.route = '/users' order by p.route",
@@ -96,6 +97,10 @@ async fn existing_tables_have_int_id_and_unique_uuid(pool: PgPool) {
         [
             ("/settings/budget-years", "budget_year.view"),
             ("/settings/diseases", "disease.view"),
+            // เรียงตาม collation ของ DB (ไม่นับขีด): item-categories < items < item-units
+            ("/settings/item-categories", "item_category.view"),
+            ("/settings/items", "item.view"),
+            ("/settings/item-units", "item_unit.view"),
             ("/settings/labs", "lab.view"),
             ("/settings/nationalities", "nationality.view"),
             ("/settings/pages", "page.view"),
@@ -127,7 +132,8 @@ async fn menu_groups_permission_pages_separately_from_settings(pool: PgPool) {
         };
         assert_eq!(group.as_deref(), Some(expected), "{route}");
     }
-    assert_eq!(groups.len(), 8);
+    // master 6 หน้า + master คลัง 3 หน้า + สิทธิ์ 2 หน้า
+    assert_eq!(groups.len(), 11);
 }
 
 #[sqlx::test]
@@ -395,4 +401,125 @@ async fn registration_group_holds_patients_and_users_pages(pool: PgPool) {
             ),
         ]
     );
+}
+
+fn is_check_violation<T>(result: Result<T, sqlx::Error>) -> bool {
+    result.err().is_some_and(|e| {
+        e.as_database_error()
+            .is_some_and(|d| d.is_check_violation())
+    })
+}
+
+fn is_unique_violation<T>(result: Result<T, sqlx::Error>) -> bool {
+    result.err().is_some_and(|e| {
+        e.as_database_error()
+            .is_some_and(|d| d.is_unique_violation())
+    })
+}
+
+/// รายการคลังหนึ่งแถว (ธง: ติดตามล็อต, ติดตามวันหมดอายุ) — ผูกผู้ป่วยไม่ได้
+async fn insert_item(
+    pool: &PgPool,
+    user_id: i32,
+    category_id: i32,
+    unit_id: i32,
+    name: &str,
+    (track_lot, track_expiry): (bool, bool),
+    reorder_point: Option<i32>,
+) -> Result<i32, sqlx::Error> {
+    sqlx::query_scalar(
+        "insert into item (name, category_id, base_unit_id, track_lot, track_expiry, patient_linkable,
+                           reorder_point, created_by, updated_by)
+         values ($1, $2, $3, $4, $5, false, $6, $7, $7) returning id",
+    )
+    .bind(name)
+    .bind(category_id)
+    .bind(unit_id)
+    .bind(track_lot)
+    .bind(track_expiry)
+    .bind(reorder_point)
+    .bind(user_id)
+    .fetch_one(pool)
+    .await
+}
+
+/// master คลังกันที่ DB อีกชั้น (ด่านแรกคือ service): ติดตามวันหมดอายุต้องติดตามล็อต (ทั้งค่าตั้งต้นของหมวดและตัวรายการ),
+/// จุดสั่งซื้อไม่ติดลบ, factor > 1, ชื่อรายการซ้ำไม่ได้ (ไม่สนตัวพิมพ์ นับเฉพาะแถวที่ยังไม่ถูกลบ), หน่วยซ้ำในรายการเดียวไม่ได้
+#[sqlx::test]
+async fn inventory_masters_enforce_tracking_quantities_and_uniqueness(pool: PgPool) {
+    let user_id = insert_user(&pool).await;
+
+    let bad_category = sqlx::query(
+        "insert into item_category (name, default_track_expiry, created_by, updated_by)
+         values ('x', true, $1, $1)",
+    )
+    .bind(user_id)
+    .execute(&pool)
+    .await;
+    assert!(is_check_violation(bad_category));
+    let category_id: i32 = sqlx::query_scalar(
+        "insert into item_category (name, default_track_lot, default_track_expiry, created_by, updated_by)
+         values ('ยา', true, true, $1, $1) returning id",
+    )
+    .bind(user_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let mut unit_ids = Vec::new();
+    for name in ["เม็ด", "กล่อง"] {
+        let id: i32 = sqlx::query_scalar(
+            "insert into item_unit (name, created_by, updated_by) values ($1, $2, $2) returning id",
+        )
+        .bind(name)
+        .bind(user_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        unit_ids.push(id);
+    }
+    let (tablet, boxed) = (unit_ids[0], unit_ids[1]);
+
+    let insert = |name: &'static str, flags: (bool, bool), reorder_point: Option<i32>| {
+        insert_item(
+            &pool,
+            user_id,
+            category_id,
+            tablet,
+            name,
+            flags,
+            reorder_point,
+        )
+    };
+    assert!(is_check_violation(insert("a", (false, true), None).await));
+    assert!(is_check_violation(
+        insert("a", (true, true), Some(-1)).await
+    ));
+    let item_id = insert("Paracetamol", (true, true), Some(0)).await.unwrap();
+    assert!(is_unique_violation(
+        insert("PARACETAMOL", (false, false), None).await
+    ));
+
+    let insert_conversion = |unit_id: i32, factor: i32| {
+        sqlx::query(
+            "insert into item_unit_conversion (item_id, unit_id, factor, created_by, updated_by)
+             values ($1, $2, $3, $4, $4)",
+        )
+        .bind(item_id)
+        .bind(unit_id)
+        .bind(factor)
+        .bind(user_id)
+        .execute(&pool)
+    };
+    assert!(is_check_violation(insert_conversion(boxed, 1).await));
+    insert_conversion(boxed, 100).await.unwrap();
+    assert!(is_unique_violation(insert_conversion(boxed, 50).await));
+
+    // soft delete แล้วใช้ชื่อเดิมซ้ำได้
+    sqlx::query("update item set deleted_at = now(), deleted_by = $2 where id = $1")
+        .bind(item_id)
+        .bind(user_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    insert("paracetamol", (false, false), None).await.unwrap();
 }

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update item_category\n           set deleted_at = now(), deleted_by = $2, updated_by = $2, updated_at = now()\n           where id = $1 and deleted_at is null",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "42fd330827e5d5b3723df620f648b6ef4fd97c4856a8c4890cba933bd699b4f0"
+}

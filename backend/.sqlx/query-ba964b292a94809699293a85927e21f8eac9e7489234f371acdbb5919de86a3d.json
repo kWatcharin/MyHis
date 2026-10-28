@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update item_unit_conversion\n                     set factor = $2, updated_by = $3, updated_at = now()\n                     where id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ba964b292a94809699293a85927e21f8eac9e7489234f371acdbb5919de86a3d"
+}

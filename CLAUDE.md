@@ -32,6 +32,7 @@ my-his/
 ├─ docs/
 │  ├─ rust-guidelines.md       กฎการเขียน Rust ของโปรเจกต์ (อ่านก่อนเขียนโค้ด)
 │  ├─ auth-design.md           ดีไซน์ระบบ auth ฉบับละเอียด
+│  ├─ inventory-design.md      ระบบคลัง: master ทำแล้ว, ล็อต/ledger/รับ-เบิก ยังเป็นร่าง (อ่านก่อนแตะโมดูล item*)
 │  ├─ infrastructure.md        การวาง container, backup, ความปลอดภัยของเครื่อง
 │  └─ security-audit.md        สรุปผล security audit (2026-10-21): สิ่งที่แก้แล้ว, ที่เหลือ, สิ่งที่ต้องทำตอน deploy
 ├─ ops/                        Caddyfile, สคริปต์ backup/restore, patient_decrypt.py (ถอดคอลัมน์ที่เข้ารหัสนอกแอป ให้ผู้ใช้รันเอง)
@@ -62,6 +63,8 @@ my-his/
       ├─ budget_year/          ตั้งค่าปีงบประมาณ (หน้า master แรก สิทธิ์ `budget_year.*`)
       ├─ disease/              ตั้งค่าโรค (หน้า master, สิทธิ์ `disease.*`)
       ├─ prename/ nationality/ patient_group/ lab/   master อื่น ๆ โครงเดียวกับ disease/
+      ├─ item_category/ item_unit/ item/   master คลัง: หมวด, หน่วยนับ, รายการ + หน่วยแปลง (สิทธิ์ `item_category.*` /
+      │                        `item_unit.*` / `item.*`) — กฎคลังและส่วนธุรกรรมที่ยังเป็นร่างอยู่ใน docs/inventory-design.md
       ├─ patient/              ลงทะเบียนผู้ป่วย + โรคประจำตัว (สิทธิ์ `patient.*`, เข้ารหัสด้วย crypto.rs)
       ├─ lab_visit/            นัดหมายแล็ป (lab_visit_group + lab_visit) สิทธิ์ `lab_visit.*` — คืนแค่ uuid คนไข้ ไม่แตะข้อมูลระบุตัว
       ├─ sql_console/          หน้า SQL /data/script (สิทธิ์ `sql.view`): รัน SQL อ่านอย่างเดียวด้วย role DB แยก

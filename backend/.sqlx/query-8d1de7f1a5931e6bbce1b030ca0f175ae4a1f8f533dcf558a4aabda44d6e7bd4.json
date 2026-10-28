@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into item_unit_conversion (item_id, unit_id, factor, created_by, updated_by)\n                     values ($1, $2, $3, $4, $4)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8d1de7f1a5931e6bbce1b030ca0f175ae4a1f8f533dcf558a4aabda44d6e7bd4"
+}

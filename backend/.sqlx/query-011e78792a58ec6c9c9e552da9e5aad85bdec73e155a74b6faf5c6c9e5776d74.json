@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select id as \"id: ItemCategoryId\", is_active, default_track_lot, default_track_expiry,\n                  default_patient_linkable\n           from item_category\n           where uuid = $1 and deleted_at is null",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: ItemCategoryId",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "is_active",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 2,
+        "name": "default_track_lot",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 3,
+        "name": "default_track_expiry",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 4,
+        "name": "default_patient_linkable",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "011e78792a58ec6c9c9e552da9e5aad85bdec73e155a74b6faf5c6c9e5776d74"
+}

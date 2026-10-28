@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update item_category\n           set name = coalesce($3, name),\n               default_track_lot = coalesce($4, default_track_lot),\n               default_track_expiry = coalesce($5, default_track_expiry),\n               default_patient_linkable = coalesce($6, default_patient_linkable),\n               sort_order = coalesce($7, sort_order),\n               is_active = coalesce($8, is_active),\n               updated_by = $2,\n               updated_at = now()\n           where id = $1 and deleted_at is null",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Varchar",
+        "Bool",
+        "Bool",
+        "Bool",
+        "Int4",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0693058e51fa5791e9b971319d2b6a794311c16e4003208dcde0db1e7c443a76"
+}

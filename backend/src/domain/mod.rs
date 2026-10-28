@@ -9,6 +9,7 @@
 use uuid::Uuid;
 
 pub mod changes;
+pub mod item_tracking;
 pub mod patient_crypto;
 pub mod username;
 
@@ -60,6 +61,18 @@ pub struct LabVisitGroupId(pub i32);
 #[sqlx(transparent)]
 pub struct LabVisitId(pub i32);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct ItemCategoryId(pub i32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct ItemUnitId(pub i32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct ItemId(pub i32);
+
 /// เพจ/ข้อมูลที่ตั้งสิทธิ์แยกได้ — ส่วนหน้าของคีย์ permission เช่น `patient` ใน `patient.view`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Resource {
@@ -83,6 +96,10 @@ pub enum Resource {
     /// หน้า SQL (`/data/script`) — รัน SQL อ่านอย่างเดียวด้วย role ฐานข้อมูลแยก (sql_console/) ถอดรหัสข้อมูลผู้ป่วย
     /// ในผลลัพธ์ได้เมื่อมี `patient.view` ด้วย
     Sql,
+    /// master คลัง: หมวด, หน่วยนับ, รายการ (+ หน่วยแปลงของรายการ ใช้สิทธิ์ของ `item`)
+    ItemCategory,
+    ItemUnit,
+    Item,
 }
 
 /// การกระทำต่อเพจ: ดู / เพิ่ม / แก้ไข / ลบ / ส่งออกเอกสาร — ตรวจแยกกันทุกตัว (แก้ไขไม่ implies ดู)
@@ -150,6 +167,19 @@ const PERMISSIONS: &[(Resource, Action, &str)] = &[
     (Resource::Audit, View, "audit.view"),
     // เพิ่มหลัง migration page_action_permissions — admin ได้จาก migration sql_console_admin_permission (role อื่นติ๊กเอง)
     (Resource::Sql, View, "sql.view"),
+    // master คลัง — admin ได้จาก migration inventory_masters (role อื่นติ๊กเอง)
+    (Resource::ItemCategory, View, "item_category.view"),
+    (Resource::ItemCategory, Create, "item_category.create"),
+    (Resource::ItemCategory, Update, "item_category.update"),
+    (Resource::ItemCategory, Delete, "item_category.delete"),
+    (Resource::ItemUnit, View, "item_unit.view"),
+    (Resource::ItemUnit, Create, "item_unit.create"),
+    (Resource::ItemUnit, Update, "item_unit.update"),
+    (Resource::ItemUnit, Delete, "item_unit.delete"),
+    (Resource::Item, View, "item.view"),
+    (Resource::Item, Create, "item.create"),
+    (Resource::Item, Update, "item.update"),
+    (Resource::Item, Delete, "item.delete"),
 ];
 
 /// permission หนึ่งตัว = แถวหนึ่งใน `PERMISSIONS` (เก็บเป็นลำดับแถว) — สร้างได้จากตารางเท่านั้น (`of`, `parse`,

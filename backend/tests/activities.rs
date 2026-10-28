@@ -138,6 +138,20 @@ async fn master_pages_record_create_update_delete(pool: PgPool) {
             "แลปทดสอบ",
             json!({ "name": "แลปทดสอบ" }),
         ),
+        (
+            "/api/item-categories",
+            "item_category",
+            "name",
+            "หมวดทดสอบ",
+            json!({ "name": "หมวดทดสอบ", "defaultTrackLot": true }),
+        ),
+        (
+            "/api/item-units",
+            "item_unit",
+            "name",
+            "หน่วยทดสอบ",
+            json!({ "name": "หน่วยทดสอบ" }),
+        ),
     ];
 
     for (path, target_type, field, name, body) in &masters {

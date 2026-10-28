@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into item_category\n             (name, default_track_lot, default_track_expiry, default_patient_linkable, sort_order,\n              is_active, created_by, updated_by)\n           values ($1, $2, $3, $4, $5, $6, $7, $7)\n           returning id as \"id: ItemCategoryId\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: ItemCategoryId",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Bool",
+        "Bool",
+        "Bool",
+        "Int4",
+        "Bool",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "66482ae55c0e000f098fc0d8b845ab17d7762425fc365892bea2ef65f6c2a3b5"
+}

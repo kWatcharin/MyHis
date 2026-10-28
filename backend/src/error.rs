@@ -289,6 +289,72 @@ impl From<crate::lab::RepositoryError> for AppError {
     }
 }
 
+impl From<crate::item_category::ItemCategoryError> for AppError {
+    fn from(err: crate::item_category::ItemCategoryError) -> Self {
+        use crate::item_category::ItemCategoryError;
+        match err {
+            ItemCategoryError::Forbidden => AppError::Forbidden,
+            ItemCategoryError::Conflict(msg) => AppError::Conflict(msg),
+            ItemCategoryError::Validation(msg) => AppError::Validation(msg),
+            ItemCategoryError::NotFound => AppError::NotFound,
+            ItemCategoryError::Repository(e) => e.into(),
+        }
+    }
+}
+
+impl From<crate::item_category::RepositoryError> for AppError {
+    fn from(err: crate::item_category::RepositoryError) -> Self {
+        use crate::item_category::RepositoryError;
+        match err {
+            RepositoryError::Database(e) => AppError::Database(e),
+        }
+    }
+}
+
+impl From<crate::item_unit::ItemUnitError> for AppError {
+    fn from(err: crate::item_unit::ItemUnitError) -> Self {
+        use crate::item_unit::ItemUnitError;
+        match err {
+            ItemUnitError::Forbidden => AppError::Forbidden,
+            ItemUnitError::Conflict(msg) => AppError::Conflict(msg),
+            ItemUnitError::Validation(msg) => AppError::Validation(msg),
+            ItemUnitError::NotFound => AppError::NotFound,
+            ItemUnitError::Repository(e) => e.into(),
+        }
+    }
+}
+
+impl From<crate::item_unit::RepositoryError> for AppError {
+    fn from(err: crate::item_unit::RepositoryError) -> Self {
+        use crate::item_unit::RepositoryError;
+        match err {
+            RepositoryError::Database(e) => AppError::Database(e),
+        }
+    }
+}
+
+impl From<crate::item::ItemError> for AppError {
+    fn from(err: crate::item::ItemError) -> Self {
+        use crate::item::ItemError;
+        match err {
+            ItemError::Forbidden => AppError::Forbidden,
+            ItemError::Conflict(msg) => AppError::Conflict(msg),
+            ItemError::Validation(msg) => AppError::Validation(msg),
+            ItemError::NotFound => AppError::NotFound,
+            ItemError::Repository(e) => e.into(),
+        }
+    }
+}
+
+impl From<crate::item::RepositoryError> for AppError {
+    fn from(err: crate::item::RepositoryError) -> Self {
+        use crate::item::RepositoryError;
+        match err {
+            RepositoryError::Database(e) => AppError::Database(e),
+        }
+    }
+}
+
 impl From<crate::patient::PatientError> for AppError {
     fn from(err: crate::patient::PatientError) -> Self {
         use crate::patient::PatientError;

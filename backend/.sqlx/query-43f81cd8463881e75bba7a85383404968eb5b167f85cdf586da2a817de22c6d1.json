@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select (\n             exists(select 1 from item where base_unit_id = $1 and deleted_at is null)\n             or exists(\n                 select 1\n                 from item_unit_conversion c\n                 join item i on i.id = c.item_id\n                 where c.unit_id = $1 and c.deleted_at is null and i.deleted_at is null\n             )\n           ) as \"in_use!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "in_use!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "43f81cd8463881e75bba7a85383404968eb5b167f85cdf586da2a817de22c6d1"
+}

@@ -62,6 +62,10 @@ async fn migration_turns_menu_groups_into_main_pages(pool: PgPool) {
             "- ตั้งค่าสัญชาติ /settings/nationalities",
             "- ตั้งค่ากลุ่มคนไข้ /settings/patient-groups",
             "- ตั้งค่าแลป /settings/labs",
+            // master คลัง (20261026100000_inventory_masters.sql) ต่อท้ายกลุ่ม
+            "- ตั้งค่าหมวดคลัง /settings/item-categories",
+            "- ตั้งค่าหน่วยนับ /settings/item-units",
+            "- ตั้งค่ารายการคลัง /settings/items",
         ]
     );
 
