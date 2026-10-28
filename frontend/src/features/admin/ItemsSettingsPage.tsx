@@ -102,6 +102,8 @@ export function ItemsSettingsPage() {
       statusMatches(item.isActive, criteria.status),
   )
   const pagination = usePagination(visibleItems)
+  // คอลัมน์ "ลำดับ" = เลขแถวตามที่เรียงอยู่ (หมวด → ชื่อ) นับต่อเนื่องข้ามหน้า — รายการคลังไม่มี sort_order ให้แก้เอง
+  const rowOffset = (pagination.props.page - 1) * pagination.props.pageSize
 
   // ตัวเลือกของฟอร์ม โหลดใหม่ทุกครั้งที่เปิดฟอร์ม (เผื่อมีการแก้หมวด/หน่วยระหว่างที่หน้านี้เปิดค้าง)
   const loadOptions = useCallback(async () => {
@@ -193,6 +195,7 @@ export function ItemsSettingsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>ลำดับ</TableHead>
                   <TableHead>ชื่อรายการ</TableHead>
                   <TableHead>หมวด</TableHead>
                   <TableHead>หน่วย</TableHead>
@@ -203,10 +206,11 @@ export function ItemsSettingsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {pagination.pagedItems.map((item) => {
+                {pagination.pagedItems.map((item, index) => {
                   const conversions = conversionText(item)
                   return (
                     <TableRow key={item.id}>
+                      <TableCell className="text-muted-foreground">{rowOffset + index + 1}</TableCell>
                       <TableCell className="font-medium">{item.name}</TableCell>
                       <TableCell className="text-muted-foreground">{item.categoryName}</TableCell>
                       <TableCell className="text-muted-foreground">
