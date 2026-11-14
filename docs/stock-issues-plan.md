@@ -346,7 +346,7 @@ pub(super) fn allocate(lots: &[LotStock], lines: &[LineRequest], issued_on: Naiv
   - `cargo test`
   - `SQLX_OFFLINE=true cargo build` (ปิด `DATABASE_URL`)
   - ทุกตัวต้องผ่าน
-- [ ] **Step 7: จุด commit ที่ 1** — แสดง diff stat แล้ว **ถามผู้ใช้ก่อน commit** (`feat(stock): stock issues with FEFO, patient links and preview`) และถาม push ด้วย (PR #3 ยังเปิดอยู่ commit จะเข้า PR นั้น)
+- [ ] **Step 7: จุด commit ที่ 1** — แสดง diff stat แล้ว **ถามผู้ใช้ก่อน commit** (`feat(stock): stock issues with FEFO, patient links and preview`) และถาม push แยก (PR #3 merge แล้ว งานนี้ต้องเปิด branch + PR ใหม่)
 
 ### Task 9: หน้าเว็บ — API + ของใช้ร่วม
 **Files:**
@@ -416,7 +416,7 @@ pub(super) fn allocate(lots: &[LotStock], lines: &[LineRequest], issued_on: Naiv
   - เบิกตัดหน้าจากอีกแท็บแล้วฟอร์มต้องไฮไลต์บรรทัด
   - ใช้บนจอกว้างประมาณ 390px ได้
 - [ ] **Step 4:** แก้ `inventory-design.md` สถานะเป็น "ทำแล้วทั้งหมด"
-- [ ] **Step 5: จุด commit ที่ 2** — ถามผู้ใช้ก่อน commit (`feat(ui): stock issue page with FEFO preview`) และ push
+- [ ] **Step 5: จุด commit ที่ 2** — ถามผู้ใช้ก่อน commit (`feat(ui): stock issue page with FEFO preview`) และถาม push แยก
 
 ## Execution
 - ผู้ใช้เลือก **Native** (2026-11-03): ทำทีละ task ในเซสชันเดียว ตามลำดับ Task 1 → 11 (skill `superpowers:executing-plans`)

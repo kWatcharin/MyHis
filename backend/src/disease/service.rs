@@ -1,6 +1,6 @@
 //! กฎของ disease: สิทธิ์ (`disease.*` ราย action), ชื่อ/คำย่อ (trim, ไม่ว่าง, ไม่เกิน 100 ตัวอักษร),
 //! ชื่อโรคซ้ำ, ห้ามลบโรคที่ยังถูกบันทึกเป็นโรคประจำตัวอยู่ ห้าม import ชนิดข้อมูลของ Axum
-//! (docs/auth-design.md ข้อ 10)
+//! (docs/auth-design.md ข้อ 3)
 //!
 //! **จุดตรวจสิทธิ์**: ทุกฟังก์ชันรับ `actor: &CurrentUser` เป็นพารามิเตอร์แรกและเช็คสิทธิ์
 //! ของ action นั้น (`disease.view/create/update/delete`) ที่นี่ เหมือนโมดูล users/budget_year

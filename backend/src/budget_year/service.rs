@@ -1,5 +1,5 @@
 //! กฎของ budget_year: สิทธิ์ (`budget_year.*` ราย action), รูปแบบปี, ช่วงวันที่ถูกต้อง, ปีซ้ำ, ห้ามลบปีที่ยังมี
-//! นัดหมาย lab ใช้อยู่ ห้าม import ชนิดข้อมูลของ Axum (docs/auth-design.md ข้อ 10)
+//! นัดหมาย lab ใช้อยู่ ห้าม import ชนิดข้อมูลของ Axum (docs/auth-design.md ข้อ 3)
 //!
 //! **จุดตรวจสิทธิ์**: ทุกฟังก์ชันรับ `actor: &CurrentUser` เป็นพารามิเตอร์แรกและเช็คสิทธิ์
 //! ของ action นั้น (`budget_year.view/create/update/delete`) ที่นี่ เหมือนโมดูล users

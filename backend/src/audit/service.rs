@@ -1,6 +1,6 @@
 //! กฎของหน้าประวัติ (การเข้าออก + การใช้งาน): สิทธิ์ (`audit.view`), ช่วงวันที่ (ตามเวลาไทย ไม่เกิน 366 วัน),
 //! จำนวนแถวสูงสุด
-//! ห้าม import ชนิดข้อมูลของ Axum (docs/auth-design.md ข้อ 10)
+//! ห้าม import ชนิดข้อมูลของ Axum (docs/auth-design.md ข้อ 3)
 
 use chrono::{DateTime, Duration, NaiveDate, NaiveTime, Utc};
 use sqlx::PgPool;

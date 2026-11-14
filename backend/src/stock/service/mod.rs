@@ -1,5 +1,5 @@
 //! กฎของโมดูล stock (ธุรกรรมคลัง — docs/inventory-design.md ข้อ 5): สิทธิ์ราย action, ตรวจค่าเอกสาร, แปลงผลของ
-//! repository เป็น error เชิงธุรกิจ ห้าม import ชนิดข้อมูลของ Axum (docs/auth-design.md ข้อ 10)
+//! repository เป็น error เชิงธุรกิจ ห้าม import ชนิดข้อมูลของ Axum (docs/auth-design.md ข้อ 3)
 //! แยกไฟล์ตามเอกสาร (`receipts` = ใบรับเข้า + ยอดยกมา) แบบ `users/service/` — ขั้นเบิก/นับ/ปรับยอดเพิ่มไฟล์ของตัวเอง
 //!
 //! **จุดตรวจสิทธิ์**: ทุกฟังก์ชันรับ `actor: &CurrentUser` เป็นพารามิเตอร์แรกและเช็คสิทธิ์ของ action นั้นที่นี่

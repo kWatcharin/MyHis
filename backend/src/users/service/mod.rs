@@ -1,6 +1,6 @@
 //! กฎทั้งหมดของ users module: สิทธิ์ราย action ของเพจผู้ใช้งาน/การตั้งค่าสิทธิ์/การตั้งค่าเพจ (`user.*`, `role.*`,
 //! `page.*`), invariant (≥1 role เสมอ), กันแอดมินล็อกตัวเองออก, lockout ของ role/page (is_system, in-use)
-//! ห้าม import ชนิดข้อมูลของ Axum (docs/auth-design.md ข้อ 10) แยกไฟล์ตาม entity (users/roles/pages) แบบเดียวกับ
+//! ห้าม import ชนิดข้อมูลของ Axum (docs/auth-design.md ข้อ 3) แยกไฟล์ตาม entity (users/roles/pages) แบบเดียวกับ
 //! `repository/` เพราะรวมไฟล์เดียวยาวเกิน 300 บรรทัด (docs/rust-guidelines.md ข้อ 7)
 //!
 //! **จุดตรวจสิทธิ์**: ทุกฟังก์ชันรับ `actor: &CurrentUser` เป็นพารามิเตอร์แรกและเช็คสิทธิ์ของ action นั้น
