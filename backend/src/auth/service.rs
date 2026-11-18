@@ -598,7 +598,7 @@ pub async fn current_user_with_permissions(
     pool: &PgPool,
     user_id: UserId,
 ) -> Result<Option<(User, Vec<Permission>)>, AuthError> {
-    let Some(row) = repository::find_user_by_id(pool, user_id).await? else {
+    let Some(row) = repository::find_profile_by_id(pool, user_id).await? else {
         return Ok(None);
     };
     if !row.is_active {

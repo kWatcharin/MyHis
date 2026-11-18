@@ -6,6 +6,7 @@
 //! ของคำสั่งที่รันจริง (หลังแทนตัวช่วยแล้ว จึงไม่มี HN ดิบ), จำนวนแถว, ชื่อตาราง, จำนวนช่องที่ถอดรหัส
 
 use std::collections::{BTreeSet, HashMap};
+use std::fmt::Write as _;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -341,10 +342,11 @@ async fn run_and_audit(job: Job) -> Result<QueryResult, SqlConsoleError> {
     };
     let duration_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
 
-    let sql_sha256: String = Sha256::digest(prepared.sql.as_bytes())
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect();
+    let digest = Sha256::digest(prepared.sql.as_bytes());
+    let mut sql_sha256 = String::with_capacity(digest.len() * 2);
+    for b in digest {
+        let _ = write!(sql_sha256, "{b:02x}"); // เขียนลง String ไม่มีทางล้ม
+    }
     let metadata = match &outcome {
         Ok(outcome) => json!({
             "sqlSha256": sql_sha256,
@@ -521,7 +523,8 @@ fn convert(
     let mut decrypted_cells = 0;
     let mut decrypt_errors = 0;
     let mut out = Vec::with_capacity(rows.len());
-    for row in &rows {
+    // ใช้ rows แบบ move — PgRow แต่ละแถวถูกคืนหน่วยความจำทันทีหลังแปลง ไม่ค้างคู่กับ out ทั้งก้อน (docs/memory-optimization.md ข้อ 3.2)
+    for row in rows {
         let mut cells = Vec::with_capacity(plans.len());
         for (index, plan) in plans.iter().enumerate() {
             let raw = row.try_get_raw(index).map_err(RepositoryError::from)?;

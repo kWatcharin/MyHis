@@ -3,6 +3,8 @@
 //!
 //! numeric ถอดเองจากรูปแบบ binary (ไม่เพิ่ม crate ชนิด decimal) — ได้ข้อความตรงตามที่ Postgres แสดง ไม่ผ่าน float
 
+use std::fmt::Write as _;
+
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime, SecondsFormat, TimeDelta};
 use serde_json::Value;
 use sqlx::error::BoxDynError;
@@ -299,7 +301,7 @@ pub fn bytea_to_string(bytes: &[u8]) -> String {
     let mut out = String::with_capacity(2 + bytes.len() * 2);
     out.push_str("\\x");
     for byte in bytes {
-        out.push_str(&format!("{byte:02x}"));
+        let _ = write!(out, "{byte:02x}"); // เขียนลง String ไม่มีทางล้ม
     }
     out
 }
@@ -351,7 +353,8 @@ fn numeric_to_string(bytes: &[u8]) -> Option<String> {
             .unwrap_or(0)
     };
 
-    let mut out = String::new();
+    // write! ลง String ไม่มีทางล้ม — ไม่ต้อง format! เป็น String ชั่วคราวทีละกลุ่ม
+    let mut out = String::with_capacity(numeric_text_len(bytes));
     if negative {
         out.push('-');
     }
@@ -360,11 +363,11 @@ fn numeric_to_string(bytes: &[u8]) -> Option<String> {
     } else {
         for index in 0..=weight {
             let group = digit_at(index);
-            if index == 0 {
-                out.push_str(&group.to_string());
+            let _ = if index == 0 {
+                write!(out, "{group}")
             } else {
-                out.push_str(&format!("{group:04}"));
-            }
+                write!(out, "{group:04}")
+            };
         }
     }
     if dscale > 0 {
@@ -372,7 +375,7 @@ fn numeric_to_string(bytes: &[u8]) -> Option<String> {
         let mut fraction = String::with_capacity(groups * 4);
         for f in 1..=groups {
             let f = i32::try_from(f).ok()?;
-            fraction.push_str(&format!("{:04}", digit_at(weight + f)));
+            let _ = write!(fraction, "{:04}", digit_at(weight + f));
         }
         fraction.truncate(dscale);
         out.push('.');

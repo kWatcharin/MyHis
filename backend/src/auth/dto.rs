@@ -79,11 +79,11 @@ pub struct UserResponse {
 }
 
 impl UserResponse {
-    pub fn from_domain(user: &User, permissions: &[Permission]) -> Self {
+    pub fn from_domain(user: User, permissions: &[Permission]) -> Self {
         UserResponse {
             id: user.public_id,
-            username: user.username.clone(),
-            display_name: user.display_name.clone(),
+            username: user.username,
+            display_name: user.display_name,
             must_change_password: user.must_change_password,
             permissions: permissions.iter().map(|p| p.as_str()).collect(),
         }

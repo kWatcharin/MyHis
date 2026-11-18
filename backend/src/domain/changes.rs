@@ -9,8 +9,9 @@
 
 use serde_json::{json, Map, Value};
 
-fn object(value: &Value) -> Map<String, Value> {
-    value.as_object().cloned().unwrap_or_default()
+/// ยืม object ใน snapshot ไม่ clone ทั้งก้อน — ไม่ใช่ object = map ว่าง (`empty` ของผู้เรียก)
+fn object<'a>(value: &'a Value, empty: &'a Map<String, Value>) -> &'a Map<String, Value> {
+    value.as_object().unwrap_or(empty)
 }
 
 /// ค่าของแถวที่เพิ่ม
@@ -20,7 +21,8 @@ pub fn created(after: Value) -> Value {
 
 /// ค่าเดิม/ค่าใหม่ของช่องที่เปลี่ยน (ช่องที่หายไปฝั่งหนึ่ง = null) — ไม่มีอะไรเปลี่ยน = before/after ว่าง
 pub fn updated(before: &Value, after: &Value) -> Value {
-    let (before, after) = (object(before), object(after));
+    let empty = Map::new();
+    let (before, after) = (object(before, &empty), object(after, &empty));
     let mut old = Map::new();
     let mut new = Map::new();
     for key in before.keys().chain(after.keys()) {
@@ -40,7 +42,8 @@ pub fn updated(before: &Value, after: &Value) -> Value {
 /// แบบสุ่ม nonce จึงเทียบใน DB ไม่ได้) ไม่มีค่าใด ๆ ใน output — ใช้กับข้อมูลผู้ป่วย
 pub fn changed_fields(before: &Value, after: &Value, extra: &[&str]) -> Value {
     let diff = updated(before, after);
-    let mut fields: Vec<String> = object(&diff["before"]).keys().cloned().collect();
+    let empty = Map::new();
+    let mut fields: Vec<String> = object(&diff["before"], &empty).keys().cloned().collect();
     fields.extend(extra.iter().map(|field| field.to_string()));
     fields.sort();
     fields.dedup();

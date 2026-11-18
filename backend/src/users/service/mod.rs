@@ -106,6 +106,10 @@ fn map_unique_violation(err: RepositoryError, message: &str) -> UsersError {
 /// parse permission string จาก DTO — ค่าที่ไม่รู้จัก = ผู้ใช้ส่งข้อมูลผิด ไม่ใช่ข้อมูล DB เสีย
 /// (ต่างจาก RepositoryError::UnknownPermission ที่หมายถึงอ่านจาก DB แล้วเจอค่าที่ไม่รู้จัก)
 fn parse_permissions(raw: &[String]) -> Result<Vec<Permission>, UsersError> {
+    // เกินจำนวน permission ที่มีจริงทั้งหมด = มีค่าซ้ำแน่นอน ปฏิเสธก่อนจองหรือวนอะไร (docs/memory-optimization.md ข้อ 5.9)
+    if raw.len() > Permission::all().count() {
+        return Err(UsersError::Validation("too many permissions".to_string()));
+    }
     raw.iter()
         .map(|p| {
             Permission::parse(p)
