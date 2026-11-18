@@ -45,12 +45,11 @@ where
         let app_state = AppState::from_ref(state);
         let jar = CookieJar::from_headers(&parts.headers);
 
-        let token = jar
+        let cookie = jar
             .get(session::COOKIE_NAME)
-            .map(|cookie| cookie.value().to_string())
             .ok_or(AppError::Unauthenticated)?;
 
-        let token_hash = session::hash_token(&token);
+        let token_hash = session::hash_token(cookie.value());
 
         let session_row = repository::find_session_by_token_hash(&app_state.pool, &token_hash)
             .await?

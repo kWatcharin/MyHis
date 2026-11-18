@@ -299,7 +299,8 @@ pub async fn list(
     require(actor, Action::View)?;
 
     let rows = repository::list_patients(pool).await?;
-    let mut conditions_by_patient: HashMap<PatientId, Vec<ConditionRow>> = HashMap::new();
+    let mut conditions_by_patient: HashMap<PatientId, Vec<ConditionRow>> =
+        HashMap::with_capacity(rows.len());
     for condition in repository::list_conditions(pool).await? {
         conditions_by_patient
             .entry(condition.patient_id)

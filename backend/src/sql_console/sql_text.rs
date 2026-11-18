@@ -10,6 +10,8 @@
 //! ข้อความที่แทนลงไปเป็น hex ของ blind index ที่คำนวณเอง (มีแค่ 0-9a-f) จึงไม่เปิดช่อง injection — ส่วนตัว SQL
 //! ทั้งหมดเป็นของผู้ใช้อยู่แล้วโดยเจตนา (หน้า SQL) แนวป้องกันอยู่ที่สิทธิ์ของ role (setup.rs)
 
+use std::fmt::Write as _;
+
 use crate::domain::patient_crypto::{AAD_HN, AAD_NAP_NO};
 
 /// ตัวช่วยที่รองรับ: ชื่อหลัง `:` และ AAD ของคอลัมน์ที่ blind index ผูกไว้
@@ -57,7 +59,7 @@ pub fn expand_helpers(
                     parse_literal_arg(&sql[args_start..]).ok_or(HelperError::Malformed(name))?;
                 out.push_str("'\\x");
                 for byte in index(aad, &value) {
-                    out.push_str(&format!("{byte:02x}"));
+                    let _ = write!(out, "{byte:02x}"); // เขียนลง String ไม่มีทางล้ม
                 }
                 out.push_str("'::bytea");
                 replaced += 1;

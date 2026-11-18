@@ -4,6 +4,8 @@
 //! (ตรวจลิงก์) ต้องใช้ — โมดูลฟีเจอร์ไม่เรียกกันเอง จึงยกตรรกะร่วมขึ้นมาแบบเดียวกับ password.rs
 //! DB เก็บแค่ SHA-256 ของ token เสมอ ไม่เก็บ token ดิบ (docs/auth-design.md ข้อ 4)
 
+use std::fmt::Write as _;
+
 use rand::rngs::OsRng;
 use rand::RngCore;
 use sha2::{Digest, Sha256};
@@ -23,7 +25,11 @@ pub fn hash_token(token: &str) -> String {
 }
 
 fn to_hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for b in bytes {
+        let _ = write!(out, "{b:02x}"); // เขียนลง String ไม่มีทางล้ม
+    }
+    out
 }
 
 #[cfg(test)]

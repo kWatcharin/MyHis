@@ -177,3 +177,31 @@ async fn admin_cannot_remove_their_last_role_management(pool: PgPool) {
         json!(["patient.view"])
     );
 }
+
+/// รายการ permission ที่ยาวเกินจำนวน permission ทั้งหมดในระบบ (ย่อมมีค่าซ้ำ) ถูกปฏิเสธก่อนประมวลผล — ทั้งสร้างและแก้ role
+#[sqlx::test]
+async fn permission_list_longer_than_all_permissions_is_rejected(pool: PgPool) {
+    let admin = Admin::new(&pool).await;
+    let too_many = vec!["patient.view"; 1000];
+
+    let response = send(
+        &admin.app,
+        Method::POST,
+        "/api/roles",
+        Some(&admin.cookie),
+        Some(json!({ "name": "flood", "permissions": too_many })),
+    )
+    .await;
+    assert_eq!(
+        (response.status, response.body["error"].as_str()),
+        (StatusCode::BAD_REQUEST, Some("too many permissions"))
+    );
+
+    let (status, body) = admin
+        .patch_role("nurse", json!({ "permissions": too_many }))
+        .await;
+    assert_eq!(
+        (status, body["error"].as_str()),
+        (StatusCode::BAD_REQUEST, Some("too many permissions"))
+    );
+}

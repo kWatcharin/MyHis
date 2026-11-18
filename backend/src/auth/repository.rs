@@ -48,6 +48,17 @@ impl std::fmt::Debug for UserRow {
     }
 }
 
+/// ข้อมูลผู้ใช้สำหรับสร้าง `CurrentUser` ทุก request — **ไม่มี** `password_hash` (ไม่ต้องใช้ จึงไม่ดึงมาค้างในหน่วยความจำ)
+#[derive(Debug)]
+pub struct ProfileRow {
+    pub id: UserId,
+    pub public_id: Uuid,
+    pub username: String,
+    pub display_name: String,
+    pub is_active: bool,
+    pub must_change_password: bool,
+}
+
 #[derive(Debug)]
 pub struct SessionRow {
     pub user_id: UserId,
@@ -80,6 +91,23 @@ pub async fn find_user_by_id(
         UserRow,
         r#"select id as "id: UserId", uuid as public_id, username, display_name, password_hash, is_active,
            must_change_password, failed_attempts, locked_until
+           from users where id = $1"#,
+        user_id.0
+    )
+    .fetch_optional(pool)
+    .await?;
+    Ok(row)
+}
+
+/// ผู้ใช้ตาม id แบบไม่มี password_hash — ใช้ใน extractor (ทุก request ที่ login แล้ว)
+pub async fn find_profile_by_id(
+    pool: &PgPool,
+    user_id: UserId,
+) -> Result<Option<ProfileRow>, RepositoryError> {
+    let row = sqlx::query_as!(
+        ProfileRow,
+        r#"select id as "id: UserId", uuid as public_id, username, display_name, is_active,
+           must_change_password
            from users where id = $1"#,
         user_id.0
     )

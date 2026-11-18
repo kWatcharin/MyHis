@@ -95,7 +95,7 @@ pub async fn list(pool: &PgPool, actor: &CurrentUser) -> Result<Vec<ItemView>, I
         repository::list_items(pool),
         repository::list_conversions(pool)
     )?;
-    let mut by_item: HashMap<ItemId, Vec<ConversionRow>> = HashMap::new();
+    let mut by_item: HashMap<ItemId, Vec<ConversionRow>> = HashMap::with_capacity(items.len());
     for conversion in conversions {
         by_item
             .entry(conversion.item_id)

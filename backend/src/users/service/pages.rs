@@ -352,7 +352,7 @@ pub async fn menu_for(pool: &PgPool, actor: &CurrentUser) -> Result<Vec<MenuItem
         .collect();
 
     Ok(pages
-        .iter()
+        .into_iter()
         .filter(|page| match page.ref_id {
             Some(_) => sub_page_visible(page),
             None => {
@@ -362,9 +362,9 @@ pub async fn menu_for(pool: &PgPool, actor: &CurrentUser) -> Result<Vec<MenuItem
         })
         .map(|page| MenuItem {
             public_id: page.public_id,
-            label: page.label.clone(),
-            icon: page.icon.clone(),
-            route: page.route.clone(),
+            label: page.label,
+            icon: page.icon,
+            route: page.route,
             ref_id: page.ref_public_id,
         })
         .collect())

@@ -46,7 +46,7 @@ pub async fn login(
     .await?;
 
     let jar = jar.add(session::build_cookie(result.session_token));
-    let response = UserResponse::from_domain(&result.user, &result.permissions);
+    let response = UserResponse::from_domain(result.user, &result.permissions);
 
     Ok((jar, Json(response)))
 }
@@ -124,7 +124,7 @@ fn client_ip(headers: &HeaderMap) -> Option<IpAddr> {
 #[tracing::instrument(skip(current_user))]
 pub async fn me(current_user: CurrentUser) -> Json<UserResponse> {
     Json(UserResponse::from_domain(
-        &current_user.user,
+        current_user.user,
         &current_user.permissions,
     ))
 }

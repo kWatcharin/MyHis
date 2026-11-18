@@ -45,6 +45,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/target/release/my-his-backend /usr/local/bin/my-his-backend
+
+# ตรึง mmap threshold ของ glibc ไว้ที่ 1 MiB (ปิดการปรับแบบ dynamic) — argon2 จองก้อน 19 MiB ใหม่ทุกครั้งที่ hash/verify
+# ค่าปริยายของ glibc ทำให้ก้อนเหล่านี้ค้างใน RSS: backend จริง login 240 ครั้งค้างที่ ~276 MiB (โค้ดจำลองบางรูปแบบโหลด
+# ค้างถึง ~970 MiB ชน mem_limit 1g) — ตั้งค่านี้แล้วเหลือ ~11 MiB, peak ~68 MiB
+# รายละเอียด: docs/memory-optimization.md ข้อ 3.1
+ENV MALLOC_MMAP_THRESHOLD_=1048576
 USER nobody
 EXPOSE 8080
 CMD ["my-his-backend"]

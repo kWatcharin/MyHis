@@ -4,7 +4,7 @@
 //! บันทึกแล้วลงคลังทันที — แก้ได้แค่แหล่งที่มา/เลขอ้างอิง/หมายเหตุ บรรทัด/วันที่/ประเภทผิดต้องยกเลิกทั้งใบแล้วทำใหม่
 //! (ledger เพิ่มได้อย่างเดียว)
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use chrono::NaiveDate;
 use sqlx::PgPool;
@@ -83,7 +83,8 @@ pub struct ReceiptOptionsView {
 pub async fn options(pool: &PgPool, actor: &CurrentUser) -> Result<ReceiptOptionsView, StockError> {
     require_receipt(actor, Action::View)?;
     let options = repository::list_options(pool).await?;
-    let mut by_item: HashMap<ItemId, Vec<ConversionOptionRow>> = HashMap::new();
+    let mut by_item: HashMap<ItemId, Vec<ConversionOptionRow>> =
+        HashMap::with_capacity(options.items.len());
     for conversion in options.conversions {
         by_item
             .entry(conversion.item_id)
@@ -238,12 +239,6 @@ fn prepare_line(
     })
 }
 
-/// ล็อตเดียวกัน (รายการเดียวกัน + เลขล็อตเดียวกันไม่สนตัวพิมพ์ หรือล็อตไม่ระบุทั้งคู่) — ตรงกับ unique ของ stock_lot
-fn same_lot(a: &LineWrite, b: &LineWrite) -> bool {
-    a.item_id == b.item_id
-        && a.lot_no.as_deref().map(str::to_lowercase) == b.lot_no.as_deref().map(str::to_lowercase)
-}
-
 pub async fn create(
     pool: &PgPool,
     actor: &CurrentUser,
@@ -280,12 +275,12 @@ pub async fn create(
         .iter()
         .map(|line| prepare_line(line, &items, &conversions, input.received_on))
         .collect::<Result<Vec<_>, _>>()?;
-    for (index, line) in lines.iter().enumerate() {
-        if lines
-            .iter()
-            .take(index)
-            .any(|earlier| same_lot(earlier, line))
-        {
+    // ล็อตเดียวกัน = รายการเดียวกัน + เลขล็อตเดียวกันไม่สนตัวพิมพ์ (หรือไม่ระบุล็อตทั้งคู่) — ตรงกับ unique ของ stock_lot
+    // lowercase ครั้งเดียวต่อบรรทัด แทนการเทียบทุกคู่ (docs/memory-optimization.md ข้อ 5.6)
+    let mut seen_lots = HashSet::with_capacity(lines.len());
+    for line in &lines {
+        let lot = (line.item_id, line.lot_no.as_deref().map(str::to_lowercase));
+        if !seen_lots.insert(lot) {
             return Err(validation("duplicate lot in receipt"));
         }
     }
