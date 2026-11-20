@@ -27,21 +27,24 @@
 | Backend | Rust, Axum, Tokio, SQLx (SQL เขียนเอง + compile-time check) |
 | Database | PostgreSQL 16 |
 | Frontend | React 19, TypeScript, Vite, Tailwind + shadcn/ui, Bun |
+| Chatbot (วางโครง) | Python 3.14, FastAPI, uv, gunicorn + uvicorn worker, psycopg 3 — ruff + pyrefly + pytest |
 | หน้าบ้าน | Caddy (TLS อัตโนมัติ) หลัง Cloudflare proxy |
 | Deploy | Docker Compose บนเซิร์ฟเวอร์เครื่องเดียว |
 
 ```
 อินเทอร์เน็ต → Cloudflare → caddy (TLS, 80/443) → frontend (static + security header) → /api/* → backend → db
+                                                                                              └→ chatbot (เรียกจาก backend เท่านั้น)
 ```
 
-มี 4 container — publish พอร์ตเฉพาะ `caddy` ส่วน `backend`, `frontend`, `db` อยู่ใน network ภายใน
-(`db` อยู่วง `internal` ออกนอกเครื่องไม่ได้) รายละเอียดใน [`docs/infrastructure.md`](docs/infrastructure.md)
+มี 5 container — publish พอร์ตเฉพาะ `caddy` ส่วน `backend`, `frontend`, `db`, `chatbot` อยู่ใน network ภายใน
+(`db` อยู่วง `internal` ออกนอกเครื่องไม่ได้; `chatbot` อยู่วง `chat` ที่มีแค่ `backend`) รายละเอียดใน [`docs/infrastructure.md`](docs/infrastructure.md)
 
 ## โครงสร้าง
 
 ```
 backend/     Rust (Axum) — แบ่งโมดูลตามฟีเจอร์ใน src/, migration ใน migrations/, เทส API ใน tests/
 frontend/    React — src/features/<ฟีเจอร์>/ หนึ่งฟีเจอร์ต่อหนึ่งโฟลเดอร์
+chatbot/     Python (FastAPI) — src/my_his_chatbot/<ฟีเจอร์>/, เทสใน tests/ (ดู chatbot/README.md)
 ops/         Caddyfile หน้าบ้าน, สคริปต์ตรวจ deploy, เครื่องมือถอดรหัสข้อมูลผู้ป่วยนอกแอป, seed สัญชาติ
 docs/        เอกสารออกแบบ (ดูด้านล่าง)
 ```
@@ -72,11 +75,12 @@ docs/        เอกสารออกแบบ (ดูด้านล่า�
    | `55432` | PostgreSQL (สำหรับ `psql`, `sqlx-cli`, GUI client) |
    | `8081` | backend |
    | `3000` | frontend ที่ build แล้ว |
+   | `8082` | chatbot (container — หรือ dev server นอก Docker ที่พอร์ตเดียวกัน) |
 
 3. **รัน stack** — ไม่ต้องรัน `caddy` บนเครื่อง dev (80/443 มักชนกับ XAMPP/IIS)
 
    ```bash
-   docker compose up -d --build db backend frontend
+   docker compose up -d --build db backend frontend chatbot
    ```
 
    backend รัน migration เองตอนเริ่ม (ล้ม = process หยุด) และสร้าง admin คนแรกจาก `INITIAL_ADMIN_*` ถ้ายังไม่มีผู้ใช้
@@ -102,6 +106,13 @@ cargo sqlx prepare         # ทุกครั้งที่แก้ query �
 ./node_modules/.bin/tsc -b
 bun run lint
 bun run build
+
+# chatbot (ใน chatbot/) — pyrefly ต้องผ่านก่อนรันทุกครั้ง (docs/python-guidelines.md ข้อ 18)
+uv run ruff format
+uv run ruff check
+uv run pyrefly check
+uv run pytest              # ตรวจ pyrefly ให้เองก่อนรันเทส
+uv run python scripts/dev.py   # dev server 127.0.0.1:8082 (ตรวจ pyrefly ก่อน start)
 ```
 
 migration ใหม่: `cargo sqlx migrate add <ชื่อ>` — ตารางหรือคอลัมน์ใหม่ต้องอัปเดต data dict

@@ -52,9 +52,10 @@ caddy=$(cid caddy)
 frontend=$(cid frontend)
 backend=$(cid backend)
 db=$(cid db)
+chatbot=$(cid chatbot)
 
 section "1. container และ healthcheck"
-for svc in db backend; do
+for svc in db backend chatbot; do
   id=$(cid "$svc")
   if [ -z "$id" ]; then
     fail "$svc ไม่ได้รัน"
@@ -71,7 +72,7 @@ else
 fi
 
 section "2. พอร์ตที่ publish (เฉพาะ caddy 80/443 ออกนอกเครื่อง)"
-for svc in caddy frontend backend db; do
+for svc in caddy frontend backend db chatbot; do
   id=$(cid "$svc")
   [ -n "$id" ] || continue
   ports=$(docker port "$id" 2>/dev/null || true)
@@ -100,19 +101,28 @@ for svc in caddy frontend backend db; do
   if [ "$flagged" -eq 0 ]; then ok "$svc publish เฉพาะ 80/443"; fi
 done
 
-section "3. network (caddy ต้องไม่เห็น backend และ db)"
+section "3. network (caddy ต้องไม่เห็น backend, db, chatbot — frontend ต้องไม่เห็น chatbot)"
 if [ -z "$caddy" ]; then
   skip "ไม่มี caddy จึงไม่มีเส้นทางจากอินเทอร์เน็ต"
 else
   caddy_nets=$(nets_of "$caddy")
   shared=""
-  for other in "$backend" "$db"; do
+  for other in "$backend" "$db" "$chatbot"; do
     [ -n "$other" ] || continue
     for n in $(nets_of "$other"); do
       if printf '%s\n' "$caddy_nets" | grep -qx "$n"; then shared="$shared $n"; fi
     done
   done
-  if [ -z "$shared" ]; then ok "caddy ไม่อยู่ network เดียวกับ backend/db"; else fail "caddy อยู่ network เดียวกับ backend/db:$shared"; fi
+  if [ -z "$shared" ]; then ok "caddy ไม่อยู่ network เดียวกับ backend/db/chatbot"; else fail "caddy อยู่ network เดียวกับ backend/db/chatbot:$shared"; fi
+fi
+# chatbot เรียกได้จาก backend เท่านั้น (backend ตรวจ session/สิทธิ์ก่อนส่งต่อ) — frontend เห็น chatbot = ข้ามด่าน auth ได้
+if [ -n "$frontend" ] && [ -n "$chatbot" ]; then
+  frontend_nets=$(nets_of "$frontend")
+  shared=""
+  for n in $(nets_of "$chatbot"); do
+    if printf '%s\n' "$frontend_nets" | grep -qx "$n"; then shared="$shared $n"; fi
+  done
+  if [ -z "$shared" ]; then ok "frontend ไม่อยู่ network เดียวกับ chatbot"; else fail "frontend อยู่ network เดียวกับ chatbot:$shared"; fi
 fi
 if [ -n "$db" ]; then
   for n in $(nets_of "$db"); do
@@ -126,7 +136,7 @@ if [ -n "$db" ]; then
 fi
 
 section "4. ตัวแปร environment (ดูเฉพาะชื่อ)"
-for svc in db caddy frontend; do
+for svc in db caddy frontend chatbot; do
   id=$(cid "$svc")
   [ -n "$id" ] || continue
   names=$(env_names "$id")
@@ -138,7 +148,7 @@ for svc in db caddy frontend; do
 done
 
 section "5. เพดานทรัพยากร"
-for svc in backend caddy frontend; do
+for svc in backend caddy frontend chatbot; do
   id=$(cid "$svc")
   [ -n "$id" ] || continue
   mem=$(docker inspect -f '{{.HostConfig.Memory}}' "$id")

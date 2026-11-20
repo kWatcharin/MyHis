@@ -1,10 +1,12 @@
 # ตาม docs/infrastructure.md — ยังไม่ได้ทดสอบรันบนเครื่องปลายทางจริง
-# 4 container: caddy (หน้าบ้าน, publish 80/443) / backend (ไม่ publish) / frontend (ไม่ publish) / db (ไม่ publish)
+# 5 container: caddy (หน้าบ้าน, publish 80/443) / backend (ไม่ publish) / frontend (ไม่ publish) / db (ไม่ publish)
+#   / chatbot (Python, ไม่ publish — เรียกได้จาก backend เท่านั้น)
 # เส้นทางทราฟฟิก: อินเทอร์เน็ต → caddy (TLS) → frontend:8080 (หน้าเว็บ + security header) → /api/* → backend:8080 → db
 #
-# network 3 วง (docs/infrastructure.md ข้อ 2): caddy ต้องไม่เห็น backend และ db
+# network 4 วง (docs/infrastructure.md ข้อ 2): caddy ต้องไม่เห็น backend, db และ chatbot
 #   edge = caddy + frontend         app = frontend + backend (ไม่ internal: backend ต้องออกเน็ตไป Cloudflare Turnstile)
 #   data = backend + db (internal: ไม่มีทางออกนอกเครื่อง และ publish พอร์ตผ่านวงนี้ไม่ได้)
+#   chat = backend + chatbot (ไม่ internal: chatbot ต้องออกเน็ตไป LLM API) — frontend/caddy มองไม่เห็น chatbot
 
 # หมุนเวียน log ของ Docker ไม่ให้ดิสก์เต็ม (docs/infrastructure.md ข้อ 7)
 x-logging: &default-logging
@@ -47,6 +49,7 @@ services:
     networks:
       - app
       - data
+      - chat
     # image ไม่มี curl: เปิด TCP ไป 127.0.0.1:8080 ด้วย bash แล้วส่ง GET /health ตรวจบรรทัดสถานะ 200
     # (backend ใช้ปิดได้เองเมื่อค้างจนไม่ตอบ — restart: unless-stopped กู้เฉพาะ process ที่ตาย ไม่ใช่ที่ค้าง)
     healthcheck:
@@ -81,6 +84,36 @@ services:
     pids_limit: 256
     # ไม่ publish พอร์ตออกนอกเครื่อง (caddy คุยกับ frontend ผ่าน network ภายใน เหมือน backend)
 
+  chatbot:
+    # Python/FastAPI (chatbot/) — service ภายในล้วน ทางเข้าเดียวคือ backend (ตรวจ session/สิทธิ์/audit แล้วส่งต่อ)
+    # backend ไม่ depends_on chatbot: chatbot ล่มต้องไม่ทำให้ระบบหลักขึ้นไม่ได้
+    build: ./chatbot
+    restart: unless-stopped
+    # ส่งเฉพาะตัวแปร CHATBOT_* ทีละตัว — ห้ามใช้ env_file: .env ที่นี่ (.env มี key เข้ารหัสข้อมูลผู้ป่วยและรหัสผ่าน DB)
+    # ยังไม่ส่ง CHATBOT_DATABASE_URL และยังไม่ต่อวง data (ดู chatbot/README.md งานถัดไป)
+    environment:
+      CHATBOT_LOG_LEVEL: ${CHATBOT_LOG_LEVEL:-info}
+      CHATBOT_WORKERS: ${CHATBOT_WORKERS:-2}
+      CHATBOT_HTTP_TIMEOUT_SECONDS: ${CHATBOT_HTTP_TIMEOUT_SECONDS:-30}
+    networks:
+      - chat
+    # image ไม่มี curl: ใช้ python ใน venv ยิง GET /health
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging: *default-logging
+    # gunicorn 2 worker + master — เผื่อไลบรารีที่จะเพิ่มตอนทำ chatbot จริง (งบรวมของเครื่อง: docs/infrastructure.md ข้อ 1)
+    mem_limit: 512m
+    pids_limit: 256
+    # ไม่ publish พอร์ตออกนอกเครื่อง (backend คุยกับ chatbot:8000 ผ่านวง chat)
+
   db:
     image: postgres:16
     restart: unless-stopped
@@ -107,6 +140,7 @@ networks:
   app:
   data:
     internal: true
+  chat:
 
 volumes:
   pg_data:

@@ -1,0 +1,10 @@
+# venv ของเครื่อง dev (Windows) ห้ามเข้า image — builder สร้างใหม่เอง
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+# ไฟล์ความลับห้ามเข้า build context (ค้างใน layer/build cache) — .env.example เก็บไว้ได้
+.env
+.env.*
+!.env.example
