@@ -3,7 +3,6 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import {
   Combobox,
   ComboboxContent,
@@ -60,7 +59,7 @@ function SearchCombobox({
     >
       <ComboboxInput
         id={id}
-        placeholder={field.placeholder ?? `${field.allLabel ?? 'ทั้งหมด'} — พิมพ์เพื่อค้นหา`}
+        placeholder={field.placeholder ?? `${field.allLabel ?? 'ทั้งหมด'} หรือพิมพ์เพื่อค้นหา`}
         showClear
       />
       <ComboboxContent>
@@ -111,58 +110,60 @@ export function SearchForm({ id, ariaLabel, fields, onSearch }: SearchFormProps)
   }
 
   return (
-    <Card>
-      <CardContent>
-        <form onSubmit={handleSubmit} aria-label={ariaLabel} className="flex flex-col gap-4">
-          <div
-            className={cn(
-              'grid grid-cols-1 gap-4',
-              GRID_COLUMNS[Math.min(fields.length, 3)],
-            )}
-          >
-            {fields.map((field) => {
-              const fieldId = `${id}-${field.name}`
-              const value = draft[field.name] ?? ''
-              const set = (next: string) => setDraft({ ...draft, [field.name]: next })
-              return (
-                <Field key={field.name}>
-                  <FieldLabel htmlFor={fieldId}>{field.label}</FieldLabel>
-                  {field.type === 'select' ? (
-                    <NativeSelect id={fieldId} value={value} onChange={(e) => set(e.target.value)}>
-                      <option value="">{field.allLabel ?? 'ทั้งหมด'}</option>
-                      {field.options?.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </NativeSelect>
-                  ) : field.type === 'combobox' ? (
-                    <SearchCombobox id={fieldId} field={field} value={value} onChange={set} />
-                  ) : field.type === 'date' ? (
-                    <ThaiDateInput id={fieldId} value={value} onChange={set} />
-                  ) : (
-                    <Input
-                      id={fieldId}
-                      value={value}
-                      onChange={(e) => set(e.target.value)}
-                      placeholder={field.placeholder}
-                    />
-                  )}
-                </Field>
-              )
-            })}
-          </div>
-          <div className="flex justify-center gap-2">
-            <Button type="submit">
-              <Search />
-              ค้นหา
-            </Button>
-            <Button type="button" variant="outline" onClick={handleClear}>
-              ล้างข้อมูล
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+    // แถวเครื่องมือเหนือตาราง ไม่ห่อการ์ด (การ์ดเดียวของหน้าคือตาราง) — จอกว้างปุ่มอยู่ท้ายแถวช่องกรอก ชิดฐานช่อง,
+    // มือถือปุ่มเต็มกว้างแบ่งครึ่งใต้ช่องกรอก (นิ้วโป้งกดง่าย); เส้นคั่นล่างแยกตัวกรองออกจากผลลัพธ์
+    <form
+      onSubmit={handleSubmit}
+      aria-label={ariaLabel}
+      className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-end"
+    >
+      <div
+        className={cn(
+          'grid min-w-0 flex-1 grid-cols-1 gap-3',
+          GRID_COLUMNS[Math.min(fields.length, 3)],
+        )}
+      >
+        {fields.map((field) => {
+          const fieldId = `${id}-${field.name}`
+          const value = draft[field.name] ?? ''
+          const set = (next: string) => setDraft({ ...draft, [field.name]: next })
+          return (
+            <Field key={field.name}>
+              <FieldLabel htmlFor={fieldId}>{field.label}</FieldLabel>
+              {field.type === 'select' ? (
+                <NativeSelect id={fieldId} value={value} onChange={(e) => set(e.target.value)}>
+                  <option value="">{field.allLabel ?? 'ทั้งหมด'}</option>
+                  {field.options?.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </NativeSelect>
+              ) : field.type === 'combobox' ? (
+                <SearchCombobox id={fieldId} field={field} value={value} onChange={set} />
+              ) : field.type === 'date' ? (
+                <ThaiDateInput id={fieldId} value={value} onChange={set} />
+              ) : (
+                <Input
+                  id={fieldId}
+                  value={value}
+                  onChange={(e) => set(e.target.value)}
+                  placeholder={field.placeholder}
+                />
+              )}
+            </Field>
+          )
+        })}
+      </div>
+      <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex">
+        <Button type="submit">
+          <Search />
+          ค้นหา
+        </Button>
+        <Button type="button" variant="outline" onClick={handleClear}>
+          ล้างข้อมูล
+        </Button>
+      </div>
+    </form>
   )
 }

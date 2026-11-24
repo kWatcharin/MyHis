@@ -24,8 +24,7 @@ import {
 
 import { useRolePreview } from './RolePreviewContext'
 
-// label ภาษาไทยของแต่ละ role — เก็บแยกจาก mocks/fixtures.ts ตั้งใจ (ไฟล์นั้นหน้าตาต้องตรงกับ
-// RoleResponse ของ backend เป๊ะ ๆ ไม่อยากปนข้อมูล UI-only เข้าไป)
+// label ภาษาไทยของแต่ละ role (ข้อมูล UI อย่างเดียว ไม่ได้มาจาก RoleResponse ของ backend)
 const ROLE_LABELS: Record<string, string> = {
   admin: 'ผู้ดูแลระบบ (admin)',
   nurse: 'พยาบาล (nurse)',

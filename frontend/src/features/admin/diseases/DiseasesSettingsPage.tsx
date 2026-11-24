@@ -155,7 +155,7 @@ export function DiseasesSettingsPage() {
             </ListState>
           )}
           {status === 'ready' && items.length > 0 && visibleItems.length === 0 && (
-            <ListState kind="noMatch">ไม่พบโรคที่ตรงกับเงื่อนไข — กด &quot;ล้างข้อมูล&quot; เพื่อดูทั้งหมด</ListState>
+            <ListState kind="noMatch">ไม่พบโรคที่ตรงกับเงื่อนไข กด &quot;ล้างข้อมูล&quot; เพื่อดูทั้งหมด</ListState>
           )}
           {status === 'ready' && visibleItems.length > 0 && (
             <Table>

@@ -158,7 +158,7 @@ function DetailBody({ activity, menu }: { activity: Activity; menu: MenuItem[] }
         <p className="text-sm text-muted-foreground">
           {action.kind === 'export'
             ? describeTarget(activity)
-            : 'รายการนี้บันทึกก่อนเริ่มเก็บรายละเอียดการเปลี่ยนแปลง — ไม่มีค่าที่เปลี่ยนให้แสดง'}
+            : 'รายการนี้บันทึกก่อนเริ่มเก็บรายละเอียดการเปลี่ยนแปลง ไม่มีค่าที่เปลี่ยนให้แสดง'}
         </p>
       )}
     </>

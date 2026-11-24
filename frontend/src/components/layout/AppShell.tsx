@@ -1,4 +1,4 @@
-import { ChevronRight, HeartPulse } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router'
 
@@ -38,6 +38,7 @@ import { RoleSwitcher } from '@/features/role-preview/RoleSwitcher'
 import { ThemeSwitcher } from '@/features/theme/ThemeSwitcher'
 import { resolveIcon } from '@/lib/icons'
 
+import { BrandMark } from './BrandMark'
 import { UserMenu } from './UserMenu'
 
 // เมนูซ้ายมือ + โครงหน้าที่ต้อง login ทุกหน้า — รายการเมนูใช้ effectiveMenu (สิทธิ์จริง หรือ
@@ -72,9 +73,7 @@ export function AppShell() {
     <SidebarProvider>
       <Sidebar>
         <SidebarHeader className="flex-row items-center gap-2.5 px-3 py-3">
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-            <HeartPulse className="size-4.5" />
-          </span>
+          <BrandMark size="sm" />
           <span className="text-base font-semibold tracking-tight">my-his</span>
         </SidebarHeader>
         <SidebarContent>

@@ -70,8 +70,8 @@ function RegistrationBadge({ user }: { user: User }) {
       )
     }
     return (
-      <Badge variant="danger" title="ยังเข้าระบบไม่ได้ — กด &quot;ออกลิงก์ใหม่&quot; แล้วส่งให้ผู้ใช้">
-        {user.linkState === 'expired' ? 'ลิงก์ลงทะเบียนหมดอายุ' : 'ยังไม่ลงทะเบียน — ไม่มีลิงก์'}
+      <Badge variant="danger" title="ยังเข้าระบบไม่ได้ กด &quot;ออกลิงก์ใหม่&quot; แล้วส่งให้ผู้ใช้">
+        {user.linkState === 'expired' ? 'ลิงก์ลงทะเบียนหมดอายุ' : 'ยังไม่ลงทะเบียน (ไม่มีลิงก์)'}
       </Badge>
     )
   }
@@ -84,7 +84,7 @@ function RegistrationBadge({ user }: { user: User }) {
   }
   if (user.linkState === 'expired') {
     return (
-      <Badge variant="danger" title="รหัสเดิมใช้ไม่ได้แล้ว — กด &quot;รีเซ็ตรหัสผ่าน&quot; เพื่อออกลิงก์ใหม่">
+      <Badge variant="danger" title="รหัสเดิมใช้ไม่ได้แล้ว กด &quot;รีเซ็ตรหัสผ่าน&quot; เพื่อออกลิงก์ใหม่">
         ลิงก์ตั้งรหัสหมดอายุ
       </Badge>
     )
@@ -145,7 +145,7 @@ export function UsersPage() {
       throw new Error(userErrorMessage(err))
     })
     await refetch()
-    notify.created('เพิ่มผู้ใช้แล้ว — ส่งลิงก์ลงทะเบียนให้ผู้ใช้')
+    notify.created('เพิ่มผู้ใช้แล้ว ส่งลิงก์ลงทะเบียนให้ผู้ใช้')
     setIssuedLink({
       username: result.user.username,
       token: result.registrationToken,
@@ -243,7 +243,7 @@ export function UsersPage() {
     }
     return {
       title: 'ยืนยันเปิดใช้งานผู้ใช้',
-      description: `เปิดใช้งาน ${who} อีกครั้ง — เข้าสู่ระบบได้ด้วยรหัสผ่านเดิม (หรือใช้ลิงก์เดิมถ้ายังไม่หมดอายุ)`,
+      description: `เปิดใช้งาน ${who} อีกครั้ง เข้าสู่ระบบได้ด้วยรหัสผ่านเดิม (หรือใช้ลิงก์เดิมถ้ายังไม่หมดอายุ)`,
       action: 'เปิดใช้งาน',
       variant: 'success' as const,
     }
@@ -290,7 +290,7 @@ export function UsersPage() {
           )}
           {status === 'ready' && users.length > 0 && visibleUsers.length === 0 && (
             <ListState kind="noMatch">
-              ไม่พบผู้ใช้ที่ตรงกับเงื่อนไข — กด &quot;ล้างข้อมูล&quot; เพื่อดูทั้งหมด
+              ไม่พบผู้ใช้ที่ตรงกับเงื่อนไข กด &quot;ล้างข้อมูล&quot; เพื่อดูทั้งหมด
             </ListState>
           )}
           {status === 'ready' && visibleUsers.length > 0 && (
@@ -311,7 +311,7 @@ export function UsersPage() {
                   const details = [name, user.position].filter(Boolean).join(' · ')
                   return (
                     <TableRow key={user.id} className={cn(!user.isActive && 'text-muted-foreground')}>
-                      <TableCell className="font-mono text-sm">
+                      <TableCell className="text-sm">
                         {user.username}
                         {isSelf(user) && (
                           <Badge variant="secondary" className="ml-2 font-sans">
@@ -349,7 +349,7 @@ export function UsersPage() {
                           {user.isLocked && user.lockedUntil && (
                             <Badge
                               variant="danger"
-                              title="ใส่รหัสผิดหลายครั้ง — รอให้พ้นเวลา หรือรีเซ็ตรหัสผ่านเพื่อปลดล็อกทันที"
+                              title="ใส่รหัสผิดหลายครั้ง รอให้พ้นเวลา หรือรีเซ็ตรหัสผ่านเพื่อปลดล็อกทันที"
                             >
                               ล็อกถึง {formatThaiDateTime(user.lockedUntil)}
                             </Badge>
@@ -378,9 +378,11 @@ export function UsersPage() {
                                 {user.registeredAt === null ? 'ออกลิงก์ใหม่' : 'รีเซ็ตรหัสผ่าน'}
                               </Button>
                               {user.isActive ? (
+                                // ปุ่มในแถวสีเรียบแบบเดียวกับ DeleteButton (components/layout/ActionButtons.tsx) — สีทึบอยู่ที่ปุ่มยืนยันใน dialog
                                 <Button
-                                  variant="danger"
+                                  variant="ghost"
                                   size="sm"
+                                  className="text-danger-ink hover:bg-danger/10 hover:text-danger-ink dark:hover:bg-danger/20"
                                   onClick={() => setPending({ kind: 'deactivate', user })}
                                 >
                                   <UserX />
@@ -388,7 +390,7 @@ export function UsersPage() {
                                 </Button>
                               ) : (
                                 <Button
-                                  variant="success"
+                                  variant="outline"
                                   size="sm"
                                   onClick={() => setPending({ kind: 'activate', user })}
                                 >
@@ -410,12 +412,12 @@ export function UsersPage() {
           {status === 'ready' && visibleUsers.length > 0 && <TablePagination {...pagination.props} />}
           {rolesStatus === 'error' && (
             <p className="px-4 pb-2 text-sm text-destructive">
-              โหลดรายชื่อ role ไม่สำเร็จ — เพิ่ม/แก้ไขผู้ใช้ไม่ได้จนกว่าจะรีเฟรชหน้า
+              โหลดรายชื่อ role ไม่สำเร็จ เพิ่ม/แก้ไขผู้ใช้ไม่ได้จนกว่าจะรีเฟรชหน้า
             </p>
           )}
           {prenamesStatus === 'error' && (
             <p className="px-4 pb-2 text-sm text-destructive">
-              โหลดรายการคำนำหน้าไม่สำเร็จ — แก้ไขผู้ใช้ไม่ได้จนกว่าจะรีเฟรชหน้า
+              โหลดรายการคำนำหน้าไม่สำเร็จ แก้ไขผู้ใช้ไม่ได้จนกว่าจะรีเฟรชหน้า
             </p>
           )}
         </CardContent>

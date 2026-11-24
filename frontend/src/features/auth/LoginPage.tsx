@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { HeartPulse } from 'lucide-react'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Navigate, useLocation, useNavigate } from 'react-router'
 import * as z from 'zod'
 
+import { EntryLayout } from '@/components/backdrop/EntryLayout'
 import { PasswordInput } from '@/components/PasswordInput'
 import { Button } from '@/components/ui/button'
 import {
@@ -58,6 +58,8 @@ export function LoginPage() {
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
   // เพิ่มทุกครั้งที่ส่ง token ไปแล้ว login ไม่สำเร็จ — token ใช้ได้ครั้งเดียว ใช้เป็น key ให้ widget mount ใหม่ออก token ใหม่
   const [turnstileRound, setTurnstileRound] = useState(0)
+  // เพิ่มทุกครั้งที่ควรพาโฟกัสกลับไปช่องรหัสผ่าน (ดู effect ด้านล่าง)
+  const [retryFocus, setRetryFocus] = useState(0)
   // มาจากหน้าลงทะเบียน (RegisterPage) — เติมชื่อผู้ใช้ไว้ให้ / มาจาก RequireAuth — หน้าเดิมที่จะกลับไป
   const navState = location.state as { from?: string; username?: string; registered?: boolean } | null
 
@@ -76,12 +78,19 @@ export function LoginPage() {
         setLockSeconds(null)
         setRemaining(MAX_LOGIN_ATTEMPTS)
         setFormError(null)
+        setRetryFocus((n) => n + 1)
       } else {
         setSecondsLeft(left)
       }
     }, 250)
     return () => window.clearInterval(timer)
   }, [lockSeconds])
+
+  // ลองใหม่ได้ทันทีด้วยมือเดียว: login ไม่ผ่าน (ที่ไม่ใช่ล็อก) หรือพ้นล็อกแล้ว → โฟกัสช่องรหัสผ่านพร้อมเลือกข้อความเดิมไว้
+  // พิมพ์ทับได้เลย ทำใน effect เพราะช่องต้องหาย disabled (render รอบถัดไป) ก่อนถึงจะโฟกัสได้
+  useEffect(() => {
+    if (retryFocus > 0) form.setFocus('password', { shouldSelect: true })
+  }, [retryFocus, form])
 
   useEffect(() => {
     let cancelled = false
@@ -127,6 +136,7 @@ export function LoginPage() {
         setTurnstileToken(null)
         setTurnstileRound((round) => round + 1)
       }
+      const lockedNow = err instanceof LoginError && err.lockedForSeconds !== null
       if (err instanceof LoginError) {
         if (err.lockedForSeconds !== null) {
           setSecondsLeft(err.lockedForSeconds)
@@ -136,33 +146,27 @@ export function LoginPage() {
           setRemaining(err.remainingAttempts)
         }
       }
+      if (!lockedNow) {
+        setRetryFocus((n) => n + 1)
+      }
     } finally {
       setIsSubmitting(false)
     }
   }
 
   return (
-    <div
-      className="flex min-h-svh items-center justify-center bg-background p-4"
-      style={{
-        // สีอ่อนมาก ๆ แค่แต่งพื้นหลังให้มีมิติ ไม่ใช่บล็อกสีเต็ม — ใช้ color-mix กับ primary ตรง ๆ
-        // จะได้ปรับตามธีมที่เลือกเอง (dark/ocean) โดยไม่ต้อง hardcode สี
-        backgroundImage:
-          'radial-gradient(ellipse 80% 60% at 50% -10%, color-mix(in oklch, var(--primary) 18%, transparent), transparent 60%)',
-        backgroundRepeat: 'no-repeat',
-      }}
-    >
-      <Card className="w-full max-w-sm">
-        <CardHeader className="justify-items-center text-center">
-          <div className="mb-2 flex size-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <HeartPulse className="size-5" />
-          </div>
-          <CardTitle className="text-lg font-semibold">เข้าสู่ระบบ</CardTitle>
-          <CardDescription>
-            {navState?.registered
-              ? 'ตั้งรหัสผ่านเรียบร้อย — เข้าสู่ระบบด้วยรหัสผ่านที่เพิ่งตั้งได้เลย'
-              : 'my-his — เครื่องมือช่วยงานพยาบาล'}
-          </CardDescription>
+    // สองฝั่ง: แผงเกลียว DNA + ชื่อ MyHis (EntryLayout) / การ์ดฟอร์ม — คำโปรยอยู่บนแผงแล้ว หัวการ์ดจึงมีแค่ชื่อหน้า
+    <EntryLayout>
+      <Card className="w-full max-w-sm gap-5">
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold">
+            <h1>เข้าสู่ระบบ</h1>
+          </CardTitle>
+          {navState?.registered && (
+            <CardDescription>
+              ตั้งรหัสผ่านเรียบร้อยแล้ว เข้าสู่ระบบด้วยรหัสผ่านที่เพิ่งตั้งได้เลย
+            </CardDescription>
+          )}
         </CardHeader>
         <CardContent>
           <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
@@ -177,6 +181,8 @@ export function LoginPage() {
                       {...field}
                       id="username"
                       autoComplete="username"
+                      // หน้าเข้าระบบเปิดบนมือถือมือเดียวเป็นหลัก — ช่องและปุ่มสูง 40px (ค่ามาตรฐานของระบบ 32px)
+                      className="h-10"
                       aria-invalid={fieldState.invalid}
                       disabled={locked}
                       onChange={(event) => {
@@ -199,6 +205,7 @@ export function LoginPage() {
                       {...field}
                       id="password"
                       autoComplete="current-password"
+                      className="h-10"
                       aria-invalid={fieldState.invalid}
                       disabled={locked}
                     />
@@ -214,37 +221,49 @@ export function LoginPage() {
                   onToken={setTurnstileToken}
                 />
               )}
-              {loginConfig.status === 'error' && (
-                <Field data-invalid>
+              {/* สถานะของฟอร์มรวมเป็นก้อนเดียวเหนือปุ่ม — ระหว่างล็อกไม่โชว์ตัวนับ 0/5 ซ้ำ
+                  เพราะข้อความล็อกกับปุ่ม "รอ … วินาที" บอกครบแล้ว */}
+              <div className="flex flex-col gap-2">
+                {loginConfig.status === 'error' && (
                   <FieldError>โหลดหน้าเข้าสู่ระบบไม่สำเร็จ ลองรีเฟรชหน้า</FieldError>
-                </Field>
-              )}
-              {(locked || formError) && (
-                <Field data-invalid>
+                )}
+                {(locked || formError) && (
                   <FieldError>
                     {locked
-                      ? `ลองผิดครบ ${MAX_LOGIN_ATTEMPTS} ครั้ง — เข้าสู่ระบบได้อีกครั้งใน ${secondsLeft} วินาที`
+                      ? `ลองผิดครบ ${MAX_LOGIN_ATTEMPTS} ครั้ง เข้าสู่ระบบได้อีกครั้งใน ${secondsLeft} วินาที`
                       : formError}
                   </FieldError>
-                </Field>
-              )}
-              <p
-                aria-live="polite"
-                className={cn(
-                  'text-center text-sm',
-                  remaining === 0
-                    ? 'text-destructive'
-                    : remaining <= 2
-                      ? 'text-warning-ink'
-                      : 'text-muted-foreground',
                 )}
-              >
-                เหลือโอกาส {remaining}/{MAX_LOGIN_ATTEMPTS} ครั้ง
-              </p>
+                {/* ตัวนับแบบค่าอ่าน: ชื่อค่าทางซ้าย ตัวเลขทางขวา (ตัวเลขความกว้างเท่ากัน ไม่กระดิกตอนเปลี่ยน)
+                    ซ่อนไว้ตอนยังเต็ม 5/5 (ยังไม่เคยลองผิด) แล้วโผล่เมื่อเหลือน้อยกว่านั้น */}
+                {!locked && remaining < MAX_LOGIN_ATTEMPTS && (
+                  <p
+                    aria-live="polite"
+                    className="flex items-baseline justify-between border-t border-dashed pt-3 text-sm text-muted-foreground"
+                  >
+                    <span>เหลือโอกาส</span>
+                    <span
+                      className={cn(
+                        'tabular-nums',
+                        remaining === 0
+                          ? 'text-destructive'
+                          : remaining <= 2
+                            ? 'text-warning-ink'
+                            : 'text-foreground',
+                      )}
+                    >
+                      <span className="text-base font-semibold">
+                        {remaining}/{MAX_LOGIN_ATTEMPTS}
+                      </span>{' '}
+                      ครั้ง
+                    </span>
+                  </p>
+                )}
+              </div>
               <Button
                 type="submit"
                 disabled={isSubmitting || locked || waitingForCheck}
-                className="w-full"
+                className="h-10 w-full"
               >
                 {locked
                   ? `รอ ${secondsLeft} วินาที`
@@ -256,6 +275,6 @@ export function LoginPage() {
           </form>
         </CardContent>
       </Card>
-    </div>
+    </EntryLayout>
   )
 }

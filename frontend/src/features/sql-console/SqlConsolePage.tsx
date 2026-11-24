@@ -172,7 +172,7 @@ export function SqlConsolePage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         fallbackTitle="SQL"
-        description="รันคำสั่ง SQL แบบอ่านอย่างเดียว — ทุกครั้งถูกบันทึกในประวัติการใช้งาน"
+        description="รันคำสั่ง SQL แบบอ่านอย่างเดียว ทุกครั้งถูกบันทึกในประวัติการใช้งาน"
       />
 
       <div className={cn('grid items-start gap-4', schemaOpen && 'lg:grid-cols-[16rem_minmax(0,1fr)]')}>
@@ -265,25 +265,26 @@ export function SqlConsolePage() {
 }
 
 function ResultPanel({ run, maxRows }: { run: RunState; maxRows: number }) {
+  // พื้นที่ผลลัพธ์ = กรอบเส้นเดียว (ไม่ใช่การ์ดซ้อนการ์ด) — สถานะว่าง/กำลังรัน/ผิดพลาดอยู่ในกรอบเดียวกับที่ตารางผลลัพธ์จะขึ้น
   if (run.status === 'idle') {
     return (
-      <Card className="py-0">
-        <ListState kind="empty">ยังไม่ได้รันคำสั่ง — เขียน SQL แล้วกด &quot;รัน&quot;</ListState>
-      </Card>
+      <div className="rounded-lg border">
+        <ListState kind="empty">ยังไม่ได้รันคำสั่ง เขียน SQL แล้วกด &quot;รัน&quot;</ListState>
+      </div>
     )
   }
   if (run.status === 'running') {
     return (
-      <Card className="py-0">
+      <div className="rounded-lg border">
         <ListState kind="loading" />
-      </Card>
+      </div>
     )
   }
   if (run.status === 'error') {
     return (
-      <Card className="py-0">
+      <div className="rounded-lg border">
         <ListState kind="error">{run.message}</ListState>
-      </Card>
+      </div>
     )
   }
   if (run.status === 'blocked') {
@@ -313,7 +314,7 @@ function ResultPanel({ run, maxRows }: { run: RunState; maxRows: number }) {
         <span>{result.durationMs.toLocaleString('th-TH')} ms</span>
         {result.truncated && (
           <span className="text-warning-ink">
-            แสดงเฉพาะ {maxRows.toLocaleString('th-TH')} แถวแรก — เพิ่มเงื่อนไข where ให้แคบลง
+            แสดงเฉพาะ {maxRows.toLocaleString('th-TH')} แถวแรก เพิ่มเงื่อนไข where ให้แคบลงเพื่อดูครบ
           </span>
         )}
         {result.decryptErrors > 0 && (
@@ -321,9 +322,9 @@ function ResultPanel({ run, maxRows }: { run: RunState; maxRows: number }) {
         )}
       </p>
       {result.columns.length === 0 ? (
-        <Card className="py-0">
+        <div className="rounded-lg border">
           <ListState kind="empty">คำสั่งนี้ไม่คืนคอลัมน์</ListState>
-        </Card>
+        </div>
       ) : (
         <ResultGrid result={result} />
       )}
@@ -343,22 +344,22 @@ function BlockedNotice({ blocked }: { blocked: BlockedStatement }) {
       </p>
       {severalStatements ? (
         <p className="text-sm">
-          พบเครื่องหมาย <Kbd>;</Kbd> คั่นมากกว่าหนึ่งคำสั่ง จึงยังไม่ได้รัน — ลบคำสั่งอื่นออก
+          พบเครื่องหมาย <Kbd>;</Kbd> คั่นมากกว่าหนึ่งคำสั่ง จึงยังไม่ได้รัน ลบคำสั่งอื่นออก
           หรือลากเลือกเฉพาะคำสั่งที่ต้องการแล้วกด &quot;รัน&quot;
         </p>
       ) : (
         <>
           <p className="text-sm">
             {blocked.keyword
-              ? `คำสั่ง ${blocked.keyword} ไม่ใช่การอ่านข้อมูล จึงไม่ได้รัน — ไม่มีข้อมูลใดถูกเปลี่ยน`
-              : 'คำสั่งนี้มีส่วนที่แก้ข้อมูล (เช่น INSERT / UPDATE / DELETE ใน WITH) จึงไม่ได้รัน — ไม่มีข้อมูลใดถูกเปลี่ยน'}
+              ? `คำสั่ง ${blocked.keyword} ไม่ใช่การอ่านข้อมูล จึงไม่ได้รัน ไม่มีข้อมูลใดถูกเปลี่ยน`
+              : 'คำสั่งนี้มีส่วนที่แก้ข้อมูล (เช่น INSERT / UPDATE / DELETE ใน WITH) จึงไม่ได้รัน ไม่มีข้อมูลใดถูกเปลี่ยน'}
           </p>
           <p className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
             ใช้ได้เฉพาะ
             {READ_COMMANDS.map((command) => (
               <Kbd key={command}>{command}</Kbd>
             ))}
-            — เพิ่ม แก้ไข หรือลบข้อมูล ให้ทำที่หน้าของข้อมูลนั้น
+            ส่วนการเพิ่ม แก้ไข หรือลบข้อมูล ให้ทำที่หน้าของข้อมูลนั้น
           </p>
         </>
       )}

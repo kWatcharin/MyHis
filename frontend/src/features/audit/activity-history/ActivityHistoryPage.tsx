@@ -128,74 +128,75 @@ export function ActivityHistoryPage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         fallbackTitle="ประวัติการใช้งาน"
-        description="การเพิ่ม/แก้ไข/ลบ/ส่งออกในทุกหน้าของผู้ใช้ทุกคน — วันที่และเวลาตามเวลาไทย"
+        description="การเพิ่ม/แก้ไข/ลบ/ส่งออกในทุกหน้าของผู้ใช้ทุกคน (วันที่และเวลาตามเวลาไทย)"
       />
 
-      <Card>
-        <CardContent>
-          <form onSubmit={handleSubmit} aria-label="ค้นหาประวัติการใช้งาน" className="flex flex-col gap-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-              <Field>
-                <FieldLabel htmlFor="activity-history-from">จากวันที่</FieldLabel>
-                <ThaiDateInput id="activity-history-from" value={draft.from} onChange={set('from')} />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="activity-history-to">ถึงวันที่</FieldLabel>
-                <ThaiDateInput id="activity-history-to" value={draft.to} onChange={set('to')} />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="activity-history-user">ผู้ใช้</FieldLabel>
-                <Input
-                  id="activity-history-user"
-                  value={draft.user}
-                  placeholder="ชื่อ หรือ username"
-                  onChange={(e) => set('user')(e.target.value)}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="activity-history-page">หน้า</FieldLabel>
-                <NativeSelect
-                  id="activity-history-page"
-                  value={draft.page}
-                  onChange={(e) => set('page')(e.target.value)}
-                >
-                  <option value="">ทุกหน้า</option>
-                  {pageOptions(menu).map((option) => (
-                    <option key={option.key} value={option.key}>
-                      {option.label}
-                    </option>
-                  ))}
-                </NativeSelect>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="activity-history-kind">การกระทำ</FieldLabel>
-                <NativeSelect
-                  id="activity-history-kind"
-                  value={draft.kind}
-                  onChange={(e) => set('kind')(e.target.value)}
-                >
-                  <option value="">ทั้งหมด</option>
-                  {(Object.keys(KIND_LABELS) as ActivityKind[]).map((kind) => (
-                    <option key={kind} value={kind}>
-                      {KIND_LABELS[kind]}
-                    </option>
-                  ))}
-                </NativeSelect>
-              </Field>
-            </div>
-            {formError && <p className="text-center text-sm text-destructive">{formError}</p>}
-            <div className="flex justify-center gap-2">
-              <Button type="submit">
-                <Search />
-                ค้นหา
-              </Button>
-              <Button type="button" variant="outline" onClick={handleClear}>
-                ล้างข้อมูล
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+      {/* ตัวกรองเป็นแถวเครื่องมือแบบเดียวกับ SearchForm: ไม่ห่อการ์ด ปุ่มชิดซ้ายใต้ช่องกรอก เส้นคั่นล่าง */}
+      <form
+        onSubmit={handleSubmit}
+        aria-label="ค้นหาประวัติการใช้งาน"
+        className="flex flex-col gap-3 border-b pb-4"
+      >
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <Field>
+          <FieldLabel htmlFor="activity-history-from">จากวันที่</FieldLabel>
+          <ThaiDateInput id="activity-history-from" value={draft.from} onChange={set('from')} />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="activity-history-to">ถึงวันที่</FieldLabel>
+          <ThaiDateInput id="activity-history-to" value={draft.to} onChange={set('to')} />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="activity-history-user">ผู้ใช้</FieldLabel>
+          <Input
+            id="activity-history-user"
+            value={draft.user}
+            placeholder="ชื่อ หรือ username"
+            onChange={(e) => set('user')(e.target.value)}
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="activity-history-page">หน้า</FieldLabel>
+          <NativeSelect
+            id="activity-history-page"
+            value={draft.page}
+            onChange={(e) => set('page')(e.target.value)}
+          >
+            <option value="">ทุกหน้า</option>
+            {pageOptions(menu).map((option) => (
+              <option key={option.key} value={option.key}>
+                {option.label}
+              </option>
+            ))}
+          </NativeSelect>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="activity-history-kind">การกระทำ</FieldLabel>
+          <NativeSelect
+            id="activity-history-kind"
+            value={draft.kind}
+            onChange={(e) => set('kind')(e.target.value)}
+          >
+            <option value="">ทั้งหมด</option>
+            {(Object.keys(KIND_LABELS) as ActivityKind[]).map((kind) => (
+              <option key={kind} value={kind}>
+                {KIND_LABELS[kind]}
+              </option>
+            ))}
+          </NativeSelect>
+        </Field>
+      </div>
+      {formError && <p className="text-sm text-destructive">{formError}</p>}
+      <div className="grid grid-cols-2 gap-2 sm:flex">
+        <Button type="submit">
+          <Search />
+          ค้นหา
+        </Button>
+        <Button type="button" variant="outline" onClick={handleClear}>
+          ล้างข้อมูล
+        </Button>
+      </div>
+      </form>
 
       <ListToolbar
         ready={status === 'ready'}
@@ -206,7 +207,7 @@ export function ActivityHistoryPage() {
 
       {status === 'ready' && result?.truncated && (
         <p className="text-sm text-warning-ink">
-          ช่วงวันที่นี้มีเกิน 5,000 รายการ แสดงเฉพาะส่วนที่ใหม่สุด — เลือกช่วงวันที่ให้แคบลง
+          ช่วงวันที่นี้มีเกิน 5,000 รายการ แสดงเฉพาะส่วนที่ใหม่สุด เลือกช่วงวันที่ให้แคบลงเพื่อดูครบ
         </p>
       )}
 
@@ -243,7 +244,7 @@ export function ActivityHistoryPage() {
                         {activity.user ? (
                           <>
                             <div className="font-medium">{activity.user.displayName}</div>
-                            <div className="font-mono text-xs text-muted-foreground">
+                            <div className="text-xs text-muted-foreground">
                               {activity.user.username}
                             </div>
                           </>

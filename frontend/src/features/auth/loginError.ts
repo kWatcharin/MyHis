@@ -54,7 +54,7 @@ export function toLoginError(err: unknown): LoginError {
     }
     if (err.message === 'account temporarily locked') {
       return new LoginError(
-        `ลองผิดครบ ${MAX_LOGIN_ATTEMPTS} ครั้ง — ล็อกชั่วคราว`,
+        `ลองผิดครบ ${MAX_LOGIN_ATTEMPTS} ครั้ง ล็อกชั่วคราว`,
         0,
         err.retryAfterSeconds ?? DEFAULT_LOCK_SECONDS,
       )

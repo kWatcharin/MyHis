@@ -181,7 +181,7 @@ export function LabVisitGroupFormDialog({
                       )}
                       {budgetYears.length === 0 && (
                         <FieldDescription>
-                          ยังไม่มีปีงบประมาณ — เพิ่มได้ที่ การตั้งค่า &gt; ตั้งค่าปีงบประมาณ
+                          ยังไม่มีปีงบประมาณ เพิ่มได้ที่ การตั้งค่า &gt; ตั้งค่าปีงบประมาณ
                         </FieldDescription>
                       )}
                       {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
@@ -205,7 +205,7 @@ export function LabVisitGroupFormDialog({
                       </NativeSelect>
                       {patientGroups.length === 0 && (
                         <FieldDescription>
-                          ยังไม่มีกลุ่มคนไข้ — เพิ่มได้ที่ การตั้งค่า &gt; ตั้งค่ากลุ่มคนไข้
+                          ยังไม่มีกลุ่มคนไข้ เพิ่มได้ที่ การตั้งค่า &gt; ตั้งค่ากลุ่มคนไข้
                         </FieldDescription>
                       )}
                       {fieldState.invalid && <FieldError errors={[fieldState.error]} />}

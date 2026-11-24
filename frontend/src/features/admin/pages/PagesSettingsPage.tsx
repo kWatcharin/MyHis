@@ -47,8 +47,8 @@ const PAGE_ERRORS: Record<string, string> = {
 function pageErrorMessage(err: unknown, action: 'save' | 'delete'): string {
   if (err instanceof ApiError && err.message === 'page has sub pages') {
     return action === 'delete'
-      ? 'ลบไม่ได้ เพจนี้ยังมีเพจย่อยอยู่ — ย้ายเพจย่อยไปเพจหลักอื่นหรือลบออกก่อน'
-      : 'เพจนี้มีเพจย่อยอยู่ — ย้ายไปอยู่ใต้เพจหลักอื่นหรือใส่ route ไม่ได้ ย้ายเพจย่อยออกก่อน'
+      ? 'ลบไม่ได้ เพจนี้ยังมีเพจย่อยอยู่ ย้ายเพจย่อยไปเพจหลักอื่นหรือลบออกก่อน'
+      : 'เพจนี้มีเพจย่อยอยู่ ย้ายไปอยู่ใต้เพจหลักอื่นหรือใส่ route ไม่ได้ ย้ายเพจย่อยออกก่อน'
   }
   if (err instanceof ApiError && err.message in PAGE_ERRORS) {
     return PAGE_ERRORS[err.message]
@@ -213,7 +213,7 @@ export function PagesSettingsPage() {
             'กด "ล้างข้อมูล" ในช่องค้นหาก่อน ถึงจะลากจัดลำดับได้'
           ) : (
             <>
-              ลาก <GripVertical aria-hidden className="inline size-4 align-[-0.2em]" /> เพื่อจัดลำดับเมนู — เพจย่อยเรียงได้ในกลุ่มของตัวเอง
+              ลาก <GripVertical aria-hidden className="inline size-4 align-[-0.2em]" /> เพื่อจัดลำดับเมนู เพจย่อยเรียงได้ในกลุ่มของตัวเอง
               ย้ายไปกลุ่มอื่นที่ปุ่มแก้ไข
             </>
           )}
@@ -230,7 +230,7 @@ export function PagesSettingsPage() {
           )}
           {status === 'ready' && pages.length > 0 && nodes.length === 0 && (
             <ListState kind="noMatch">
-              ไม่พบเพจที่ตรงกับเงื่อนไข — กด &quot;ล้างข้อมูล&quot; เพื่อดูทั้งหมด
+              ไม่พบเพจที่ตรงกับเงื่อนไข กด &quot;ล้างข้อมูล&quot; เพื่อดูทั้งหมด
             </ListState>
           )}
           {status === 'ready' && nodes.length > 0 && (

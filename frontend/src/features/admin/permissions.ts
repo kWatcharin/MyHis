@@ -38,7 +38,7 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
     actions: [...CRUD, 'export'],
     requires: {
       permission: 'patient.view',
-      message: 'หน้านัดหมายแล็ปแสดงชื่อ/HN จากทะเบียนผู้ป่วย — ต้องติ๊ก "ดู" ผู้ป่วยด้วยถึงจะใช้งานได้',
+      message: 'หน้านัดหมายแล็ปแสดงชื่อ/HN จากทะเบียนผู้ป่วย ต้องติ๊ก "ดู" ผู้ป่วยด้วยถึงจะใช้งานได้',
     },
   },
   { key: 'page', route: '/settings/pages', fallbackLabel: 'การตั้งค่าเพจ', actions: CRUD },

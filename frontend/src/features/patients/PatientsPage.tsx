@@ -164,7 +164,7 @@ export function PatientsPage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         fallbackTitle="ลงทะเบียนผู้ป่วย"
-        description="ทะเบียนผู้ป่วยและโรคประจำตัว — ข้อมูลระบุตัวถูกเข้ารหัสก่อนเก็บลงฐานข้อมูล"
+        description="ทะเบียนผู้ป่วยและโรคประจำตัว ข้อมูลระบุตัวถูกเข้ารหัสก่อนเก็บลงฐานข้อมูล"
       />
 
       <SearchForm
@@ -200,7 +200,7 @@ export function PatientsPage() {
           )}
           {status === 'ready' && items.length > 0 && visibleItems.length === 0 && (
             <ListState kind="noMatch">
-              ไม่พบผู้ป่วยที่ตรงกับเงื่อนไข — กด &quot;ล้างข้อมูล&quot; เพื่อดูทั้งหมด
+              ไม่พบผู้ป่วยที่ตรงกับเงื่อนไข กด &quot;ล้างข้อมูล&quot; เพื่อดูทั้งหมด
             </ListState>
           )}
           {status === 'ready' && visibleItems.length > 0 && (

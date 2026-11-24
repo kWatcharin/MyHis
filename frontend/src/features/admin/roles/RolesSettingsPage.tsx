@@ -61,7 +61,7 @@ function roleErrorMessage(err: unknown): string {
       return 'แก้หรือลบ role นี้ไม่ได้ เพราะ role นี้มีสิทธิ์ที่บัญชีของคุณไม่มี (เช่น admin)'
     }
     if (err.message === 'role is still assigned to at least one user') {
-      return 'ลบไม่ได้ เพราะยังมีผู้ใช้ผูกกับ role นี้อยู่ — ย้ายผู้ใช้ออกได้ที่หน้า "ผู้ใช้งาน"'
+      return 'ลบไม่ได้ เพราะยังมีผู้ใช้ผูกกับ role นี้อยู่ ย้ายผู้ใช้ออกได้ที่หน้า "ผู้ใช้งาน"'
     }
   }
   return 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง'
@@ -192,7 +192,7 @@ export function RolesSettingsPage() {
           )}
           {status === 'ready' && roles.length > 0 && visibleRoles.length === 0 && (
             <ListState kind="noMatch">
-              ไม่พบ role ที่ตรงกับเงื่อนไข — กด &quot;ล้างข้อมูล&quot; เพื่อดูทั้งหมด
+              ไม่พบ role ที่ตรงกับเงื่อนไข กด &quot;ล้างข้อมูล&quot; เพื่อดูทั้งหมด
             </ListState>
           )}
           {status === 'ready' && visibleRoles.length > 0 && (

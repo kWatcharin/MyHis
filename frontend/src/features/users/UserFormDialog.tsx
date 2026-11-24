@@ -95,7 +95,7 @@ export function CreateUserDialog({ open, onOpenChange, roles, onSubmit }: Create
         <DialogHeader>
           <DialogTitle>เพิ่มผู้ใช้</DialogTitle>
           <DialogDescription>
-            บันทึกแล้วระบบสร้างลิงก์ลงทะเบียนให้ — ส่งลิงก์ให้ผู้ใช้เปิดเพื่อกรอกคำนำหน้า ชื่อ-สกุล ตำแหน่ง
+            บันทึกแล้วระบบสร้างลิงก์ลงทะเบียนให้ ส่งลิงก์ให้ผู้ใช้เปิดเพื่อกรอกคำนำหน้า ชื่อ-สกุล ตำแหน่ง
             และตั้งรหัสผ่านเอง (แอดมินไม่เห็นรหัสผ่าน)
           </DialogDescription>
         </DialogHeader>
@@ -116,7 +116,7 @@ export function CreateUserDialog({ open, onOpenChange, roles, onSubmit }: Create
                     aria-invalid={fieldState.invalid}
                   />
                   <FieldDescription>
-                    a-z, 0-9, จุด, ขีดล่าง, ขีด ยาว 3–32 ตัว — เก็บเป็นตัวพิมพ์เล็ก แก้ภายหลังไม่ได้
+                    a-z, 0-9, จุด, ขีดล่าง, ขีด ยาว 3–32 ตัว เก็บเป็นตัวพิมพ์เล็ก แก้ภายหลังไม่ได้
                   </FieldDescription>
                   {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
                 </Field>
@@ -144,7 +144,7 @@ export function CreateUserDialog({ open, onOpenChange, roles, onSubmit }: Create
                     {roles.map((role) => (
                       <option key={role.id} value={role.id}>
                         {role.name}
-                        {role.description ? ` — ${role.description}` : ''}
+                        {role.description ? ` (${role.description})` : ''}
                       </option>
                     ))}
                   </NativeSelect>
@@ -280,8 +280,8 @@ export function EditUserDialog({
         <DialogHeader>
           <DialogTitle>แก้ไขผู้ใช้</DialogTitle>
           <DialogDescription>
-            ชื่อผู้ใช้ <span className="font-mono text-foreground">{user?.username}</span>{' '}
-            (แก้ไม่ได้){isSelf ? ' — บัญชีของคุณ' : ''}
+            ชื่อผู้ใช้ <span className="font-medium text-foreground">{user?.username}</span>{' '}
+            (แก้ไม่ได้){isSelf ? ' บัญชีของคุณ' : ''}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} noValidate>
@@ -340,7 +340,7 @@ export function EditUserDialog({
             </div>
             {prenameRemoved && (
               <FieldDescription>
-                คำนำหน้าเดิม &quot;{user?.prenameName}&quot; ถูกลบจากตั้งค่าคำนำหน้าแล้ว — เลือกใหม่หรือเว้นว่าง
+                คำนำหน้าเดิม &quot;{user?.prenameName}&quot; ถูกลบจากตั้งค่าคำนำหน้าแล้ว เลือกใหม่หรือเว้นว่าง
               </FieldDescription>
             )}
             <Controller
@@ -364,7 +364,7 @@ export function EditUserDialog({
               control={form.control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel>Role (เลือกได้หลาย role — สิทธิ์รวมกัน)</FieldLabel>
+                  <FieldLabel>Role (เลือกได้หลาย role สิทธิ์รวมกัน)</FieldLabel>
                   <div className="flex flex-col gap-2">
                     {roles.map((role) => (
                       <label key={role.id} className="flex items-start gap-2 text-sm font-normal">

@@ -117,7 +117,7 @@ export function StockReceiptsPage() {
       throw new Error(receiptErrorMessage(err))
     }
     await refetch()
-    notify.created(`บันทึกรับเข้าแล้ว — เลขที่ ${docNo}`)
+    notify.created(`บันทึกรับเข้าแล้ว เลขที่ ${docNo}`)
   }
 
   const handleUpdate = async (input: StockReceiptHeaderInput) => {
@@ -146,7 +146,7 @@ export function StockReceiptsPage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         fallbackTitle="รับเข้า"
-        description="บันทึกของที่รับเข้าคลังและยอดยกมา — บันทึกแล้วลงคลังทันที ถ้าจำนวน/ล็อตผิดให้ยกเลิกทั้งใบแล้วทำใหม่"
+        description="บันทึกของที่รับเข้าคลังและยอดยกมา บันทึกแล้วลงคลังทันที"
       />
 
       <SearchForm
@@ -185,7 +185,7 @@ export function StockReceiptsPage() {
           )}
           {status === 'ready' && receipts.length > 0 && visibleReceipts.length === 0 && (
             <ListState kind="noMatch">
-              ไม่พบใบรับที่ตรงกับเงื่อนไข — กด &quot;ล้างข้อมูล&quot; เพื่อดูทั้งหมด
+              ไม่พบใบรับที่ตรงกับเงื่อนไข กด &quot;ล้างข้อมูล&quot; เพื่อดูทั้งหมด
             </ListState>
           )}
           {status === 'ready' && visibleReceipts.length > 0 && (

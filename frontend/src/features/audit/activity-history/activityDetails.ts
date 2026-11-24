@@ -123,7 +123,7 @@ export function formatValue(field: string, value: unknown, menu: MenuItem[]): st
   }
   if (field === 'permissions') {
     const keys = asStrings(value)
-    return keys.length === 0 ? '— (ไม่มีสิทธิ์)' : keys.map((key) => permissionLabel(key, menu)).join(', ')
+    return keys.length === 0 ? '(ไม่มีสิทธิ์)' : keys.map((key) => permissionLabel(key, menu)).join(', ')
   }
   if (Array.isArray(value)) return value.length === 0 ? '—' : value.map(String).join(', ')
   if (typeof value === 'object') return JSON.stringify(value)
@@ -147,12 +147,12 @@ export type DetailView =
 const NOTES: Record<string, string> = {
   user_activated: 'เปิดใช้งานบัญชีนี้',
   user_deactivated: 'ปิดใช้งานบัญชีนี้ (ผู้ใช้ถูกออกจากระบบทุกอุปกรณ์)',
-  user_password_reset: 'รีเซ็ตรหัสผ่านและออกลิงก์ตั้งรหัสใหม่ — ไม่แสดงรายละเอียดเกี่ยวกับรหัสผ่าน',
-  user_password_set: 'ผู้ใช้ตั้งรหัสผ่านใหม่ผ่านลิงก์ — ไม่แสดงรายละเอียดเกี่ยวกับรหัสผ่าน',
-  password_changed: 'เปลี่ยนรหัสผ่านของตัวเอง — ไม่แสดงรายละเอียดเกี่ยวกับรหัสผ่าน',
-  password_change_failed: 'ใส่รหัสผ่านปัจจุบันผิดตอนเปลี่ยนรหัส (ครบ 5 ครั้งต่อ session แล้ว session นั้นถูกลบ) — ไม่แสดงรายละเอียดเกี่ยวกับรหัสผ่าน',
-  patient_created: 'เพิ่มผู้ป่วย 1 ราย — ไม่แสดงข้อมูลผู้ป่วย',
-  lab_visit_created: 'เพิ่มคนไข้ 1 รายเข้านัดหมาย — ไม่แสดงข้อมูลผู้ป่วย',
+  user_password_reset: 'รีเซ็ตรหัสผ่านและออกลิงก์ตั้งรหัสใหม่ (ไม่แสดงรายละเอียดเกี่ยวกับรหัสผ่าน)',
+  user_password_set: 'ผู้ใช้ตั้งรหัสผ่านใหม่ผ่านลิงก์ (ไม่แสดงรายละเอียดเกี่ยวกับรหัสผ่าน)',
+  password_changed: 'เปลี่ยนรหัสผ่านของตัวเอง (ไม่แสดงรายละเอียดเกี่ยวกับรหัสผ่าน)',
+  password_change_failed: 'ใส่รหัสผ่านปัจจุบันผิดตอนเปลี่ยนรหัส ครบ 5 ครั้งต่อ session แล้ว session นั้นถูกลบ (ไม่แสดงรายละเอียดเกี่ยวกับรหัสผ่าน)',
+  patient_created: 'เพิ่มผู้ป่วย 1 ราย (ไม่แสดงข้อมูลผู้ป่วย)',
+  lab_visit_created: 'เพิ่มคนไข้ 1 รายเข้านัดหมาย (ไม่แสดงข้อมูลผู้ป่วย)',
 }
 
 export function buildDetailView(activity: Activity, menu: MenuItem[]): DetailView {

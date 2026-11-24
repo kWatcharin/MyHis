@@ -62,7 +62,7 @@ export function queryFailure(err: unknown): QueryFailure | null {
   return {
     // ผลลัพธ์ใหญ่เกินเพดานของ backend (backend/src/sql_console/service.rs RESULT_TOO_LARGE) — ไม่ใช่ error ของ Postgres จึงแปลเป็นไทย
     message: body.message?.startsWith('result too large')
-      ? 'ผลลัพธ์ใหญ่เกินกำหนด (16 MiB หรือเกิน 200 คอลัมน์) — เลือกคอลัมน์/แถวให้น้อยลง หรือตัดค่ายาว ๆ เช่น left(col::text, 100)'
+      ? 'ผลลัพธ์ใหญ่เกินกำหนด (16 MiB หรือเกิน 200 คอลัมน์) เลือกคอลัมน์/แถวให้น้อยลง หรือตัดค่ายาว ๆ เช่น left(col::text, 100)'
       : (body.message ?? 'query failed'),
     code: body.code ?? null,
     position: typeof body.position === 'number' ? body.position : null,
@@ -87,9 +87,9 @@ export function blockedStatement(err: unknown): BlockedStatement | null {
 
 const KNOWN_ERRORS: Record<string, string> = {
   'sql is required': 'พิมพ์คำสั่ง SQL ก่อน',
-  'invalid :hn(\'...\') helper': 'รูปแบบ :hn(\'...\') ไม่ถูกต้อง — ใส่ค่าในเครื่องหมาย \' \' เช่น :hn(\'66471\')',
+  'invalid :hn(\'...\') helper': 'รูปแบบ :hn(\'...\') ไม่ถูกต้อง ใส่ค่าในเครื่องหมาย \' \' เช่น :hn(\'66471\')',
   'invalid :nap_no(\'...\') helper':
-    'รูปแบบ :nap_no(\'...\') ไม่ถูกต้อง — ใส่ค่าในเครื่องหมาย \' \' เช่น :nap_no(\'A1\')',
+    'รูปแบบ :nap_no(\'...\') ไม่ถูกต้อง ใส่ค่าในเครื่องหมาย \' \' เช่น :nap_no(\'A1\')',
   'helpers need patient.view': 'ใช้ :hn() / :nap_no() ต้องมีสิทธิ์ดูข้อมูลผู้ป่วย (patient.view) เพราะใช้ค้นเลขระบุตัวผู้ป่วย',
   'sql console not configured': 'ยังไม่ได้ตั้งค่าหน้า SQL (ผู้ดูแลระบบต้องตั้งรหัสของ role ฐานข้อมูลก่อน)',
   'could not connect to the database in time': 'เชื่อมต่อฐานข้อมูลไม่ทัน ลองใหม่อีกครั้ง',

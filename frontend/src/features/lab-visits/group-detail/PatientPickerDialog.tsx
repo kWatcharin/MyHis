@@ -124,7 +124,7 @@ export function PatientPickerDialog({
         <DialogHeader>
           <DialogTitle>เพิ่มคนไข้เข้านัดหมาย</DialogTitle>
           <DialogDescription>
-            เลือกได้หลายคน — แสดงเฉพาะคนไข้ที่ใช้งานอยู่และยังไม่อยู่ในนัดหมายนี้ ({candidates.length} คน)
+            เลือกได้หลายคน แสดงเฉพาะคนไข้ที่ใช้งานอยู่และยังไม่อยู่ในนัดหมายนี้ ({candidates.length} คน)
           </DialogDescription>
         </DialogHeader>
 
@@ -180,7 +180,7 @@ export function PatientPickerDialog({
         <div className="max-h-[50vh] min-h-0 flex-1 overflow-y-auto rounded-lg border">
           {candidates.length === 0 ? (
             <p className="p-4 text-sm text-muted-foreground">
-              ไม่มีคนไข้ให้เลือก — ทุกคนอยู่ในนัดหมายนี้แล้ว หรือยังไม่ได้ลงทะเบียนผู้ป่วย
+              ไม่มีคนไข้ให้เลือก ทุกคนอยู่ในนัดหมายนี้แล้ว หรือยังไม่ได้ลงทะเบียนผู้ป่วย
             </p>
           ) : visible.length === 0 ? (
             <p className="p-4 text-sm text-muted-foreground">ไม่พบคนไข้ที่ค้นหา</p>

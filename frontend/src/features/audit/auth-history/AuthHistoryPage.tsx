@@ -127,66 +127,67 @@ export function AuthHistoryPage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         fallbackTitle="ประวัติการเข้าออก"
-        description="การเข้า/ออกระบบของผู้ใช้ทุกคน พร้อม IP และอุปกรณ์ — วันที่และเวลาตามเวลาไทย"
+        description="การเข้า/ออกระบบของผู้ใช้ทุกคน พร้อม IP และอุปกรณ์ (วันที่และเวลาตามเวลาไทย)"
       />
 
-      <Card>
-        <CardContent>
-          <form onSubmit={handleSubmit} aria-label="ค้นหาประวัติการเข้าออก" className="flex flex-col gap-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-              <Field>
-                <FieldLabel htmlFor="auth-history-from">จากวันที่</FieldLabel>
-                <ThaiDateInput id="auth-history-from" value={draft.from} onChange={set('from')} />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="auth-history-to">ถึงวันที่</FieldLabel>
-                <ThaiDateInput id="auth-history-to" value={draft.to} onChange={set('to')} />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="auth-history-user">ผู้ใช้</FieldLabel>
-                <Input
-                  id="auth-history-user"
-                  value={draft.user}
-                  placeholder="ชื่อ หรือ username"
-                  onChange={(e) => set('user')(e.target.value)}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="auth-history-ip">IP</FieldLabel>
-                <Input
-                  id="auth-history-ip"
-                  value={draft.ip}
-                  className="font-mono"
-                  onChange={(e) => set('ip')(e.target.value)}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="auth-history-event">เหตุการณ์</FieldLabel>
-                <NativeSelect
-                  id="auth-history-event"
-                  value={draft.event}
-                  onChange={(e) => set('event')(e.target.value)}
-                >
-                  <option value="">ทั้งหมด</option>
-                  <option value="login_succeeded">{EVENT_LABELS.login_succeeded}</option>
-                  <option value="login_failed">{EVENT_LABELS.login_failed}</option>
-                  <option value="logout">{EVENT_LABELS.logout}</option>
-                </NativeSelect>
-              </Field>
-            </div>
-            {formError && <p className="text-center text-sm text-destructive">{formError}</p>}
-            <div className="flex justify-center gap-2">
-              <Button type="submit">
-                <Search />
-                ค้นหา
-              </Button>
-              <Button type="button" variant="outline" onClick={handleClear}>
-                ล้างข้อมูล
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+      {/* ตัวกรองเป็นแถวเครื่องมือแบบเดียวกับ SearchForm: ไม่ห่อการ์ด ปุ่มชิดซ้ายใต้ช่องกรอก เส้นคั่นล่าง */}
+      <form
+        onSubmit={handleSubmit}
+        aria-label="ค้นหาประวัติการเข้าออก"
+        className="flex flex-col gap-3 border-b pb-4"
+      >
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <Field>
+          <FieldLabel htmlFor="auth-history-from">จากวันที่</FieldLabel>
+          <ThaiDateInput id="auth-history-from" value={draft.from} onChange={set('from')} />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="auth-history-to">ถึงวันที่</FieldLabel>
+          <ThaiDateInput id="auth-history-to" value={draft.to} onChange={set('to')} />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="auth-history-user">ผู้ใช้</FieldLabel>
+          <Input
+            id="auth-history-user"
+            value={draft.user}
+            placeholder="ชื่อ หรือ username"
+            onChange={(e) => set('user')(e.target.value)}
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="auth-history-ip">IP</FieldLabel>
+          <Input
+            id="auth-history-ip"
+            value={draft.ip}
+            className="font-mono"
+            onChange={(e) => set('ip')(e.target.value)}
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="auth-history-event">เหตุการณ์</FieldLabel>
+          <NativeSelect
+            id="auth-history-event"
+            value={draft.event}
+            onChange={(e) => set('event')(e.target.value)}
+          >
+            <option value="">ทั้งหมด</option>
+            <option value="login_succeeded">{EVENT_LABELS.login_succeeded}</option>
+            <option value="login_failed">{EVENT_LABELS.login_failed}</option>
+            <option value="logout">{EVENT_LABELS.logout}</option>
+          </NativeSelect>
+        </Field>
+      </div>
+      {formError && <p className="text-sm text-destructive">{formError}</p>}
+      <div className="grid grid-cols-2 gap-2 sm:flex">
+        <Button type="submit">
+          <Search />
+          ค้นหา
+        </Button>
+        <Button type="button" variant="outline" onClick={handleClear}>
+          ล้างข้อมูล
+        </Button>
+      </div>
+      </form>
 
       <ListToolbar
         ready={status === 'ready'}
@@ -197,7 +198,7 @@ export function AuthHistoryPage() {
 
       {status === 'ready' && result?.truncated && (
         <p className="text-sm text-warning-ink">
-          ช่วงวันที่นี้มีเกิน 5,000 รายการ แสดงเฉพาะส่วนที่ใหม่สุด — เลือกช่วงวันที่ให้แคบลง
+          ช่วงวันที่นี้มีเกิน 5,000 รายการ แสดงเฉพาะส่วนที่ใหม่สุด เลือกช่วงวันที่ให้แคบลงเพื่อดูครบ
         </p>
       )}
 
@@ -229,7 +230,7 @@ export function AuthHistoryPage() {
                       {event.user ? (
                         <>
                           <div className="font-medium">{event.user.displayName}</div>
-                          <div className="font-mono text-xs text-muted-foreground">{event.user.username}</div>
+                          <div className="text-xs text-muted-foreground">{event.user.username}</div>
                         </>
                       ) : (
                         <span className="text-muted-foreground">ไม่พบชื่อผู้ใช้</span>

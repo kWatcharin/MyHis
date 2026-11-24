@@ -409,7 +409,7 @@ export function PatientFormDialog({
                           </ComboboxList>
                         </ComboboxContent>
                       </Combobox>
-                      <FieldDescription>ไม่ระบุได้ — กด × ในช่องเพื่อล้างค่าที่เลือก</FieldDescription>
+                      <FieldDescription>ไม่ระบุก็ได้ กด × ในช่องเพื่อล้างค่าที่เลือก</FieldDescription>
                     </Field>
                   )}
                 />
@@ -423,7 +423,7 @@ export function PatientFormDialog({
                   <Field>
                     {diseaseChoices.length === 0 ? (
                       <FieldDescription>
-                        ยังไม่มีโรคให้เลือก — เพิ่มได้ที่ การตั้งค่า &gt; ตั้งค่าโรค
+                        ยังไม่มีโรคให้เลือก เพิ่มได้ที่ การตั้งค่า &gt; ตั้งค่าโรค
                       </FieldDescription>
                     ) : (
                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">

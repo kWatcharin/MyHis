@@ -36,7 +36,8 @@ my-his/
 │  ├─ auth-design.md           ดีไซน์ระบบ auth ฉบับละเอียด
 │  ├─ inventory-design.md      ระบบคลัง: master + ล็อต/ledger/รับเข้า ทำแล้ว, เบิก/นับ/ปรับ ยังเป็นร่าง (อ่านก่อนแตะโมดูล item*/stock)
 │  ├─ infrastructure.md        การวาง container, backup, ความปลอดภัยของเครื่อง
-│  └─ security-audit.md        สรุปผล security audit (2026-10-21): สิ่งที่แก้แล้ว, ที่เหลือ, สิ่งที่ต้องทำตอน deploy
+│  ├─ security-audit.md        สรุปผล security audit (2026-10-21): สิ่งที่แก้แล้ว, ที่เหลือ, สิ่งที่ต้องทำตอน deploy
+│  └─ ui-3d-backdrop.md        พื้นหลัง 3D (Three.js DNA helix) ของหน้าทางเข้า: ใช้ที่ไหน/ห้ามใช้, สีตามธีม, งบประสิทธิภาพ, checklist
 ├─ ops/                        Caddyfile, สคริปต์ backup/restore, patient_decrypt.py (ถอดคอลัมน์ที่เข้ารหัสนอกแอป ให้ผู้ใช้รันเอง)
 │                              check-deploy.sh (ตรวจ stack ที่รันอยู่), check-cloudflare-ips.sh (เทียบช่วง IP Cloudflare ใน Caddyfile) — อ่านอย่างเดียว
 ├─ chatbot/                   Python/FastAPI (src layout): src/my_his_chatbot/{main,config,deps}.py + <ฟีเจอร์>/{router,service,
@@ -45,6 +46,8 @@ my-his/
 ├─ frontend/src/
 │  ├─ App.tsx                 รวม route ทุกหน้า
 │  ├─ components/ui/          คอมโพเนนต์ shadcn   components/layout/  ส่วนประกอบหน้าที่ใช้ร่วมกัน
+│  ├─ components/backdrop/    หน้าทางเข้า: EntryLayout (แผงเกลียว DNA สองฝั่ง), VitalsBand (หัวการ์ด monitor), MedicalBackdrop +
+│  │                          ฉาก Three.js โหลดแยก chunk — ดู docs/ui-3d-backdrop.md
 │  ├─ lib/                    api, วันที่, ไอคอน ฯลฯ
 │  └─ features/<ฟีเจอร์>/       1 ฟีเจอร์ = 1 โฟลเดอร์; ฟีเจอร์ที่มีหลายหน้าแยกโฟลเดอร์ย่อยต่อหน้า
 │                             (หน้า + dialog ของหน้านั้น) ส่วนไฟล์ที่ใช้ร่วมกันหลายหน้า (*Api.ts ฯลฯ) อยู่ที่ราก
@@ -196,4 +199,5 @@ session หมดอายุ, logout แล้วใช้ cookie เดิม�
 - `docs/auth-design.md` — โมเดล session, ตารางฐานข้อมูล, API, flow, การจัดการสิทธิ์
 - `docs/infrastructure.md` — การวาง container, network, backup, การตั้งค่าเครื่อง
 - `docs/security-audit.md` — ผล security audit 2 รอบ (รอบสองแก้แล้ว 2026-10-24), ข้อที่ยังเหลือ (Turnstile key จริง, Cloudflare + firewall origin, ยืนยัน IP จริงบนเครื่องจริง) และรายการตอน deploy
+- `docs/ui-3d-backdrop.md` — พื้นหลัง 3D หน้า login (และหน้าทางเข้าอื่นในอนาคต): แนวคิด, สี/ธีม, API, งบประสิทธิภาพ, checklist
 - `docs/rea.md` — กฎการใช้ REA (reverse engineering MCP): เป้าหมายที่ใช้ได้/ห้าม, ติดตั้ง/ถอน

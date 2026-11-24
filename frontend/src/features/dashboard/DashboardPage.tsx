@@ -1,87 +1,84 @@
-import type { ComponentType, SVGProps } from 'react'
-import { AlertTriangle, TrendingUp, Users } from 'lucide-react'
-import { Bar, BarChart, CartesianGrid, XAxis } from 'recharts'
+import { ChevronRight } from 'lucide-react'
+import { Link } from 'react-router'
 
 import { PageHeader } from '@/components/layout/PageHeader'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
-import type { ChartConfig } from '@/components/ui/chart'
 import { useAuth } from '@/features/auth/AuthContext'
-import { mockShiftChartData } from '@/mocks/fixtures'
+import { buildMenuTree } from '@/features/auth/menu'
+import type { MenuLink } from '@/features/auth/menu'
+import { useRolePreview } from '@/features/role-preview/RolePreviewContext'
+import { resolveIcon } from '@/lib/icons'
 
-const chartConfig = {
-  morning: { label: 'เวรเช้า', color: 'var(--chart-1)' },
-  afternoon: { label: 'เวรบ่าย', color: 'var(--chart-2)' },
-  night: { label: 'เวรดึก', color: 'var(--chart-3)' },
-} satisfies ChartConfig
+// หน้าแรกหลัง login = ทางลัดไปงานประจำ (PRODUCT.md: งานจบเร็วบนมือถือ มือเดียว) — รายการหน้าที่ผู้ใช้คนนี้เข้าได้จริง
+// จากเมนูเดียวกับ sidebar (effectiveMenu: สิทธิ์จริง หรือ role ที่กำลัง preview) จัดตามกลุ่มเมนู ไม่มีตัวเลขสรุป
+// จนกว่าจะมีข้อมูลจริงให้สรุป (ตารางเวร ฯลฯ) — ห้ามใส่ตัวเลข/กราฟตัวอย่างที่แต่งขึ้น
+const DASHBOARD_ROUTE = '/dashboard'
 
-// ตัวเลข mock ล้วน ๆ (ไม่ใช่ข้อมูลผู้ป่วย/ข้อมูลจริงใด ๆ — แค่ตัวเลขสรุปการเข้าเวรระดับภาพรวม
-// ตามขอบเขตข้อมูลของ CLAUDE.md) แสดงเป็นตัวอย่างว่าหน้า dashboard จริงจะมีโครงหน้าตาแบบนี้
-const stats: {
-  label: string
-  value: string
-  hint: string
-  icon: ComponentType<SVGProps<SVGSVGElement>>
-}[] = [
-  { label: 'พยาบาลเข้าเวรวันนี้', value: '12', hint: 'จากทั้งหมด 15 คน', icon: Users },
-  { label: 'เวรที่ยังไม่มีคนคุม', value: '2', hint: 'ในสัปดาห์นี้', icon: AlertTriangle },
-  { label: 'อัตราเข้าเวรเฉลี่ย', value: '94%', hint: '7 วันล่าสุด', icon: TrendingUp },
-]
+interface ShortcutGroup {
+  id: string
+  label: string | null
+  links: MenuLink[]
+}
 
-// กราฟ + stat card mockup ล้วน ๆ ตัวเลขคงที่จาก mocks/fixtures.ts ไม่ได้ผูกกับข้อมูลจริง เพราะยังไม่มี
-// ฟีเจอร์ตารางเวรจริงใน Milestone นี้ (auth/สิทธิ์เท่านั้น) — รอสลับเป็นของจริงตอนฟีเจอร์นั้นมาถึง
+function toGroups(tree: ReturnType<typeof buildMenuTree>): ShortcutGroup[] {
+  const groups: ShortcutGroup[] = []
+  // ลิงก์เดี่ยวชั้นบน (ไม่อยู่ในกลุ่ม) รวมเป็นกลุ่มแรกไม่มีหัวข้อ
+  const standalone: MenuLink[] = []
+  for (const { item, children } of tree) {
+    if (children.length === 0) {
+      if (item.route !== null && item.route !== DASHBOARD_ROUTE) {
+        standalone.push({ ...item, route: item.route })
+      }
+      continue
+    }
+    const links = children.filter((link) => link.route !== DASHBOARD_ROUTE)
+    if (links.length > 0) groups.push({ id: item.id, label: item.label, links })
+  }
+  return standalone.length > 0 ? [{ id: 'standalone', label: null, links: standalone }, ...groups] : groups
+}
+
 export function DashboardPage() {
   const { user } = useAuth()
+  const { effectiveMenu } = useRolePreview()
+  const groups = toGroups(buildMenuTree(effectiveMenu))
 
   return (
     <div className="flex flex-col gap-6">
-      {/* ชื่อหน้ามาจากการตั้งค่าเพจเหมือนหน้าอื่น — คำทักทายย้ายมาอยู่ในคำอธิบาย */}
       <PageHeader
         fallbackTitle="Dashboard"
-        description={`สวัสดี ${user?.displayName ?? user?.username ?? ''} — ภาพรวมคร่าว ๆ (mockup ยังไม่ผูกกับข้อมูลจริง)`}
+        description={`สวัสดี ${user?.displayName ?? user?.username ?? ''}`}
       />
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        {stats.map(({ label, value, hint, icon: Icon }) => (
-          <Card key={label}>
-            <CardContent className="flex items-start justify-between gap-3">
-              <div className="flex flex-col gap-1">
-                <p className="text-sm text-muted-foreground">{label}</p>
-                <p className="text-2xl font-semibold tracking-tight">{value}</p>
-                <p className="text-xs text-muted-foreground">{hint}</p>
-              </div>
-              <div className="rounded-lg bg-primary/10 p-2 text-primary">
-                <Icon className="size-4" />
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>จำนวนคนต่อเวรในสัปดาห์นี้</CardTitle>
-          <CardDescription>mockup — ยังไม่ผูกกับข้อมูลจริง</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ChartContainer config={chartConfig} className="max-h-[300px] w-full">
-            <BarChart data={mockShiftChartData}>
-              <CartesianGrid vertical={false} />
-              <XAxis dataKey="day" tickLine={false} axisLine={false} />
-              <ChartTooltip content={<ChartTooltipContent />} />
-              <Bar dataKey="morning" fill="var(--color-morning)" radius={4} />
-              <Bar dataKey="afternoon" fill="var(--color-afternoon)" radius={4} />
-              <Bar dataKey="night" fill="var(--color-night)" radius={4} />
-            </BarChart>
-          </ChartContainer>
-        </CardContent>
-      </Card>
+      {groups.length === 0 ? (
+        <p className="text-sm text-muted-foreground">ยังไม่มีหน้าที่บัญชีนี้เข้าได้ ติดต่อผู้ดูแลระบบเพื่อขอสิทธิ์</p>
+      ) : (
+        // จอกว้างวางกลุ่มเป็น 2 คอลัมน์ (กลุ่มไม่แตกกลางคอลัมน์) มือถือเรียงเป็นรายการเดียว
+        <div className="gap-x-8 md:columns-2">
+          {groups.map((group) => (
+            <section key={group.id} className="mb-6 break-inside-avoid">
+              {group.label && (
+                <h2 className="mb-1 px-3 text-xs font-medium text-muted-foreground">{group.label}</h2>
+              )}
+              <ul className="divide-y rounded-lg border">
+                {group.links.map((link) => {
+                  const Icon = resolveIcon(link.icon)
+                  return (
+                    <li key={link.id}>
+                      <Link
+                        to={link.route}
+                        className="flex min-h-12 items-center gap-3 px-3 text-sm transition-colors outline-none hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/50"
+                      >
+                        <Icon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+                        <span className="flex-1">{link.label}</span>
+                        <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+                      </Link>
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

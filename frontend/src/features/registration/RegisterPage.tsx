@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { CircleCheck, HeartPulse, Link2Off } from 'lucide-react'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useLocation, useNavigate } from 'react-router'
 import * as z from 'zod'
 
+import { EntryLayout } from '@/components/backdrop/EntryLayout'
+import { VitalsBand } from '@/components/backdrop/VitalsBand'
 import { PasswordInput } from '@/components/PasswordInput'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -63,28 +64,33 @@ type PageState =
   | { status: 'ready'; info: RegistrationInfo }
   | { status: 'done'; info: RegistrationInfo }
 
-function Shell({ children }: { children: ReactNode }) {
+// โครงเดียวกับหน้า login: แผงเกลียว DNA + ชื่อ my-his (EntryLayout) และการ์ดที่หัวเป็นแถบ monitor (VitalsBand)
+// busy = กำลังบันทึก, alertKey เปลี่ยน = บันทึกไม่สำเร็จ (เส้นกะพริบสีแดง) — ดู docs/ui-3d-backdrop.md
+function Shell({
+  children,
+  busy = false,
+  alertKey = 0,
+}: {
+  children: ReactNode
+  busy?: boolean
+  alertKey?: number
+}) {
   return (
-    <div
-      className="flex min-h-svh items-center justify-center bg-background p-4"
-      style={{
-        backgroundImage:
-          'radial-gradient(ellipse 80% 60% at 50% -10%, color-mix(in oklch, var(--primary) 18%, transparent), transparent 60%)',
-        backgroundRepeat: 'no-repeat',
-      }}
-    >
-      <Card className="w-full max-w-md">{children}</Card>
-    </div>
+    <EntryLayout>
+      <Card className="w-full max-w-md gap-5 pt-0">
+        <VitalsBand mode={busy ? 'busy' : 'rest'} alertKey={alertKey} />
+        {children}
+      </Card>
+    </EntryLayout>
   )
 }
 
 function Header({ title, description }: { title: string; description: ReactNode }) {
   return (
-    <CardHeader className="justify-items-center text-center">
-      <div className="mb-2 flex size-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-        <HeartPulse className="size-5" />
-      </div>
-      <CardTitle className="text-lg font-semibold">{title}</CardTitle>
+    <CardHeader>
+      <CardTitle className="text-lg font-semibold">
+        <h1>{title}</h1>
+      </CardTitle>
       <CardDescription>{description}</CardDescription>
     </CardHeader>
   )
@@ -135,10 +141,9 @@ export function RegisterPage() {
     return (
       <Shell>
         <Header title="ลิงก์ใช้ไม่ได้" description="ลิงก์ไม่ถูกต้อง หมดอายุ หรือถูกใช้ไปแล้ว" />
-        <CardContent className="flex flex-col items-center gap-3 text-center text-sm text-muted-foreground">
-          <Link2Off className="size-8" />
+        <CardContent className="flex flex-col items-start gap-4 text-sm text-muted-foreground">
           <p>ขอลิงก์ใหม่จากผู้ดูแลระบบ (ลิงก์ใช้ได้ครั้งเดียว และหมดอายุใน 3 วันหลังออกให้)</p>
-          <Button variant="outline" onClick={() => navigate('/login')}>
+          <Button variant="outline" className="h-10" onClick={() => navigate('/login')}>
             ไปหน้าเข้าสู่ระบบ
           </Button>
         </CardContent>
@@ -172,6 +177,8 @@ function RegisterForm({ token, info, onDone, onInvalid }: RegisterFormProps) {
   const isRegister = info.mode === 'register'
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  // เพิ่มทุกครั้งที่บันทึกไม่สำเร็จ → แถบ monitor กะพริบสีแดงหนึ่งครั้ง
+  const [alertKey, setAlertKey] = useState(0)
 
   // คำนำหน้าเดิม (ถ้าแอดมินกรอกไว้ก่อน) ต้องยังอยู่ในตัวเลือก
   const initialPrename =
@@ -212,6 +219,7 @@ function RegisterForm({ token, info, onDone, onInvalid }: RegisterFormProps) {
         return
       }
       setSubmitError(registrationErrorMessage(err))
+      setAlertKey((n) => n + 1)
     } finally {
       setIsSubmitting(false)
     }
@@ -233,6 +241,7 @@ function RegisterForm({ token, info, onDone, onInvalid }: RegisterFormProps) {
             id={`register-${name}`}
             autoComplete={autoComplete}
             aria-invalid={fieldState.invalid}
+            className="h-10"
           />
           {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
         </Field>
@@ -252,6 +261,7 @@ function RegisterForm({ token, info, onDone, onInvalid }: RegisterFormProps) {
             id={`register-${name}`}
             autoComplete="new-password"
             aria-invalid={fieldState.invalid}
+            className="h-10"
           />
           {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
         </Field>
@@ -260,12 +270,12 @@ function RegisterForm({ token, info, onDone, onInvalid }: RegisterFormProps) {
   )
 
   return (
-    <Shell>
+    <Shell busy={isSubmitting} alertKey={alertKey}>
       <Header
         title={isRegister ? 'ลงทะเบียนผู้ใช้งาน' : 'ตั้งรหัสผ่านใหม่'}
         description={
           <>
-            บัญชี <span className="font-mono text-foreground">{info.username}</span> ({info.displayName})
+            บัญชี <span className="font-medium text-foreground">{info.username}</span> ({info.displayName})
             <br />
             ลิงก์ใช้ได้ครั้งเดียว ถึง {formatThaiDateTime(info.expiresAt)}
           </>
@@ -284,7 +294,12 @@ function RegisterForm({ token, info, onDone, onInvalid }: RegisterFormProps) {
                   render={({ field, fieldState }) => (
                     <Field data-invalid={fieldState.invalid}>
                       <FieldLabel htmlFor="register-prename">คำนำหน้า</FieldLabel>
-                      <NativeSelect {...field} id="register-prename" aria-invalid={fieldState.invalid}>
+                      <NativeSelect
+                        {...field}
+                        id="register-prename"
+                        aria-invalid={fieldState.invalid}
+                        className="h-10"
+                      >
                         <option value="">— เลือก —</option>
                         {info.prenames.map((prename) => (
                           <option key={prename.id} value={prename.id}>
@@ -306,14 +321,14 @@ function RegisterForm({ token, info, onDone, onInvalid }: RegisterFormProps) {
             {passwordField('newPassword', `รหัสผ่าน (อย่างน้อย ${MIN_PASSWORD_LENGTH} ตัวอักษร)`)}
             {passwordField('confirmPassword', 'ยืนยันรหัสผ่าน')}
             <FieldDescription>
-              ตั้งเองและจำไว้ — ผู้ดูแลระบบมองไม่เห็นรหัสผ่านของคุณ ถ้าลืมให้ขอลิงก์ตั้งรหัสใหม่
+              ตั้งเองและจำไว้ ผู้ดูแลระบบมองไม่เห็นรหัสผ่านของคุณ ถ้าลืมให้ขอลิงก์ตั้งรหัสใหม่
             </FieldDescription>
             {submitError && (
               <Field data-invalid>
                 <FieldError>{submitError}</FieldError>
               </Field>
             )}
-            <Button type="submit" disabled={isSubmitting} className="w-full">
+            <Button type="submit" disabled={isSubmitting} className="h-10 w-full">
               {isSubmitting ? 'กำลังบันทึก...' : isRegister ? 'ลงทะเบียน' : 'ตั้งรหัสผ่านใหม่'}
             </Button>
           </FieldGroup>
@@ -340,18 +355,17 @@ function DoneView({ info }: { info: RegistrationInfo }) {
         title={info.mode === 'register' ? 'ลงทะเบียนสำเร็จ' : 'ตั้งรหัสผ่านใหม่แล้ว'}
         description="เข้าสู่ระบบด้วยชื่อผู้ใช้และรหัสผ่านที่เพิ่งตั้งได้เลย"
       />
-      <CardContent className="flex flex-col items-center gap-3 text-center text-sm">
-        <CircleCheck className="size-8 text-success-ink" />
+      <CardContent className="flex flex-col gap-4 text-sm">
         <p>
-          ชื่อผู้ใช้: <span className="font-mono font-medium">{info.username}</span>
+          ชื่อผู้ใช้ <span className="font-medium">{info.username}</span>
         </p>
         {otherAccount && (
           <p className="text-muted-foreground">
-            เบราว์เซอร์นี้เข้าสู่ระบบด้วยบัญชี <span className="font-mono">{user?.username}</span> อยู่ —
+            เบราว์เซอร์นี้เข้าสู่ระบบด้วยบัญชี <span className="font-medium">{user?.username}</span> อยู่
             ปุ่มด้านล่างจะออกจากระบบบัญชีนั้นก่อน
           </p>
         )}
-        <Button className="w-full" onClick={() => void goToLogin()}>
+        <Button className="h-10 w-full" onClick={() => void goToLogin()}>
           {otherAccount ? 'ออกจากระบบแล้วไปหน้าเข้าสู่ระบบ' : 'ไปหน้าเข้าสู่ระบบ'}
         </Button>
       </CardContent>

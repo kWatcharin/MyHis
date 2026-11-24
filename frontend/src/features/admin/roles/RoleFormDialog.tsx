@@ -143,7 +143,7 @@ export function RoleFormDialog({
                   <Field>
                     <FieldLabel>สิทธิ์</FieldLabel>
                     <FieldDescription>
-                      แยกตามเพจ — ติ๊ก เพิ่ม/แก้ไข/ลบ/ส่งออก แล้วจะติ๊ก &quot;ดู&quot; ให้อัตโนมัติ
+                      แยกตามเพจ ติ๊ก เพิ่ม/แก้ไข/ลบ/ส่งออก แล้วจะติ๊ก &quot;ดู&quot; ให้อัตโนมัติ
                     </FieldDescription>
                     <div className="flex flex-col gap-4">
                       {permissionGroups.map((group) => (

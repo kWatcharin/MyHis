@@ -1,4 +1,4 @@
-import { CircleAlert, Inbox, SearchX } from 'lucide-react'
+import { CircleAlert } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { Skeleton } from '@/components/ui/skeleton'
@@ -13,10 +13,9 @@ interface ListStateProps {
   children?: ReactNode
 }
 
-const ICONS = { empty: Inbox, noMatch: SearchX, error: CircleAlert }
-
 // สถานะของรายการในการ์ดตาราง ใช้ร่วมกันทุกหน้ารายการ — โหลด = แถว skeleton รูปทรงเดียวกับตาราง
-// (ไม่ใช่ spinner กลางจอ) ข้อความยังมองเห็นได้, ว่าง/ไม่พบ/ผิดพลาด = ไอคอน + ข้อความของหน้านั้น ๆ
+// (ไม่ใช่ spinner กลางจอ) ข้อความยังมองเห็นได้, ว่าง/ไม่พบ = ข้อความของหน้านั้น ๆ อย่างเดียว (ข้อความบอกวิธีทำต่อเอง
+// ไม่ต้องมีไอคอนในวงกลมประดับ), ผิดพลาด = ไอคอนเตือนเล็กหน้าข้อความ สี danger-ink
 export function ListState({ kind, children }: ListStateProps) {
   if (kind === 'loading') {
     return (
@@ -31,23 +30,16 @@ export function ListState({ kind, children }: ListStateProps) {
     )
   }
 
-  const Icon = ICONS[kind]
   const isError = kind === 'error'
   return (
-    <div
-      role={isError ? 'alert' : undefined}
-      className="flex flex-col items-center gap-3 px-4 py-10 text-center"
-    >
-      <span
-        aria-hidden
+    <div role={isError ? 'alert' : undefined} className="flex justify-center px-4 py-8 text-center">
+      <p
         className={cn(
-          'flex size-10 items-center justify-center rounded-full',
-          isError ? 'bg-danger/15 text-danger-ink' : 'bg-muted text-muted-foreground',
+          'max-w-md text-sm text-pretty',
+          isError ? 'text-danger-ink' : 'text-muted-foreground',
         )}
       >
-        <Icon className="size-5" />
-      </span>
-      <p className={cn('max-w-md text-sm', isError ? 'text-danger-ink' : 'text-muted-foreground')}>
+        {isError && <CircleAlert aria-hidden className="mr-1.5 inline size-4 align-[-0.2em]" />}
         {children}
       </p>
     </div>
