@@ -93,7 +93,7 @@ export function LabVisitGroupsPage() {
       throw new Error(labVisitErrorMessage(err))
     }
     if (createdId) {
-      notify.created('สร้างนัดหมายแล้ว — เพิ่มคนไข้เข้านัดหมายได้เลย')
+      notify.created('สร้างนัดหมายแล้ว เพิ่มคนไข้เข้านัดหมายได้เลย')
       navigate(`/lab/appointments/${createdId}`)
       return
     }
@@ -120,7 +120,7 @@ export function LabVisitGroupsPage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         fallbackTitle="นัดหมายแล็ป"
-        description="นัดตรวจ CD4/VL ของกลุ่มคนไข้ต่อปีงบประมาณ — กด “ดูรายชื่อ” เพื่อเพิ่ม/แก้ไขคนไข้และส่งออกเอกสาร"
+        description="นัดตรวจ CD4/VL ของกลุ่มคนไข้ต่อปีงบประมาณ กด &quot;ดูรายชื่อ&quot; เพื่อเพิ่ม/แก้ไขคนไข้และส่งออกเอกสาร"
       />
 
       <SearchForm
@@ -158,7 +158,7 @@ export function LabVisitGroupsPage() {
           )}
           {status === 'ready' && items.length > 0 && visibleItems.length === 0 && (
             <ListState kind="noMatch">
-              ไม่พบนัดหมายที่ตรงกับเงื่อนไข — กด &quot;ล้างข้อมูล&quot; เพื่อดูทั้งหมด
+              ไม่พบนัดหมายที่ตรงกับเงื่อนไข กด &quot;ล้างข้อมูล&quot; เพื่อดูทั้งหมด
             </ListState>
           )}
           {status === 'ready' && visibleItems.length > 0 && (

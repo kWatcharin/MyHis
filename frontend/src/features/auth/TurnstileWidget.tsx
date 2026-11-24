@@ -111,7 +111,7 @@ export function TurnstileWidget({ siteKey, action, onToken }: TurnstileWidgetPro
       <div ref={containerRef} className="flex w-full justify-center" />
       {loadFailed && (
         <p className="text-center text-sm text-destructive">
-          โหลดตัวตรวจสอบความปลอดภัยไม่สำเร็จ — ตรวจการเชื่อมต่อแล้วรีเฟรชหน้า
+          โหลดตัวตรวจสอบความปลอดภัยไม่สำเร็จ ตรวจการเชื่อมต่อแล้วรีเฟรชหน้า
         </p>
       )}
     </div>

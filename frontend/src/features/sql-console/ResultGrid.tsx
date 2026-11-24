@@ -22,10 +22,10 @@ function ColumnHeader({ column }: { column: ResultColumn }) {
       ? {
           icon: Lock,
           className: 'text-muted-foreground',
-          title: 'ข้อมูลเข้ารหัส — ติ๊ก "ถอดรหัสข้อมูลผู้ป่วย" เพื่อดูค่าจริง',
+          title: 'ข้อมูลเข้ารหัส ติ๊ก "ถอดรหัสข้อมูลผู้ป่วย" เพื่อดูค่าจริง',
         }
       : !column.supported
-        ? { icon: TriangleAlert, className: 'text-warning-ink', title: 'ชนิดนี้ยังแสดงไม่ได้ — ใส่ ::text ต่อท้ายคอลัมน์' }
+        ? { icon: TriangleAlert, className: 'text-warning-ink', title: 'ชนิดนี้ยังแสดงไม่ได้ ใส่ ::text ต่อท้ายคอลัมน์' }
         : null
   const Icon = note?.icon
   return (

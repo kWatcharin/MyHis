@@ -66,7 +66,7 @@ function changePasswordErrorMessage(err: unknown): string {
       return `รหัสผ่านใหม่ต้องยาวอย่างน้อย ${MIN_PASSWORD_LENGTH} ตัวอักษร`
     }
     if (err.message === 'not authenticated') {
-      return 'เซสชันหมดอายุ — ออกจากระบบแล้วเข้าสู่ระบบใหม่อีกครั้ง'
+      return 'เซสชันหมดอายุ ออกจากระบบแล้วเข้าสู่ระบบใหม่อีกครั้ง'
     }
   }
   return 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง'
@@ -94,7 +94,7 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
   const handleSubmit = form.handleSubmit(async (values) => {
     try {
       await changePassword(values.currentPassword, values.newPassword)
-      notify.updated('เปลี่ยนรหัสผ่านแล้ว — อุปกรณ์อื่นที่เข้าสู่ระบบไว้ถูกออกจากระบบ')
+      notify.updated('เปลี่ยนรหัสผ่านแล้ว อุปกรณ์อื่นที่เข้าสู่ระบบไว้ถูกออกจากระบบ')
       onOpenChange(false)
     } catch (err) {
       form.setError('root', { message: changePasswordErrorMessage(err) })
@@ -131,7 +131,7 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
           <DialogTitle>เปลี่ยนรหัสผ่าน</DialogTitle>
           <DialogDescription>
             {user?.mustChangePassword
-              ? 'คุณยังใช้รหัสผ่านชั่วคราวที่แอดมินตั้งให้ — ควรเปลี่ยนเป็นรหัสของตัวเอง'
+              ? 'คุณยังใช้รหัสผ่านชั่วคราวที่แอดมินตั้งให้ ควรเปลี่ยนเป็นรหัสของตัวเอง'
               : `รหัสผ่านใหม่ยาวอย่างน้อย ${MIN_PASSWORD_LENGTH} ตัวอักษร`}
           </DialogDescription>
         </DialogHeader>

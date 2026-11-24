@@ -73,7 +73,7 @@ export function StockReceiptHeaderDialog({ receipt, onOpenChange, onSubmit }: St
         <DialogHeader>
           <DialogTitle>แก้ไขใบรับ {receipt?.docNo}</DialogTitle>
           <DialogDescription>
-            แก้ได้เฉพาะข้อความหัวใบ — ถ้าจำนวน/ล็อต/วันที่ผิด ให้ยกเลิกใบนี้แล้วบันทึกใบใหม่
+            แก้ได้เฉพาะข้อความหัวใบ ถ้าจำนวน/ล็อต/วันที่ผิด ให้ยกเลิกใบนี้แล้วบันทึกใบใหม่
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>

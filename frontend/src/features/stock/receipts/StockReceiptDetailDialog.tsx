@@ -59,7 +59,7 @@ export function StockReceiptDetailDialog({
             {shown.cancelledAt && (
               <div className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm">
                 <p className="font-medium text-danger-ink">
-                  ยกเลิกแล้ว — ยอดของใบนี้ถูกกลับรายการออกจากคลัง
+                  ยกเลิกแล้ว ยอดของใบนี้ถูกกลับรายการออกจากคลัง
                 </p>
                 <p className="text-muted-foreground">
                   โดย {shown.cancelledByName ?? '—'} · {formatThaiDateTime(shown.cancelledAt)}

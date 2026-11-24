@@ -274,11 +274,11 @@ export function LabVisitGroupDetailPage() {
   const handlePdf = (kind: LabDocumentKind) => {
     const printWindow = window.open(`/lab/appointments/${seg(id)}/print?doc=${kind}`, '_blank')
     if (!printWindow) {
-      notify.error('เบราว์เซอร์บล็อกหน้าต่างใหม่ — อนุญาต pop-up ของเว็บนี้แล้วลองอีกครั้ง')
+      notify.error('เบราว์เซอร์บล็อกหน้าต่างใหม่ อนุญาต pop-up ของเว็บนี้แล้วลองอีกครั้ง')
       return
     }
     printWindow.opener = null
-    notify.exported('เปิดหน้าพิมพ์แล้ว — เลือก “บันทึกเป็น PDF” ในหน้าต่างพิมพ์')
+    notify.exported('เปิดหน้าพิมพ์แล้ว เลือก "บันทึกเป็น PDF" ในหน้าต่างพิมพ์')
   }
 
   const backButton = (
@@ -289,11 +289,14 @@ export function LabVisitGroupDetailPage() {
   )
   const maskLabel = maskIdentity ? 'แสดงชื่อ, HN, NAP NO' : 'ซ่อนชื่อ, HN, NAP NO'
 
+  // สถานะที่ยังไม่มีข้อมูลกลุ่มใช้หัวหน้าเดียวกับสถานะปกติ (ชื่อเพจจากเมนู) ให้หน้ามี h1 และรู้ว่าอยู่หน้าไหนเสมอ
+  const plainHeader = <PageHeader fallbackTitle="นัดหมายแล็ป" />
   if (!canViewPatients) {
     return (
       <div className="flex flex-col items-start gap-4">
+        {plainHeader}
         <p className="text-sm text-muted-foreground">
-          รายชื่อในนัดหมายแสดงชื่อ/HN จากทะเบียนผู้ป่วย — ต้องมีสิทธิ์ &quot;ดู&quot; ผู้ป่วยด้วยถึงจะเปิดหน้านี้ได้
+          รายชื่อในนัดหมายแสดงชื่อ/HN จากทะเบียนผู้ป่วย ต้องมีสิทธิ์ &quot;ดู&quot; ผู้ป่วยด้วยถึงจะเปิดหน้านี้ได้
           (ตั้งได้ที่หน้าการตั้งค่าสิทธิ์)
         </p>
         {backButton}
@@ -302,11 +305,17 @@ export function LabVisitGroupDetailPage() {
   }
   const shownStatus: LoadStatus = validId ? status : 'notFound'
   if (shownStatus === 'loading') {
-    return <ListState kind="loading" />
+    return (
+      <div className="flex flex-col gap-4">
+        {plainHeader}
+        <ListState kind="loading" />
+      </div>
+    )
   }
   if (shownStatus === 'notFound' || shownStatus === 'error' || !detail) {
     return (
       <div className="flex flex-col items-start gap-4">
+        {plainHeader}
         <p className={shownStatus === 'notFound' ? 'text-sm text-muted-foreground' : 'text-sm text-destructive'}>
           {shownStatus === 'notFound'
             ? 'ไม่พบนัดหมายนี้ (อาจถูกลบไปแล้ว)'
@@ -396,7 +405,7 @@ export function LabVisitGroupDetailPage() {
           )}
           {joined.length > 0 && visibleRows.length === 0 && (
             <ListState kind="noMatch">
-              ไม่พบคนไข้ที่ตรงกับเงื่อนไข — กด &quot;ล้างข้อมูล&quot; เพื่อดูทั้งหมด
+              ไม่พบคนไข้ที่ตรงกับเงื่อนไข กด &quot;ล้างข้อมูล&quot; เพื่อดูทั้งหมด
             </ListState>
           )}
           {visibleRows.length > 0 && (

@@ -17,6 +17,7 @@
 | Database | PostgreSQL 16 | |
 | Reverse proxy | Caddy | จัดการ TLS อัตโนมัติ |
 | Frontend | ยังไม่ตัดสินใจ | เน้นใช้งานบนมือถือ |
+| Chatbot | Python 3.14 + FastAPI | service แยก `chatbot/` (วางโครง): uv, ruff, pyrefly, pytest, pydantic-settings, httpx, psycopg 3, gunicorn + uvicorn worker — เรียกได้จาก backend เท่านั้น |
 | Deploy | Docker Compose บนเซิร์ฟเวอร์เดียว | |
 
 Cache และ message queue **ยังไม่ใช้** อย่าเพิ่มเข้ามาจนกว่าจะมีปัญหาจริงที่แก้ด้วยวิธีอื่นไม่ได้
@@ -31,15 +32,22 @@ my-his/
 ├─ .env.example
 ├─ docs/
 │  ├─ rust-guidelines.md       กฎการเขียน Rust ของโปรเจกต์ (อ่านก่อนเขียนโค้ด)
+│  ├─ python-guidelines.md     กฎการเขียน Python ของ chatbot/ (เลขข้อตรงกับ rust-guidelines; อ่านก่อนแตะ chatbot/)
 │  ├─ auth-design.md           ดีไซน์ระบบ auth ฉบับละเอียด
 │  ├─ inventory-design.md      ระบบคลัง: master + ล็อต/ledger/รับเข้า ทำแล้ว, เบิก/นับ/ปรับ ยังเป็นร่าง (อ่านก่อนแตะโมดูล item*/stock)
 │  ├─ infrastructure.md        การวาง container, backup, ความปลอดภัยของเครื่อง
-│  └─ security-audit.md        สรุปผล security audit (2026-10-21): สิ่งที่แก้แล้ว, ที่เหลือ, สิ่งที่ต้องทำตอน deploy
+│  ├─ security-audit.md        สรุปผล security audit (2026-10-21): สิ่งที่แก้แล้ว, ที่เหลือ, สิ่งที่ต้องทำตอน deploy
+│  └─ ui-3d-backdrop.md        พื้นหลัง 3D (Three.js DNA helix) ของหน้าทางเข้า: ใช้ที่ไหน/ห้ามใช้, สีตามธีม, งบประสิทธิภาพ, checklist
 ├─ ops/                        Caddyfile, สคริปต์ backup/restore, patient_decrypt.py (ถอดคอลัมน์ที่เข้ารหัสนอกแอป ให้ผู้ใช้รันเอง)
 │                              check-deploy.sh (ตรวจ stack ที่รันอยู่), check-cloudflare-ips.sh (เทียบช่วง IP Cloudflare ใน Caddyfile) — อ่านอย่างเดียว
+├─ chatbot/                   Python/FastAPI (src layout): src/my_his_chatbot/{main,config,deps}.py + <ฟีเจอร์>/{router,service,
+│                             repository,schemas}.py, db/pool.py (psycopg async — เปิดเมื่อตั้ง CHATBOT_DATABASE_URL),
+│                             scripts/dev.py (dev server), tests/ — ได้ env เฉพาะ CHATBOT_*; อยู่วง `chat` กับ backend เท่านั้น
 ├─ frontend/src/
 │  ├─ App.tsx                 รวม route ทุกหน้า
 │  ├─ components/ui/          คอมโพเนนต์ shadcn   components/layout/  ส่วนประกอบหน้าที่ใช้ร่วมกัน
+│  ├─ components/backdrop/    หน้าทางเข้า: EntryLayout (แผงเกลียว DNA สองฝั่ง), VitalsBand (หัวการ์ด monitor), MedicalBackdrop +
+│  │                          ฉาก Three.js โหลดแยก chunk — ดู docs/ui-3d-backdrop.md
 │  ├─ lib/                    api, วันที่, ไอคอน ฯลฯ
 │  └─ features/<ฟีเจอร์>/       1 ฟีเจอร์ = 1 โฟลเดอร์; ฟีเจอร์ที่มีหลายหน้าแยกโฟลเดอร์ย่อยต่อหน้า
 │                             (หน้า + dialog ของหน้านั้น) ส่วนไฟล์ที่ใช้ร่วมกันหลายหน้า (*Api.ts ฯลฯ) อยู่ที่ราก
@@ -88,6 +96,7 @@ my-his/
 ## กฎการเขียนโค้ดที่ต้องยึด
 
 มาตรฐานการเขียน Rust ฉบับเต็มอยู่ใน `docs/rust-guidelines.md` **อ่านก่อนเขียนหรือแก้โค้ดทุกครั้ง**
+โค้ด Python ใน `chatbot/` ใช้ `docs/python-guidelines.md` (โครงเดียวกัน เลขข้อตรงกัน) **อ่านก่อนเขียนหรือแก้ทุกครั้ง**
 ข้างล่างนี้คือกฎระดับโครงสร้างที่เฉพาะกับโปรเจกต์นี้
 
 **แบ่งโมดูลตามฟีเจอร์ ไม่ใช่ตามชนิดไฟล์** ทุกอย่างของ auth อยู่ใน `auth/` ไม่มีโฟลเดอร์ `handlers/` หรือ `services/` ที่รวมทุกฟีเจอร์
@@ -123,6 +132,9 @@ my-his/
   ประชาชน ดูหัวข้อถัดไป
 - อย่า log หรือใส่ใน `audit_log.metadata`/error message ซึ่ง plaintext หรือ ciphertext ของข้อมูลผู้ป่วย
   และ key เข้ารหัส (`DATA_ENCRYPTION_KEY`, `BLIND_INDEX_KEY`)
+- **chatbot: ต้องผ่าน `pyrefly check` ก่อนรันโค้ดทุกครั้ง** รันได้เฉพาะ `uv run python scripts/dev.py`, `uv run pytest`
+  (ทั้งคู่ตรวจ pyrefly ก่อนเอง) และ image จาก `chatbot/Dockerfile` (builder ตรวจ ruff + pyrefly) — ห้าม `uv run uvicorn`/`python -m`
+  ตรง ๆ และห้ามแก้ด่านให้ข้ามได้; dependency Python เพิ่มด้วย `uv add` หลังถามก่อนเท่านั้น
 - **อย่า `git commit` จนกว่าผู้ใช้จะบอกให้ commit** แก้ไฟล์/`git add` ได้ตามปกติ แต่ห้ามสั่ง commit เองจนกว่าจะได้รับคำสั่งชัดเจน
 - **ตารางใหม่หรือคอลัมน์ลับใหม่** (hash, token, รหัส): ตัดสินใจทุกครั้งว่าหน้า SQL เห็นไหม — ตารางใหม่มองไม่เห็นจนกว่าจะเพิ่มใน
   `READABLE_TABLES`, คอลัมน์ลับในตารางที่อ่านได้ต้องเพิ่มใน `HIDDEN_COLUMNS` (`backend/src/sql_console/setup.rs`) ไม่งั้นถูก grant
@@ -163,6 +175,13 @@ cargo run
 cargo test
 cargo clippy --all-targets -- -D warnings
 cargo fmt
+
+# chatbot (ใน chatbot/) — pyrefly ต้องผ่านก่อนรันทุกครั้ง
+uv sync
+uv run ruff format && uv run ruff check
+uv run pyrefly check
+uv run pytest                  # ตรวจ pyrefly ก่อนรันเทสเอง
+uv run python scripts/dev.py   # dev server 127.0.0.1:8082 (ตรวจ pyrefly ก่อน start)
 ```
 
 ## การทดสอบ
@@ -175,7 +194,10 @@ session หมดอายุ, logout แล้วใช้ cookie เดิม�
 ## เอกสารอื่น
 
 - `docs/rust-guidelines.md` — กฎการเขียน Rust: error, async, SQLx, log, เทส, สิ่งที่ยังไม่ต้องทำ
+- `docs/python-guidelines.md` — กฎการเขียน Python ของ chatbot (เลขข้อตรงกับฉบับ Rust) + ด่านบังคับ pyrefly
+- `chatbot/README.md` — วิธีรัน/เช็ก chatbot และงานถัดไป (proxy ใน backend, role DB, ผู้ให้บริการ LLM)
 - `docs/auth-design.md` — โมเดล session, ตารางฐานข้อมูล, API, flow, การจัดการสิทธิ์
 - `docs/infrastructure.md` — การวาง container, network, backup, การตั้งค่าเครื่อง
 - `docs/security-audit.md` — ผล security audit 2 รอบ (รอบสองแก้แล้ว 2026-10-24), ข้อที่ยังเหลือ (Turnstile key จริง, Cloudflare + firewall origin, ยืนยัน IP จริงบนเครื่องจริง) และรายการตอน deploy
+- `docs/ui-3d-backdrop.md` — พื้นหลัง 3D หน้า login (และหน้าทางเข้าอื่นในอนาคต): แนวคิด, สี/ธีม, API, งบประสิทธิภาพ, checklist
 - `docs/rea.md` — กฎการใช้ REA (reverse engineering MCP): เป้าหมายที่ใช้ได้/ห้าม, ติดตั้ง/ถอน

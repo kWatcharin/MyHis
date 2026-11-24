@@ -29,8 +29,10 @@ use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio::time::{Instant, Sleep};
 
-/// connection พร้อมกันสูงสุด (Caddy ชั้นในเปิดแค่ไม่กี่สิบ) — เกินนี้รอใน backlog
-pub const MAX_CONNECTIONS: usize = 512;
+/// connection พร้อมกันสูงสุด — peer มีแค่ Caddy ชั้นใน ซึ่งจำกัดไว้ที่ `max_conns_per_host 64` ต่อ `reverse_proxy` 2 ตัว
+/// (frontend/Caddyfile) รวมไม่เกินค่านี้พอดี ต้องแก้คู่กัน เกินนี้รอใน backlog
+/// เพดานนี้คุม body ที่ buffer พร้อมกันด้วย: 128 × 256 KiB (`app.rs` MAX_BODY_BYTES) = 32 MiB (docs/memory-optimization.md ข้อ 4.3)
+pub const MAX_CONNECTIONS: usize = 128;
 
 /// เวลาที่ connection ไม่มีความคืบหน้าเลยก่อนถูกตัด — ต้องมากกว่า idle ของ upstream ใน Caddy (ดูหัวไฟล์)
 pub const IDLE_TIMEOUT: Duration = Duration::from_secs(300);

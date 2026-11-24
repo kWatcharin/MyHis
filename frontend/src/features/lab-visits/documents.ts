@@ -16,7 +16,7 @@ export const LAB_DOCUMENTS: Record<LabDocumentKind, { title: string; description
   },
   roster: {
     title: 'ใบรายชื่อนัดรับยา',
-    description: 'HN ชื่อ NAP NO — น้ำหนัก ความดัน รายการแลป หมายเหตุ เว้นไว้เขียนมือ',
+    description: 'HN ชื่อ NAP NO และช่องน้ำหนัก ความดัน รายการแลป หมายเหตุ เว้นไว้เขียนมือ',
   },
 }
 

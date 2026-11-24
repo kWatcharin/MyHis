@@ -164,7 +164,7 @@ export function BudgetYearsSettingsPage() {
           )}
           {status === 'ready' && items.length > 0 && visibleItems.length === 0 && (
             <ListState kind="noMatch">
-              ไม่พบปีงบประมาณที่ตรงกับเงื่อนไข — กด &quot;ล้างข้อมูล&quot; เพื่อดูทั้งหมด
+              ไม่พบปีงบประมาณที่ตรงกับเงื่อนไข กด &quot;ล้างข้อมูล&quot; เพื่อดูทั้งหมด
             </ListState>
           )}
           {status === 'ready' && visibleItems.length > 0 && (

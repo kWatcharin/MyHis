@@ -46,11 +46,21 @@
 		# X-Forwarded-For ตัวเดียวให้ backend (ประวัติการเข้าออกใช้ค่าขวาสุด — auth/handlers.rs client_ip) ไม่งั้น Caddy ชั้นนี้
 		# จะเขียน XFF เป็น IP ของ Caddy หน้าบ้านซึ่งเป็นค่าเดียวกันทุกคน; พอร์ตนี้ไม่ publish ออกนอก network ภายใน
 		# (ถ้าเข้าตรงโดยไม่ผ่านหน้าบ้าน เช่นตอน dev ไม่มี X-Real-IP ก็ใช้พฤติกรรมปริยายของ Caddy)
+		#
+		# max_conns_per_host 64 ต่อ reverse_proxy (2 ตัว รวม 128) = conn_guard::MAX_CONNECTIONS ของ backend ต้องแก้คู่กัน — ครบแล้ว
+		# Caddy รอคิวคำขอเอง แทนที่จะไปค้างใน backlog ของ kernel ฝั่ง backend (docs/memory-optimization.md ข้อ 4.3)
 		@via_front header X-Real-IP *
 		reverse_proxy @via_front backend:8080 {
 			header_up X-Forwarded-For {http.request.header.X-Real-IP}
+			transport http {
+				max_conns_per_host 64
+			}
 		}
-		reverse_proxy backend:8080
+		reverse_proxy backend:8080 {
+			transport http {
+				max_conns_per_host 64
+			}
+		}
 	}
 
 	handle {

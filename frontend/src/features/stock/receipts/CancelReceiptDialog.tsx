@@ -62,7 +62,7 @@ export function CancelReceiptDialog({ receipt, onOpenChange, onConfirm }: Cancel
           <AlertDialogTitle>ยกเลิกใบรับ {receipt?.docNo}</AlertDialogTitle>
           <AlertDialogDescription>
             ระบบจะลงรายการกลับยอดของทุกบรรทัดในใบนี้ออกจากคลัง (ใบเดิมยังอยู่ในรายการพร้อมสถานะยกเลิก)
-            ยกเลิกแล้วทำย้อนไม่ได้ — ถ้าของถูกเบิกไปแล้วบางส่วนจะยกเลิกไม่ได้
+            ยกเลิกแล้วทำย้อนไม่ได้ ถ้าของถูกเบิกไปแล้วบางส่วนจะยกเลิกไม่ได้
           </AlertDialogDescription>
         </AlertDialogHeader>
         <Field data-invalid={error !== null}>

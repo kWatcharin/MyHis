@@ -218,7 +218,7 @@ export const itemCategoryConfig: MasterConfig<ItemCategory> = {
   resource: 'item_category',
   title: 'ตั้งค่าหมวดคลัง',
   description:
-    'หมวดของรายการคลัง เช่น ยา เวชภัณฑ์สิ้นเปลือง วัสดุแล็บ — การติดตามของหมวดเป็นค่าตั้งต้นตอนเพิ่มรายการใหม่',
+    'หมวดของรายการคลัง เช่น ยา เวชภัณฑ์สิ้นเปลือง วัสดุแล็บ (การติดตามของหมวดเป็นค่าตั้งต้นตอนเพิ่มรายการใหม่)',
   entityLabel: 'หมวด',
   api: createMasterApi<ItemCategory>('/item-categories'),
   columns: [
@@ -240,7 +240,7 @@ export const itemCategoryConfig: MasterConfig<ItemCategory> = {
       name: 'defaultTrackLot',
       label: 'ติดตามล็อต',
       defaultValue: false,
-      description: 'ค่าตั้งต้นของรายการใหม่ในหมวดนี้ — แก้ภายหลังไม่เปลี่ยนรายการที่มีอยู่แล้ว',
+      description: 'ค่าตั้งต้นของรายการใหม่ในหมวดนี้ แก้ภายหลังไม่เปลี่ยนรายการที่มีอยู่แล้ว',
     },
     {
       kind: 'checkbox',
@@ -287,7 +287,7 @@ export const itemUnitConfig: MasterConfig<ItemUnit> = {
   resource: 'item_unit',
   title: 'ตั้งค่าหน่วยนับ',
   description:
-    'หน่วยนับของรายการคลัง เช่น เม็ด แผง กล่อง — 1 กล่องเท่ากับกี่เม็ด ตั้งที่หน้ารายการคลังของแต่ละรายการ',
+    'หน่วยนับของรายการคลัง เช่น เม็ด แผง กล่อง (1 กล่องเท่ากับกี่เม็ด ตั้งที่หน้ารายการคลังของแต่ละรายการ)',
   entityLabel: 'หน่วยนับ',
   api: createMasterApi<ItemUnit>('/item-units'),
   columns: [

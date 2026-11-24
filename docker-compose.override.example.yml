@@ -7,7 +7,9 @@
 #   db       55432 → tool บน host เช่น sqlx-cli, psql, GUI client (5432 มักถูก Postgres อื่นจับอยู่)
 #   frontend 3000  → เปิดหน้าเว็บตรง ๆ ในเบราว์เซอร์ระหว่างไม่รัน caddy หน้าบ้าน (80/443 ชนกับ XAMPP/IIS ได้)
 #   backend  8081  → ให้ `bun run dev` (Vite ที่ 5173) proxy /api มาหา backend จริง (ดู frontend/vite.config.ts)
-# พอร์ตฝั่ง container คงเดิม (db 5432, frontend 8080, backend 8080)
+#   chatbot  8082  → ยิงทดสอบ chatbot ใน container ตรง ๆ (เลขเดียวกับ dev server นอก Docker: chatbot/scripts/dev.py
+#                    — รันพร้อมกันไม่ได้ เลือกอย่างใดอย่างหนึ่ง)
+# พอร์ตฝั่ง container คงเดิม (db 5432, frontend 8080, backend 8080, chatbot 8000)
 
 services:
   db:
@@ -26,6 +28,10 @@ services:
   backend:
     ports:
       - "127.0.0.1:8081:8080"
+
+  chatbot:
+    ports:
+      - "127.0.0.1:8082:8000"
 
 networks:
   dev:

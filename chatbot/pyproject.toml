@@ -1,0 +1,56 @@
+[project]
+name = "my-his-chatbot"
+version = "0.1.0"
+description = "Chatbot service ภายในของ my-his (เรียกผ่าน backend Rust เท่านั้น)"
+readme = "README.md"
+requires-python = ">=3.14,<3.15"
+dependencies = [
+    "fastapi>=0.165.0",
+    "gunicorn>=27.0.1",
+    "httpx>=0.28.1",
+    "psycopg[binary,pool]>=3.3.9",
+    "pydantic>=2.14.4",
+    "pydantic-settings>=2.16.3",
+    "python-dotenv>=1.2.4",
+    "uvicorn-worker>=0.4.0",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[dependency-groups]
+dev = [
+    "pyrefly>=1.5.0",
+    "pytest>=9.2.0",
+    "ruff>=0.17.6",
+]
+
+[build-system]
+requires = ["uv_build>=0.11,<0.12"]
+build-backend = "uv_build"
+
+# --- เครื่องมือ (docs/python-guidelines.md ข้อ 18) ---
+# pyrefly ต้องผ่านก่อนรันทุกครั้ง: scripts/dev.py, tests/conftest.py (pytest_sessionstart) และ Dockerfile บังคับไว้แล้ว
+
+[tool.ruff]
+target-version = "py314"
+line-length = 120
+src = ["src", "tests", "scripts"]
+
+[tool.ruff.lint]
+# เลือกให้ตรงกับเอกสารกฎ: ANN = annotate ทุกฟังก์ชัน (ข้อ 4), ASYNC = งานบล็อกใน async (ข้อ 6), S = ความปลอดภัย (ข้อ 11, 20),
+# T20 = ห้าม print (ข้อ 13), DTZ = ห้าม datetime ไม่มี timezone (ข้อ 14), BLE = ห้ามจับ Exception กว้าง ๆ (ข้อ 2)
+select = ["E", "W", "F", "I", "UP", "B", "BLE", "SIM", "ASYNC", "S", "DTZ", "ANN", "T20", "PT", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# assert คือภาษาของ pytest
+"tests/**" = ["S101"]
+
+[tool.ruff.format]
+# ค่ามาตรฐานของ ruff (เทียบเท่า black) ไม่ปรับเอง
+
+[tool.pyrefly]
+project-includes = ["src", "tests", "scripts", "gunicorn.conf.py"]
+python-version = "3.14"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--strict-config"]

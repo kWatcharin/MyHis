@@ -16,7 +16,8 @@ const buttonVariants = cva(
           "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
         destructive:
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
-        // ปุ่มการกระทำมาตรฐาน (ดู components/layout/ActionButtons.tsx): เพิ่ม = เขียว, แก้ไข = ส้ม, ลบ = แดง
+        // สีตามความหมายการกระทำ: success = ปุ่มเพิ่ม (AddButton ใน components/layout/ActionButtons.tsx), danger = ปุ่มยืนยันลบ
+        // ใน dialog, warning = ปุ่มที่ต้องระวัง — ปุ่มแก้ไข/ลบในแถวตารางใช้ outline/ghost สีเรียบ (ดูเหตุผลใน ActionButtons.tsx)
         // สีมาจาก token ของแต่ละธีมใน index.css (ตัวอักษรขาว) — shadcn CLI เขียนทับไฟล์นี้ได้ ถ้าเพิ่ม component ต้องเช็คว่า 3 variant นี้ยังอยู่
         success:
           "bg-success text-success-foreground hover:bg-success/85 focus-visible:border-success/50 focus-visible:ring-success/30",

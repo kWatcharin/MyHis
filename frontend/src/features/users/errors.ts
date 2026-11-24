@@ -12,7 +12,7 @@ const KNOWN_ERRORS: Record<string, string> = {
   'unknown prename': 'ไม่พบคำนำหน้านี้ (อาจถูกลบไปแล้ว) ลองรีเฟรชหน้า',
   'a user must have at least one role': 'ต้องเลือกอย่างน้อย 1 role',
   'cannot deactivate your own account': 'ปิดใช้งานบัญชีของตัวเองไม่ได้',
-  'cannot reset your own password': 'รีเซ็ตรหัสผ่านของตัวเองไม่ได้ — กดชื่อผู้ใช้ท้ายเมนูแล้วเลือก "เปลี่ยนรหัสผ่าน" แทน',
+  'cannot reset your own password': 'รีเซ็ตรหัสผ่านของตัวเองไม่ได้ กดชื่อผู้ใช้ท้ายเมนูแล้วเลือก "เปลี่ยนรหัสผ่าน" แทน',
   'cannot remove your own role management permission':
     'บัญชีของตัวเองต้องเหลือสิทธิ์ "ดู" และ "แก้ไข" การตั้งค่าสิทธิ์ (กันล็อกตัวเองออกจากระบบจัดการ)',
   'not found': 'ไม่พบผู้ใช้หรือ role นี้ (อาจถูกลบไปแล้ว) ลองรีเฟรชหน้า',

@@ -157,7 +157,7 @@ export function ItemsSettingsPage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         fallbackTitle="ตั้งค่ารายการคลัง"
-        description="รายการที่เก็บในคลัง (ยา เวชภัณฑ์ วัสดุแล็บ) พร้อมหน่วยฐานและหน่วยแปลง — จำนวนทุกช่องนับเป็นหน่วยฐาน"
+        description="รายการที่เก็บในคลัง (ยา เวชภัณฑ์ วัสดุแล็บ) พร้อมหน่วยฐานและหน่วยแปลง จำนวนทุกช่องนับเป็นหน่วยฐาน"
       />
 
       <SearchForm
@@ -192,7 +192,7 @@ export function ItemsSettingsPage() {
           )}
           {status === 'ready' && items.length > 0 && visibleItems.length === 0 && (
             <ListState kind="noMatch">
-              ไม่พบรายการที่ตรงกับเงื่อนไข — กด &quot;ล้างข้อมูล&quot; เพื่อดูทั้งหมด
+              ไม่พบรายการที่ตรงกับเงื่อนไข กด &quot;ล้างข้อมูล&quot; เพื่อดูทั้งหมด
             </ListState>
           )}
           {status === 'ready' && visibleItems.length > 0 && (

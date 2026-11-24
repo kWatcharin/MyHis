@@ -192,7 +192,7 @@ export function LabVisitPrintPage() {
 
       {!canViewPatients && (
         <p className="p-6 text-sm text-neutral-600">
-          เอกสารมีชื่อ/HN จากทะเบียนผู้ป่วย — ต้องมีสิทธิ์ &quot;ดู&quot; ผู้ป่วยด้วยถึงจะพิมพ์ได้
+          เอกสารมีชื่อ/HN จากทะเบียนผู้ป่วย ต้องมีสิทธิ์ &quot;ดู&quot; ผู้ป่วยด้วยถึงจะพิมพ์ได้
         </p>
       )}
       {canViewPatients && !validId && (

@@ -2,12 +2,16 @@ import { Pencil, Plus, Trash2 } from 'lucide-react'
 import type { ComponentProps } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 type ButtonProps = Omit<ComponentProps<typeof Button>, 'variant'>
 
-// ปุ่มการกระทำมาตรฐานของหน้ารายการทุกหน้า — สีและไอคอนตายตัวให้เหมือนกันทั้งระบบ:
-//   เพิ่ม = เขียว + ไอคอนบวก, แก้ไข = ส้ม + ไอคอนดินสอ, ลบ = แดง + ไอคอนถังขยะ
-// สีมาจาก token ของธีม (success / warning / danger ใน index.css — โทนเดียวกัน ตัวอักษรขาว) จึงปรับตามธีมที่เลือกเอง
+// ปุ่มการกระทำมาตรฐานของหน้ารายการทุกหน้า — ไอคอนตายตัวให้เหมือนกันทั้งระบบ:
+//   เพิ่ม = ปุ่มหลักของหน้า สีเขียวเต็ม (success) + ไอคอนบวก — มีหน้าละปุ่มเดียวที่แถบเหนือตาราง
+//   แก้ไข = ปุ่ม outline สีกลาง + ไอคอนดินสอ, ลบ = ปุ่มโปร่ง ตัวอักษรสีแดง (danger-ink) + ไอคอนถังขยะ
+// ปุ่มในแถวตารางสีเรียบโดยตั้งใจ (2026-11-24): ตารางยาว ๆ ที่ทุกแถวมีปุ่มสีทึบสองปุ่มลายตาและแย่งความสนใจจากข้อมูล
+// สีแดงทึบเก็บไว้ให้ปุ่มยืนยันลบใน dialog — การกระทำที่ย้อนไม่ได้ต้องเด่นตอนยืนยัน ไม่ใช่ตอนไล่ดูรายการ
+// สีมาจาก token ของธีม (index.css) จึงปรับตามธีมที่เลือกเอง
 
 export function AddButton({ children, ...props }: ButtonProps) {
   return (
@@ -20,16 +24,24 @@ export function AddButton({ children, ...props }: ButtonProps) {
 
 export function EditButton({ children = 'แก้ไข', ...props }: ButtonProps) {
   return (
-    <Button variant="warning" size="sm" {...props}>
+    <Button variant="outline" size="sm" {...props}>
       <Pencil />
       {children}
     </Button>
   )
 }
 
-export function DeleteButton({ children = 'ลบ', ...props }: ButtonProps) {
+export function DeleteButton({ children = 'ลบ', className, ...props }: ButtonProps) {
   return (
-    <Button variant="danger" size="sm" {...props}>
+    <Button
+      variant="ghost"
+      size="sm"
+      className={cn(
+        'text-danger-ink hover:bg-danger/10 hover:text-danger-ink dark:hover:bg-danger/20',
+        className,
+      )}
+      {...props}
+    >
       <Trash2 />
       {children}
     </Button>

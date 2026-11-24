@@ -56,7 +56,7 @@ export function ExportMenu({ disabled, onExcel, onPdf }: ExportMenuProps) {
         ))}
         <DropdownMenuSeparator />
         <p className="px-1.5 py-1 text-xs text-muted-foreground">
-          เอกสารมี HN และชื่อคนไข้ — เก็บไฟล์ให้ปลอดภัย
+          เอกสารมี HN และชื่อคนไข้ เก็บไฟล์ให้ปลอดภัย
         </p>
       </DropdownMenuContent>
     </DropdownMenu>

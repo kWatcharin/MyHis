@@ -61,6 +61,49 @@
     --radius-2xl: calc(var(--radius) * 1.8);
     --radius-3xl: calc(var(--radius) * 2.2);
     --radius-4xl: calc(var(--radius) * 2.6);
+
+    /* แถบ monitor หน้าทางเข้า (components/backdrop/VitalsBand.tsx) — ความยาวจังหวะมาจาก --beat ที่ตั้งบนแถบ
+       เส้น ECG เลื่อนหนึ่งช่วงคลื่น (100px) ต่อหนึ่งจังหวะ หัวใจเต้นสองจังหวะสั้น (lub-dub) ต่อหนึ่งรอบ */
+    --animate-ecg-scroll: ecg-scroll var(--beat, 1s) linear infinite;
+    --animate-heartbeat: heartbeat var(--beat, 1s) ease-out infinite;
+
+    @keyframes ecg-scroll {
+        to {
+            transform: translateX(-100px);
+        }
+    }
+    @keyframes heartbeat {
+        0%,
+        100% {
+            transform: scale(1);
+        }
+        14% {
+            transform: scale(1.14);
+        }
+        28% {
+            transform: scale(1);
+        }
+        40% {
+            transform: scale(1.08);
+        }
+        60% {
+            transform: scale(1);
+        }
+    }
+}
+
+/* พื้นกระดาษกราฟ ECG ของแถบ monitor (เป็นพื้นผิวการวัดจริง ไม่ใช่กริดตกแต่ง): ช่องใหญ่ 25px / ช่องเล็ก 5px
+   พื้น = --muted ของธีม เส้นกริด = --foreground จาง ๆ (สีกลางของธีม ไม่อมสี primary — ธีมสว่างจะไม่ออกชมพู)
+   ให้เส้น ECG สี primary เด่นเป็นสิ่งเดียวบนแถบ */
+@utility bg-ecg-grid {
+    background-color: var(--muted);
+    background-image:
+        linear-gradient(color-mix(in oklch, var(--foreground) 8%, transparent) 1px, transparent 1px),
+        linear-gradient(90deg, color-mix(in oklch, var(--foreground) 8%, transparent) 1px, transparent 1px),
+        linear-gradient(color-mix(in oklch, var(--foreground) 3.5%, transparent) 1px, transparent 1px),
+        linear-gradient(90deg, color-mix(in oklch, var(--foreground) 3.5%, transparent) 1px, transparent 1px);
+    background-size: 25px 25px, 25px 25px, 5px 5px, 5px 5px;
+    background-position: -1px -1px;
 }
 
 /* ค่าตั้งต้นของทุกธีม — ธีมจริงตั้งด้วย class บน <html> เสมอ (public/theme-init.js) ค่าที่ธีมไม่ได้ตั้งตกมาที่นี่
@@ -279,5 +322,16 @@
   ::selection {
     background-color: color-mix(in oklch, var(--primary) 30%, transparent);
     color: var(--foreground);
+    }
+  /* ช่องที่เบราว์เซอร์/ตัวจัดการรหัสผ่านเติมให้ (autofill) — Chrome ทาพื้นฟ้า/เหลืองของตัวเองแบบ !important ซึ่งโดดมากบนธีมมืด
+     ทับด้วยเงา inset สีพื้นการ์ดผสม primary จาง ๆ (ยังบอกได้ว่า "เติมให้แล้ว" แต่เป็นสีของธีม) ตัวอักษรใช้ foreground
+     ใช้ --tw-inset-shadow แทน box-shadow ตรง ๆ เพราะวงโฟกัสของ Tailwind (ring) ประกอบ box-shadow จากตัวแปรนี้ด้วย
+     — ตอนโฟกัสพื้นจึงไม่เด้งกลับเป็นสีของเบราว์เซอร์ */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus {
+    -webkit-text-fill-color: var(--foreground);
+    --tw-inset-shadow: inset 0 0 0 100vmax color-mix(in oklch, var(--primary) 10%, var(--card));
+    box-shadow: var(--tw-inset-shadow);
     }
 }

@@ -170,7 +170,7 @@ export function PageFormDialog({
                     <Input {...field} id="page-icon" placeholder="home" />
                   </div>
                   <FieldDescription>
-                    ชื่อ slug ของ lucide เช่น home, layout-list, shield-check — ดูรายชื่อไอคอนทั้งหมดได้ที่{' '}
+                    ชื่อ slug ของ lucide เช่น home, layout-list, shield-check ดูรายชื่อไอคอนทั้งหมดได้ที่{' '}
                     {/* แท็บใหม่ ไม่ส่ง opener/referrer ไปเว็บภายนอก */}
                     <a
                       href="https://lucide.dev/icons/"
@@ -219,7 +219,7 @@ export function PageFormDialog({
                     ))}
                   </NativeSelect>
                   <FieldDescription>
-                    เลือกได้เฉพาะเพจหลักที่เป็นหัวข้อกลุ่ม (ไม่มี route) — เมนูมี 2 ชั้น
+                    เลือกได้เฉพาะเพจหลักที่เป็นหัวข้อกลุ่ม (ไม่มี route) เพราะเมนูมี 2 ชั้น
                   </FieldDescription>
                 </Field>
               )}
@@ -231,7 +231,7 @@ export function PageFormDialog({
                 <Field>
                   <FieldLabel>สิทธิ์ที่ต้องมีถึงจะเห็นเพจนี้</FieldLabel>
                   <FieldDescription>
-                    มีสิทธิ์ข้อใดข้อหนึ่งก็เห็น — ไม่เลือกเลย = หน้าสาธารณะ ทุกคนที่ login แล้วเห็นได้
+                    มีสิทธิ์ข้อใดข้อหนึ่งก็เห็น ไม่เลือกเลย = หน้าสาธารณะ ทุกคนที่ login แล้วเห็นได้
                   </FieldDescription>
                   <div className="flex flex-col gap-2">
                     {visibilityOptions(field.value).map((permission) => (

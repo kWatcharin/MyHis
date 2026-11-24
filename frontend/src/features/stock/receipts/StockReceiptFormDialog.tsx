@@ -133,7 +133,7 @@ function buildSchema(options: ReceiptOptions | null, today: string) {
         if (duplicate) {
           issue(
             ['lines', index, item.trackLot ? 'lotNo' : 'itemId'],
-            'ล็อตซ้ำกับบรรทัดก่อนหน้า — รวมเป็นบรรทัดเดียว',
+            'ล็อตซ้ำกับบรรทัดก่อนหน้า รวมเป็นบรรทัดเดียว',
           )
         }
       })
@@ -343,7 +343,7 @@ export function StockReceiptFormDialog({
                       </NativeSelect>
                       <FieldDescription>
                         {budgetYears.length === 0
-                          ? 'ยังไม่มีปีงบประมาณที่ใช้งานอยู่ — เพิ่มได้ที่ การตั้งค่า > ตั้งค่าปีงบประมาณ'
+                          ? 'ยังไม่มีปีงบประมาณที่ใช้งานอยู่ เพิ่มได้ที่ การตั้งค่า > ตั้งค่าปีงบประมาณ'
                           : selectedYear
                             ? `${formatThaiDate(selectedYear.startDate)} – ${formatThaiDate(selectedYear.endDate)} · เลขที่ใบรันต่อปีงบ`
                             : 'เลขที่ใบรันต่อปีงบ'}
@@ -420,7 +420,7 @@ export function StockReceiptFormDialog({
                 <FieldLabel>รายการที่รับ</FieldLabel>
                 <FieldDescription>
                   จำนวนเลือกหน่วยได้ (หน่วยฐานหรือหน่วยแปลงของรายการ) ระบบเก็บเป็นหน่วยฐาน
-                  {items.length === 0 && ' — ยังไม่มีรายการคลังที่ใช้งานอยู่ เพิ่มได้ที่ การตั้งค่า > ตั้งค่ารายการคลัง'}
+                  {items.length === 0 && ' (ยังไม่มีรายการคลังที่ใช้งานอยู่ เพิ่มได้ที่ การตั้งค่า > ตั้งค่ารายการคลัง)'}
                 </FieldDescription>
                 {lineRows.fields.map((row, index) => {
                   const line = lines[index]

@@ -10,8 +10,10 @@
 | `frontend` | Caddy อีกตัวที่เสิร์ฟหน้าเว็บ (SPA) + security header + proxy `/api/*` ไป `backend` (`frontend/Caddyfile`) | ไม่ |
 | `backend` | Axum API (ไม่เสิร์ฟหน้าเว็บ ไม่ตั้ง security header เอง) | ไม่ |
 | `db` | PostgreSQL | ไม่ |
+| `chatbot` | Python/FastAPI (gunicorn + uvicorn worker, `chatbot/`) — service ภายใน เรียกได้จาก `backend` เท่านั้น (วางโครง ยังไม่มีตรรกะ) | ไม่ |
 
 เส้นทางทราฟฟิก: อินเทอร์เน็ต → `caddy` → `frontend:8080` → (`/api/*`) `backend:8080` → `db`
+และ `backend` → `chatbot:8000` (backend ตรวจ session/สิทธิ์/audit และคัดกรองข้อมูลผู้ป่วยก่อนส่งต่อ — chatbot ไม่มีโค้ด auth ของตัวเอง)
 **ห้ามชี้ `caddy` ไปที่ `backend` ตรง ๆ** — ข้าม CSP/`X-Frame-Options`/`Cache-Control: no-store` ทั้งหมด และไม่มีหน้าเว็บให้เสิร์ฟ
 
 - **`DOMAIN`:** `caddy` ได้ค่า `DOMAIN` ผ่าน `environment:` ใน `docker-compose.yml` (ไม่ตั้ง = `localhost` ซึ่งออกใบรับรองภายในเครื่อง
@@ -32,6 +34,12 @@
   ช่องที่เหลือ: แยก ‘ว่างระหว่าง request’ กับ ‘ค้างกลาง header’ ไม่ได้ (ต้องใช้ `header_read_timeout` ของ hyper = ต้องเพิ่ม `hyper-util` เป็น dependency ตรง —
   ยังไม่ทำ รอเจ้าของอนุมัติ) คนส่ง header ทีละไบต์จึงถือ connection ได้จนกว่า `read_header 10s` ของ Caddy จะตัด ดังนั้นยัง **ต้องไม่ publish
   `backend` (และ `frontend`) ให้เข้าถึงโดยไม่ผ่าน Caddy**
+- **`chatbot`:** ได้ environment เฉพาะ `CHATBOT_*` ทีละตัว (ไม่ใช้ `env_file: .env` — ไม่เห็น key เข้ารหัส/รหัส DB) รันเป็น `nobody`
+  `backend` ไม่ `depends_on` chatbot (chatbot ล่มต้องไม่ทำให้ระบบหลักขึ้นไม่ได้) **ลำดับ keep-alive:** gunicorn `keepalive 120`
+  (= `timeout_keep_alive` ของ uvicorn) ต้องนานกว่า pool idle ของ client ฝั่ง backend (reqwest ปริยาย 90 วินาที) — กฎเดียวกับ backend vs Caddy ด้านบน
+  ยังไม่ต่อวง `data` และยังไม่มี role DB (`chatbot/README.md` งานถัดไป)
+- **งบหน่วยความจำ** (เครื่อง 4 GB): `backend` 1g + `caddy` 256m + `frontend` 256m + `chatbot` 512m ≈ 2 GB ที่ตั้งเพดานไว้
+  ที่เหลือเป็นของ `db` (ไม่ตั้ง `mem_limit`) และระบบปฏิบัติการ — เพิ่มเพดานของ service ใดให้ดูยอดรวมนี้ก่อน
 - `restart: unless-stopped` ทุก service — Docker/เครื่องรีสตาร์ทแล้วระบบขึ้นเอง (ต้อง `docker compose up -d` อีกครั้งหลังแก้ไฟล์นี้เพื่อสร้าง container ใหม่)
 
 Cache และ queue ยังไม่มีในระบบ ถ้าวันหนึ่งต้องมีงานเบื้องหลัง (ส่งแจ้งเตือน, สร้างไฟล์สรุป)
@@ -40,18 +48,19 @@ Cache และ queue ยังไม่มีในระบบ ถ้าวั
 
 ## 2. Network
 
-แยกเป็นสามวง (`docker-compose.yml` ประกาศ `networks:` ชัดเจน — รอบ 4 ของ security audit; ก่อนหน้านี้ทุก service อยู่ network `default` เดียว)
+แยกเป็นสี่วง (`docker-compose.yml` ประกาศ `networks:` ชัดเจน — รอบ 4 ของ security audit; ก่อนหน้านี้ทุก service อยู่ network `default` เดียว)
 
 | วง | สมาชิก | หมายเหตุ |
 |---|---|---|
 | `edge` | `caddy`, `frontend` | หน้าบ้าน |
 | `app` | `frontend`, `backend` | `frontend` proxy `/api/*` ไป `backend`; **ไม่ใช่ internal** เพราะ `backend` ต้องออกเน็ตไป Cloudflare Turnstile (siteverify) |
 | `data` | `backend`, `db` | `internal: true` — ไม่มีทางออกนอกเครื่อง และ publish พอร์ตผ่านวงนี้ไม่ได้ |
+| `chat` | `backend`, `chatbot` | **ไม่ใช่ internal** เพราะ `chatbot` ต้องออกเน็ตไป LLM API; `frontend`/`caddy` ไม่อยู่วงนี้จึงข้ามด่าน auth ของ backend ไม่ได้ |
 
-`caddy` ต้องไม่เห็น `db` (และไม่เห็น `backend`) และ `db` ต้องไม่ publish พอร์ต 5432 ออกจากเครื่อง
+`caddy` ต้องไม่เห็น `db` (และไม่เห็น `backend`, `chatbot`) `frontend` ต้องไม่เห็น `chatbot` (`ops/check-deploy.sh` ข้อ 3 ตรวจให้) และ `db` ต้องไม่ publish พอร์ต 5432 ออกจากเครื่อง
 ถ้าต้องต่อฐานข้อมูลจากเครื่องส่วนตัว ให้ใช้ SSH tunnel (dev: `docker-compose.override.yml` ที่ git-ignore ต่อ `db` เข้า network `dev`
 เพิ่มเพื่อ publish `127.0.0.1:55432` — ไฟล์นี้ไม่ขึ้น production; เครื่อง dev ใหม่คัดลอกจาก `docker-compose.override.example.yml`
-(`cp docker-compose.override.example.yml docker-compose.override.yml`) ซึ่ง publish db 55432 / frontend 3000 / backend 8081 ที่ `127.0.0.1` เท่านั้น)
+(`cp docker-compose.override.example.yml docker-compose.override.yml`) ซึ่ง publish db 55432 / frontend 3000 / backend 8081 / chatbot 8082 ที่ `127.0.0.1` เท่านั้น)
 
 `db` ได้ environment เฉพาะ `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` (ไม่ใช้ `env_file: .env`) — `.env` มีคีย์เข้ารหัสข้อมูลผู้ป่วย
 และ entrypoint ของ image postgres ลบเฉพาะตัวแปร `POSTGRES_*` ก่อนรัน server ตัวแปรอื่นจึงค้างอยู่ใน environment ของ process ที่ SQL ระดับ

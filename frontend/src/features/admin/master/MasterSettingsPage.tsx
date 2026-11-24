@@ -145,7 +145,7 @@ export function MasterSettingsPage<T extends { id: string }>({ config }: { confi
           )}
           {status === 'ready' && items.length > 0 && visibleItems.length === 0 && (
             <ListState kind="noMatch">
-              ไม่พบ{config.entityLabel}ที่ตรงกับเงื่อนไข — กด &quot;ล้างข้อมูล&quot; เพื่อดูทั้งหมด
+              ไม่พบ{config.entityLabel}ที่ตรงกับเงื่อนไข กด &quot;ล้างข้อมูล&quot; เพื่อดูทั้งหมด
             </ListState>
           )}
           {status === 'ready' && visibleItems.length > 0 && (

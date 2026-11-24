@@ -288,7 +288,7 @@ export function ItemFormDialog({
                       </NativeSelect>
                       {categories.length === 0 && (
                         <FieldDescription>
-                          ยังไม่มีหมวด — เพิ่มได้ที่ การตั้งค่า &gt; ตั้งค่าหมวดคลัง
+                          ยังไม่มีหมวด เพิ่มได้ที่ การตั้งค่า &gt; ตั้งค่าหมวดคลัง
                         </FieldDescription>
                       )}
                       {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
@@ -311,8 +311,8 @@ export function ItemFormDialog({
                       </NativeSelect>
                       <FieldDescription>
                         {units.length === 0
-                          ? 'ยังไม่มีหน่วยนับ — เพิ่มได้ที่ การตั้งค่า > ตั้งค่าหน่วยนับ'
-                          : 'หน่วยเล็กสุดที่เบิกจริง จำนวนทุกช่องของรายการนี้นับเป็นหน่วยนี้ — เลือกให้ถูกตั้งแต่แรก'}
+                          ? 'ยังไม่มีหน่วยนับ เพิ่มได้ที่ การตั้งค่า > ตั้งค่าหน่วยนับ'
+                          : 'หน่วยเล็กสุดที่เบิกจริง จำนวนทุกช่องของรายการนี้นับเป็นหน่วยนี้ เลือกให้ถูกตั้งแต่แรก'}
                       </FieldDescription>
                       {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
                     </Field>
@@ -479,7 +479,7 @@ export function ItemFormDialog({
                         min={0}
                         aria-invalid={fieldState.invalid}
                       />
-                      <FieldDescription>เตือนเมื่อคงเหลือ ≤ ค่านี้ — เว้นว่าง = ไม่ตั้ง</FieldDescription>
+                      <FieldDescription>เตือนเมื่อคงเหลือ ≤ ค่านี้ (เว้นว่าง = ไม่ตั้ง)</FieldDescription>
                       {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
                     </Field>
                   )}
